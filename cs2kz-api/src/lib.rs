@@ -102,6 +102,7 @@ pub mod middleware;
 			routes::records::CreatedRecordResponse,
 
 			routes::auth::AuthRequest,
+			routes::auth::AuthResponse,
 		),
 	),
 
