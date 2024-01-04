@@ -10,6 +10,9 @@ repository = "https://github.com/KZGlobalTeam/cs2kz-api.git"
 license-file = "../LICENSE"
 publish = false
 
+[features]
+console = ["dep:console-subscriber", "tokio/tracing"]
+
 [dependencies]
 dotenvy = { workspace = true }
 color-eyre = { workspace = true }
@@ -26,6 +29,10 @@ serde_json = { workspace = true }
 [dependencies.cs2kz]
 path = "../cs2kz"
 features = ["serde", "utoipa", "sqlx"]
+
+[dependencies.console-subscriber]
+version = "0.2"
+optional = true
 
 [dependencies.axum]
 version = "0.7"

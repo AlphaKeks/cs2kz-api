@@ -51,6 +51,9 @@ sqlx-cache:
 dev:
 	cargo run -p cs2kz-api
 
+dev-debug:
+	RUSTFLAGS="--cfg tokio_unstable" cargo run -p cs2kz-api -F console
+
 check:
 	cargo clippy --all-features --workspace -- -D warnings
 

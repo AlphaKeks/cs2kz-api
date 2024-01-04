@@ -28,7 +28,12 @@ pub fn init() {
 		.with_span_events(span_events)
 		.with_filter(filter);
 
-	tracing_subscriber::registry().with(stderr).init();
+	let registry = tracing_subscriber::registry().with(stderr);
+
+	#[cfg(feature = "console")]
+	let registry = registry.with(console_subscriber::spawn());
+
+	registry.init();
 
 	info!(%level, "Initialized logging");
 }
