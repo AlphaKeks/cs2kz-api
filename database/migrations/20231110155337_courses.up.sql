@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS CourseFilters (
 	`teleports` BOOLEAN NOT NULL,
 	`tier` INT1 UNSIGNED NOT NULL,
 	`ranked_status` INT1 NOT NULL,
+	`description` TEXT,
 	PRIMARY KEY (`id`),
 	FOREIGN KEY (`course_id`) REFERENCES Courses (`id`),
 	FOREIGN KEY (`mode_id`) REFERENCES Modes (`id`),

@@ -35,6 +35,7 @@ static GET_BASE_QUERY: &str = r#"
 		f.teleports filter_teleports,
 		f.tier filter_tier,
 		f.ranked_status filter_ranked,
+		f.description filter_description,
 		m.filesize,
 		m.created_on,
 		m.updated_on

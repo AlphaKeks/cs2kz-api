@@ -251,6 +251,10 @@ pub struct Filter {
 
 	/// The ranked status of this filter.
 	pub ranked_status: RankedStatus,
+
+	/// The filter's description.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub description: Option<String>,
 }
 
 /// The ranked status of a [Filter].
@@ -339,6 +343,8 @@ impl FromRow<'_, MySqlRow> for KZMap {
 			.try_into()
 			.expect("invalid `ranked_status`");
 
+		let filter_description = row.try_get("filter_description")?;
+
 		let courses = vec![Course {
 			id: course_id,
 			stage: course_stage,
@@ -349,6 +355,7 @@ impl FromRow<'_, MySqlRow> for KZMap {
 				teleports: filter_teleports,
 				tier: filter_tier,
 				ranked_status: filter_ranked,
+				description: filter_description,
 			}],
 		}];
 
