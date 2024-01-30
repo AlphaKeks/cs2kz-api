@@ -7,5 +7,5 @@
   responses((status = OK, description = "(͡ ͡° ͜ つ ͡͡°)")),
 )]
 pub async fn hello_world() -> &'static str {
-	"(͡ ͡° ͜ つ ͡͡°)"
+	"(͡ ͡° ͜ つ ͡͡°) from staging"
 }
