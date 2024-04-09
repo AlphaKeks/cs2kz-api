@@ -27,6 +27,7 @@ pub fn router(state: &'static State) -> Router {
 		.with_state(state);
 
 	let by_id = Router::new()
+		.route("/reasons", get(handlers::reasons::get))
 		.route("/:id", get(handlers::by_id::get))
 		.route_layer(cors::permissive())
 		.route("/:id", patch(handlers::by_id::patch).route_layer(auth()))

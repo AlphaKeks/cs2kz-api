@@ -16,6 +16,7 @@ use utoipa::ToSchema;
 use crate::players::Player;
 use crate::servers::ServerInfo;
 use crate::sqlx::query;
+use crate::time::Weeks;
 
 /// A player ban.
 #[derive(Debug, Serialize, ToSchema)]
@@ -222,4 +223,17 @@ pub struct CreatedUnban {
 	/// The unban's ID.
 	#[schema(value_type = u64)]
 	pub unban_id: NonZeroU64,
+}
+
+/// Information about a ban reason.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct BanReasonInfo {
+	/// The ban reason.
+	pub reason: BanReason,
+
+	/// The amount of previous bans necessary
+	pub previous_offenses: u8,
+
+	/// The ban duration in weeks.
+	pub weeks: Weeks,
 }

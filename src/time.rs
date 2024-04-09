@@ -53,3 +53,37 @@ impl<'de> Deserialize<'de> for Seconds {
 			.map(Self)
 	}
 }
+
+/// Wrapper around [`std::time::Duration`], which takes care of encoding / decoding as weeks.
+#[derive(Debug, Display, Deref, DerefMut, From, Into, ToSchema)]
+#[display("{}", self.as_weeks())]
+#[schema(value_type = u16)]
+pub struct Weeks(pub Duration);
+
+impl Weeks {
+	/// Returns the amount of weeks.
+	pub fn as_weeks(&self) -> u16 {
+		u16::try_from(self.0.as_secs() / 60 / 60 / 24 / 7).expect("invalid amount of seconds")
+	}
+}
+
+impl Serialize for Weeks {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		self.as_weeks().serialize(serializer)
+	}
+}
+
+impl<'de> Deserialize<'de> for Weeks {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		u16::deserialize(deserializer)
+			.map(|weeks| (weeks as u64) * 7 * 24 * 60 * 60)
+			.map(Duration::from_secs)
+			.map(Self)
+	}
+}
