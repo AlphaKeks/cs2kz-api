@@ -16,27 +16,35 @@ use crate::servers::ServerID;
 use crate::sqlx::SqlErrorExt;
 use crate::{Error, Result, State};
 
+/// fuck you
+mod balls {
+	/// fuck you
+	pub use cs2kz::PlayerIdentifier;
+}
+
 /// Fetch a specific player.
 ///
 /// If you send a cookie that shows you're "logged in", and you happen to have permissions for
 /// managing bans, the response will include the player's IP address.
-#[tracing::instrument(level = "debug", skip(state))]
-#[utoipa::path(
-  get,
-  path = "/players/{player}",
-  tag = "Players",
-  params(PlayerIdentifier),
-  responses(
-    responses::Ok<FullPlayer>,
-    responses::NoContent,
-    responses::BadRequest,
-    responses::InternalServerError,
-  ),
-)]
+// #[tracing::instrument(level = "debug", skip(state))]
+// #[utoipa::path(
+//   get,
+//   path = "/players/{player}",
+//   tag = "Players",
+//   params(PlayerIdentifier),
+//   responses(
+//     responses::Ok<FullPlayer>,
+//     responses::NoContent,
+//     responses::BadRequest,
+//     responses::InternalServerError,
+//   ),
+// )]
+#[cs2kz_api_macros::handler(tag = "Players", path = "/players/{player}", responses = 200)]
+// #[utoipa::path(get, path = "/players/{player}")]
 pub async fn get(
 	state: &State,
 	session: Option<auth::Session<auth::HasRoles<{ RoleFlags::BANS.value() }>>>,
-	Path(player): Path<PlayerIdentifier>,
+	Path(player): Path<balls::PlayerIdentifier>,
 ) -> Result<Json<FullPlayer>> {
 	let mut query = QueryBuilder::new(queries::SELECT);
 

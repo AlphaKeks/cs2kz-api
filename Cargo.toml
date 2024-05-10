@@ -47,12 +47,15 @@ members = ["crates/spec-generator", "crates/macros"]
 production = []
 console = ["dep:console-subscriber", "tokio/tracing"]
 
-[workspace.dependencies.eyre]
-version = "0.6"
-
 [dependencies.cs2kz]
 path = "./crates/cs2kz"
 features = ["serde", "sqlx", "utoipa"]
+
+[dependencies.cs2kz-api-macros]
+path = "./crates/macros"
+
+[workspace.dependencies.eyre]
+version = "0.6"
 
 [dependencies.thiserror]
 version = "1.0"
@@ -186,6 +189,3 @@ version = "1.4"
 
 [dev-dependencies.ctor]
 version = "0.2"
-
-[dev-dependencies.cs2kz-api-macros]
-path = "./crates/macros"
