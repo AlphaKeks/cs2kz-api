@@ -15,10 +15,144 @@ production = ["docker"]
 [lints]
 workspace = true
 
-[dependencies]
+[dependencies.cs2kz]
+path = "./crates/cs2kz"
+
+[dependencies.cs2kz-api-macros]
+path = "./crates/macros"
+
+[dependencies.anyhow]
+workspace = true
+
+[dependencies.thiserror]
+workspace = true
+
+[dependencies.dotenvy]
+version = "0.15"
+
+[dependencies.tokio]
+version = "1"
+features = ["rt-multi-thread", "macros", "signal", "process"]
+
+[dependencies.axum]
+version = "0.7"
+default-features = false
+features = ["http1", "http2", "json", "macros", "tokio", "query"]
+
+[dependencies.axum-extra]
+version = "0.9"
+default-features = false
+features = ["cookie", "query", "typed-header"]
+
+[dependencies.tower-http]
+version = "0.5"
+features = ["trace", "cors"]
+
+[dependencies.futures]
+version = "0.3"
+default-features = false
+features = ["std"]
+
+[dependencies.sqlx]
+version = "0.7.4"
+default-features = false
+features = [
+  "runtime-tokio",
+  "tls-rustls",
+  "macros",
+  "mysql",
+  "json",
+  "chrono",
+  "time",
+  "uuid",
+]
+
+[dependencies.utoipa]
+version = "4.2"
+features = [
+  "axum_extras",
+  "debug",
+  "chrono",
+  "uuid",
+  "url",
+  "preserve_order",
+  "preserve_path_order",
+  "non_strict_integers",
+]
+
+[dependencies.utoipa-swagger-ui]
+version = "6.0.0"
+features = ["axum"]
+
+[dependencies.tracing]
+version = "0.1"
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+default-features = false
+features = ["ansi", "env-filter"]
+
+[dependencies.tracing-appender]
+version = "0.2"
+
+[dependencies.reqwest]
+version = "0.12"
+default-features = false
+features = ["rustls-tls", "json"]
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1"
+
+[dependencies.serde_urlencoded]
+version = "0.7"
+
+[dependencies.chrono]
+version = "0.4"
+default-features = false
+features = ["std", "clock", "serde"]
+
+[dependencies.time]
+version = "0.3"
+features = ["serde"]
+
+[dependencies.url]
+version = "2.5"
+features = ["serde"]
+
+[dependencies.uuid]
+version = "1.8"
+features = ["v4", "v7", "serde"]
+
+[dependencies.semver]
+version = "1"
+features = ["serde"]
+
+[dependencies.jwt]
+package = "jsonwebtoken"
+version = "9.3"
+
+[dependencies.derive_more]
+version = "1.0.0-beta.6"
+features = ["from", "into", "debug", "display", "deref", "deref_mut"]
+
+[dependencies.itertools]
+version = "0.12"
+
+[dependencies.tap]
+version = "1"
+
+[dependencies.crc32fast]
+version = "1"
+
+[dev-dependencies.rand]
+version = "0.8"
 
 [workspace]
-members = ["crates/cs2kz", "crates/macros", "crates/testing", "crates/auth"]
+members = ["crates/cs2kz", "crates/macros", "crates/testing"]
 
 # See https://doc.rust-lang.org/rustc/lints/listing/index.html
 [workspace.lints.rust]
@@ -29,7 +163,6 @@ missing_debug_implementations = "warn"
 missing_docs = "warn"
 unsafe_op_in_unsafe_fn = "forbid"
 unused_lifetimes = "warn"
-unused_qualifications = "warn"
 
 # See https://doc.rust-lang.org/rustdoc/lints.html
 [workspace.lints.rustdoc]
@@ -51,7 +184,7 @@ clone_on_ref_ptr = "warn"
 cloned_instead_of_copied = "warn"
 dbg_macro = "warn"
 derive_partial_eq_without_eq = "warn"
-enum_glob_use = "forbid"
+enum_glob_use = "deny"
 explicit_into_iter_loop = "warn"
 explicit_iter_loop = "warn"
 fallible_impl_from = "warn"
@@ -65,7 +198,6 @@ impl_trait_in_params = "deny"
 inconsistent_struct_constructor = "deny"
 indexing_slicing = "deny"
 inefficient_to_string = "warn"
-items_after_statements = "warn"
 manual_assert = "warn"
 manual_instant_elapsed = "warn"
 manual_is_variant_and = "warn"
@@ -80,12 +212,11 @@ missing_asserts_for_indexing = "deny"
 missing_const_for_fn = "warn"
 missing_docs_in_private_items = "warn"
 missing_panics_doc = "deny"
-missing_safety_doc = "forbid"
+missing_safety_doc = "deny"
 needless_collect = "warn"
 needless_continue = "warn"
 needless_for_each = "warn"
 needless_pass_by_value = "warn"
-needless_raw_string_hashes = "warn"
 new_without_default = "allow"
 redundant_closure = "allow"
 redundant_else = "deny"
@@ -94,7 +225,7 @@ todo = "warn"
 unimplemented = "deny"
 unnecessary_safety_comment = "warn"
 unnecessary_safety_doc = "warn"
-wildcard_imports = "forbid"
+wildcard_imports = "deny"
 
 [workspace.dependencies.anyhow]
 version = "1"

@@ -1,1 +1,10 @@
+# build artifacts
 /target
+
+# persistent data
+/database/volumes
+/logs
+
+# environment variables
+.env
+.env.docker

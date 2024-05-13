@@ -8,9 +8,21 @@ homepage = "https://cs2kz.org"
 repository = "https://github.com/KZGlobalTeam/cs2kz-api"
 license-file = "../../LICENSE"
 
+[lib]
+proc-macro = true
+
 [features]
 
 [lints]
 workspace = true
 
-[dependencies]
+[dependencies.proc-macro-error]
+version = "1"
+
+[dependencies.syn]
+version = "2"
+features = ["full", "extra-traits"]
+
+[dependencies.quote]
+version = "1"
+default-features = false

@@ -8,6 +8,7 @@ hard_tabs = true
 
 group_imports = "StdExternalCrate"
 imports_granularity = "Module"
+reorder_modules = false
 
 format_macro_matchers = true
 newline_style = "Unix"

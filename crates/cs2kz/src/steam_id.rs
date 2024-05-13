@@ -220,7 +220,7 @@ impl SteamID {
 	}
 }
 
-/// Potential errors that can occurr when parsing a Steam3ID.
+/// Potential errors that can occur when parsing a Steam3ID.
 #[derive(Debug, Clone, Error)]
 pub enum ParseSteamIDError {
 	/// Every SteamID starts with `STEAM_`.
@@ -263,7 +263,7 @@ pub enum ParseSteamIDError {
 	OutOfRange,
 }
 
-/// Potential errors that can occurr when parsing a Steam3ID.
+/// Potential errors that can occur when parsing a Steam3ID.
 #[derive(Debug, Clone, Error)]
 pub enum ParseSteam3IDError {
 	/// Steam3IDs can optionally be enclosed by `[]`, e.g., `[U:1:322356345]`.

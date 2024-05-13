@@ -1,0 +1,13 @@
+services:
+  cs2kz-database:
+    image: mariadb:11.0
+    command: --max-connections 256
+    environment:
+      MARIADB_USER: schnose
+      MARIADB_PASSWORD: csgo-kz-is-dead-boys
+      MARIADB_DATABASE: cs2kz
+      MARIADB_ROOT_PASSWORD: csgo-kz-is-dead-boys
+    ports:
+      - ${DATABASE_PORT}:3306
+    volumes:
+      - ./database/volumes/cs2kz:/var/lib/mysql

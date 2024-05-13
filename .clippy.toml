@@ -1,4 +1,4 @@
-max-fn-params-bools = 0
+max-fn-params-bools = 1
 check-private-items = true
 
 enforced-import-renames = [
