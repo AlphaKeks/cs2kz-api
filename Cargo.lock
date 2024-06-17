@@ -691,7 +691,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "sqlx",
- "testcontainers 0.18.0",
+ "testcontainers",
  "testcontainers-modules",
  "thiserror",
  "time",
@@ -3400,32 +3400,6 @@ dependencies = [
 
 [[package]]
 name = "testcontainers"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "025e0ac563d543e0354d984540e749859a83dbe5c0afb8d458dc48d91cef2d6a"
-dependencies = [
- "async-trait",
- "bollard",
- "bollard-stubs",
- "bytes",
- "dirs",
- "docker_credential",
- "futures",
- "log",
- "memchr",
- "parse-display",
- "serde",
- "serde_json",
- "serde_with",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "url",
-]
-
-[[package]]
-name = "testcontainers"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c9b71635ab25d4f789a86678d114a4f390467c8b93fd7feeaf7c443732a511"
@@ -3454,11 +3428,11 @@ dependencies = [
 
 [[package]]
 name = "testcontainers-modules"
-version = "0.5.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87dc086b8c791e5696de6de4e0d79de2cb9f8a1ac4552d46d6211a42d81d6d0f"
+checksum = "322fe829905e734f38a73be07e200a25713fe4baa65074277af7b30dbc4ea487"
 dependencies = [
- "testcontainers 0.17.0",
+ "testcontainers",
 ]
 
 [[package]]
