@@ -176,7 +176,7 @@ mod tests
 	{
 		let player = NewPlayer {
 			name: String::from("AlphaKeks"),
-			steam_id: SteamID::from_u64(76561198282622073_u64).unwrap(),
+			steam_id: SteamID::try_from(76561198282622073_u64)?,
 			ip_address: Ipv6Addr::LOCALHOST.into(),
 		};
 
