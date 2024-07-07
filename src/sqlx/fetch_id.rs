@@ -9,9 +9,10 @@ use crate::maps::{CourseID, MapID};
 use crate::servers::ServerID;
 use crate::{Error, Result};
 
-/// An extension trait for "ID or name" types, that will fetch an ID from the database by looking
-/// up a name, if necessary.
-pub trait FetchID {
+/// An extension trait for "ID or name" types, that will fetch an ID from the
+/// database by looking up a name, if necessary.
+pub trait FetchID
+{
 	/// The ID type.
 	type ID;
 
@@ -23,10 +24,12 @@ pub trait FetchID {
 	) -> impl Future<Output = Result<Self::ID>> + Send;
 }
 
-impl FetchID for PlayerIdentifier {
+impl FetchID for PlayerIdentifier
+{
 	type ID = SteamID;
 
-	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<SteamID> {
+	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<SteamID>
+	{
 		match *self {
 			Self::SteamID(steam_id) => Ok(steam_id),
 			Self::Name(ref name) => sqlx::query_scalar! {
@@ -47,10 +50,12 @@ impl FetchID for PlayerIdentifier {
 	}
 }
 
-impl FetchID for MapIdentifier {
+impl FetchID for MapIdentifier
+{
 	type ID = MapID;
 
-	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<MapID> {
+	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<MapID>
+	{
 		match *self {
 			Self::ID(id) => Ok(MapID(id)),
 			Self::Name(ref name) => sqlx::query_scalar! {
@@ -71,10 +76,12 @@ impl FetchID for MapIdentifier {
 	}
 }
 
-impl FetchID for CourseIdentifier {
+impl FetchID for CourseIdentifier
+{
 	type ID = CourseID;
 
-	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<CourseID> {
+	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<CourseID>
+	{
 		match *self {
 			CourseIdentifier::ID(course_id) => Ok(CourseID(course_id)),
 			CourseIdentifier::Name(ref name) => sqlx::query_scalar! {
@@ -95,10 +102,12 @@ impl FetchID for CourseIdentifier {
 	}
 }
 
-impl FetchID for ServerIdentifier {
+impl FetchID for ServerIdentifier
+{
 	type ID = ServerID;
 
-	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<ServerID> {
+	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<ServerID>
+	{
 		match *self {
 			Self::ID(id) => Ok(ServerID(id)),
 			Self::Name(ref name) => sqlx::query_scalar! {

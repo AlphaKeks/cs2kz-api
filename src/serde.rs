@@ -2,7 +2,8 @@
 
 #![allow(missing_docs)]
 
-pub mod string {
+pub mod string
+{
 	use serde::{Deserialize, Deserializer};
 
 	pub fn deserialize_empty_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
@@ -21,7 +22,8 @@ pub mod string {
 	}
 }
 
-pub mod vec {
+pub mod vec
+{
 	use serde::{de, Deserialize, Deserializer};
 
 	pub fn deserialize_non_empty<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
@@ -55,7 +57,8 @@ pub mod vec {
 	}
 }
 
-pub mod btree_map {
+pub mod btree_map
+{
 	use std::collections::BTreeMap;
 
 	use serde::{Deserialize, Deserializer};
@@ -80,7 +83,8 @@ pub mod btree_map {
 	}
 }
 
-pub mod semver {
+pub mod semver
+{
 	use semver::Version;
 	use serde::{de, Deserialize, Deserializer};
 

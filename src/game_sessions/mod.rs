@@ -11,7 +11,8 @@ pub use models::{CourseSessionID, GameSession, GameSessionID, TimeSpent};
 pub mod handlers;
 
 /// Returns an [`axum::Router`] for the `/sessions` routes.
-pub fn router(state: State) -> Router {
+pub fn router(state: State) -> Router
+{
 	Router::new()
 		.route("/:id", routing::get(handlers::by_id::get))
 		.route_layer(cors::permissive())

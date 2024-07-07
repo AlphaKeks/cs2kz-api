@@ -17,7 +17,8 @@ use crate::{Error, Result, State};
 
 /// Query parameters for `/jumpstats`.
 #[derive(Debug, Deserialize, IntoParams)]
-pub struct GetParams {
+pub struct GetParams
+{
 	/// Filter by jump type.
 	#[serde(rename = "type")]
 	jump_type: Option<JumpType>,
@@ -75,7 +76,8 @@ pub async fn get(
 		limit,
 		offset,
 	}): Query<GetParams>,
-) -> Result<Json<PaginationResponse<Jumpstat>>> {
+) -> Result<Json<PaginationResponse<Jumpstat>>>
+{
 	let mut query = FilteredQuery::new(queries::SELECT);
 	let mut transaction = state.transaction().await?;
 
@@ -126,10 +128,7 @@ pub async fn get(
 
 	transaction.commit().await?;
 
-	Ok(Json(PaginationResponse {
-		total,
-		results: jumpstats,
-	}))
+	Ok(Json(PaginationResponse { total, results: jumpstats }))
 }
 
 /// Create a new jumpstat.
@@ -150,9 +149,7 @@ pub async fn get(
 )]
 pub async fn post(
 	state: State,
-	Jwt {
-		payload: server, ..
-	}: Jwt<authentication::Server>,
+	Jwt { payload: server, .. }: Jwt<authentication::Server>,
 	Json(NewJumpstat {
 		jump_type,
 		mode,
@@ -171,7 +168,8 @@ pub async fn post(
 		average_width,
 		airtime,
 	}): Json<NewJumpstat>,
-) -> Result<Created<Json<CreatedJumpstat>>> {
+) -> Result<Created<Json<CreatedJumpstat>>>
+{
 	let mut transaction = state.transaction().await?;
 
 	let jumpstat_id = sqlx::query! {

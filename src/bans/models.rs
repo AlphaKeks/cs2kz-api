@@ -21,7 +21,8 @@ make_id!(UnbanID as u64);
 
 /// A player ban.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct Ban {
+pub struct Ban
+{
 	/// The ban's ID.
 	pub id: BanID,
 
@@ -50,8 +51,10 @@ pub struct Ban {
 	pub unban: Option<Unban>,
 }
 
-impl FromRow<'_, MySqlRow> for Ban {
-	fn from_row(row: &MySqlRow) -> sqlx::Result<Self> {
+impl FromRow<'_, MySqlRow> for Ban
+{
+	fn from_row(row: &MySqlRow) -> sqlx::Result<Self>
+	{
 		Ok(Self {
 			id: row.try_get("id")?,
 			player: Player::from_row(row)?,
@@ -73,14 +76,18 @@ impl FromRow<'_, MySqlRow> for Ban {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[allow(missing_docs)]
-pub enum BanReason {
+pub enum BanReason
+{
 	AutoStrafe,
 	AutoBhop,
 }
 
-impl BanReason {
-	/// Stringified version that is also expected when parsing a string into a [`BanReason`].
-	pub const fn as_str(&self) -> &'static str {
+impl BanReason
+{
+	/// Stringified version that is also expected when parsing a string into a
+	/// [`BanReason`].
+	pub const fn as_str(&self) -> &'static str
+	{
 		match self {
 			BanReason::AutoStrafe => "auto_strafe",
 			BanReason::AutoBhop => "auto_bhop",
@@ -88,7 +95,8 @@ impl BanReason {
 	}
 
 	/// Calculates the ban duration given the amount of previous bans.
-	pub const fn duration(&self, previous_offenses: u8) -> Duration {
+	pub const fn duration(&self, previous_offenses: u8) -> Duration
+	{
 		match (self, previous_offenses) {
 			(Self::AutoStrafe, 0) => Duration::weeks(2),
 			(Self::AutoStrafe, 1) => Duration::weeks(12),
@@ -105,10 +113,12 @@ impl BanReason {
 #[error("`{0}` is not a valid ban reason")]
 pub struct InvalidBanReason(String);
 
-impl FromStr for BanReason {
+impl FromStr for BanReason
+{
 	type Err = InvalidBanReason;
 
-	fn from_str(value: &str) -> Result<Self, Self::Err> {
+	fn from_str(value: &str) -> Result<Self, Self::Err>
+	{
 		match value {
 			"auto_strafe" => Ok(Self::AutoStrafe),
 			"auto_bhop" => Ok(Self::AutoBhop),
@@ -117,25 +127,31 @@ impl FromStr for BanReason {
 	}
 }
 
-impl sqlx::Type<MySql> for BanReason {
-	fn type_info() -> <MySql as sqlx::Database>::TypeInfo {
+impl sqlx::Type<MySql> for BanReason
+{
+	fn type_info() -> <MySql as sqlx::Database>::TypeInfo
+	{
 		<str as sqlx::Type<MySql>>::type_info()
 	}
 }
 
-impl<'q> sqlx::Encode<'q, MySql> for BanReason {
+impl<'q> sqlx::Encode<'q, MySql> for BanReason
+{
 	fn encode_by_ref(
 		&self,
 		buf: &mut <MySql as database::HasArguments<'q>>::ArgumentBuffer,
-	) -> sqlx::encode::IsNull {
+	) -> sqlx::encode::IsNull
+	{
 		<&'q str as sqlx::Encode<'q, MySql>>::encode_by_ref(&self.as_str(), buf)
 	}
 }
 
-impl<'q> sqlx::Decode<'q, MySql> for BanReason {
+impl<'q> sqlx::Decode<'q, MySql> for BanReason
+{
 	fn decode(
 		value: <MySql as database::HasValueRef<'q>>::ValueRef,
-	) -> Result<Self, sqlx::error::BoxDynError> {
+	) -> Result<Self, sqlx::error::BoxDynError>
+	{
 		Ok(<&'q str as sqlx::Decode<'q, MySql>>::decode(value)
 			.map(|value| value.parse::<Self>())??)
 	}
@@ -143,7 +159,8 @@ impl<'q> sqlx::Decode<'q, MySql> for BanReason {
 
 /// Reversion of a `Ban`.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct Unban {
+pub struct Unban
+{
 	/// The unban's ID.
 	pub id: UnbanID,
 
@@ -158,8 +175,10 @@ pub struct Unban {
 	pub created_on: DateTime<Utc>,
 }
 
-impl FromRow<'_, MySqlRow> for Unban {
-	fn from_row(row: &MySqlRow) -> sqlx::Result<Self> {
+impl FromRow<'_, MySqlRow> for Unban
+{
+	fn from_row(row: &MySqlRow) -> sqlx::Result<Self>
+	{
 		Ok(Self {
 			id: row.try_get("unban_id")?,
 			reason: row.try_get("unban_reason")?,
@@ -175,7 +194,8 @@ impl FromRow<'_, MySqlRow> for Unban {
 
 /// Request payload for submitting a new ban.
 #[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
-pub struct NewBan {
+pub struct NewBan
+{
 	/// The SteamID of the player who should be banned.
 	pub player_id: SteamID,
 
@@ -189,35 +209,39 @@ pub struct NewBan {
 
 /// Response body for submitting a new ban.
 #[derive(Debug, Clone, Copy, Serialize, ToSchema)]
-pub struct CreatedBan {
+pub struct CreatedBan
+{
 	/// The ban's ID.
 	pub ban_id: BanID,
 }
 
 /// Request payload for updating an existing ban.
 #[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
-pub struct BanUpdate {
+pub struct BanUpdate
+{
 	/// A new ban reason.
 	pub reason: Option<BanReason>,
 
 	/// A new expiration date.
 	///
 	/// If this field is omitted, nothing will happen.
-	/// If it is explicitly set to `null`, the expiration date will be set to `NULL`
-	/// (permanent).
+	/// If it is explicitly set to `null`, the expiration date will be set to
+	/// `NULL` (permanent).
 	pub expires_on: Option<Option<DateTime<Utc>>>,
 }
 
 /// Request payload for submitting an unban.
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct NewUnban {
+pub struct NewUnban
+{
 	/// The reason for the unban.
 	pub reason: String,
 }
 
 /// Response body for creating a new unban.
 #[derive(Debug, Clone, Copy, Serialize, ToSchema)]
-pub struct CreatedUnban {
+pub struct CreatedUnban
+{
 	/// The unban's ID.
 	pub unban_id: UnbanID,
 }

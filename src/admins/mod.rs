@@ -14,7 +14,8 @@ pub use models::{Admin, AdminUpdate};
 pub mod handlers;
 
 /// Returns an [`axum::Router`] for the `/admins` routes.
-pub fn router(state: State) -> Router {
+pub fn router(state: State) -> Router
+{
 	let auth = session_auth!(
 		authorization::HasPermissions<{ Permissions::ADMIN.value() }>,
 		state.clone(),
@@ -28,10 +29,7 @@ pub fn router(state: State) -> Router {
 	let by_id = Router::new()
 		.route("/:id", routing::get(handlers::by_id::get))
 		.route_layer(cors::permissive())
-		.route(
-			"/:id",
-			routing::put(handlers::by_id::put).route_layer(auth()),
-		)
+		.route("/:id", routing::put(handlers::by_id::put).route_layer(auth()))
 		.route_layer(cors::dashboard([Method::PUT]))
 		.with_state(state.clone());
 

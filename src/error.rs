@@ -1,14 +1,15 @@
 //! Runtime errors.
 //!
-//! This module exposes the [`Error`] type that is used across the code base for bubbling up
-//! errors. Any foreign errors that can occur at runtime can be turned into an [`Error`]. Specific
-//! error cases have dedicated constructors, see all the public methods on [`Error`].
+//! This module exposes the [`Error`] type that is used across the code base for
+//! bubbling up errors. Any foreign errors that can occur at runtime can be
+//! turned into an [`Error`]. Specific error cases have dedicated constructors,
+//! see all the public methods on [`Error`].
 //!
-//! [`Error`] implements [`IntoResponse`], which means it can be returned from HTTP handlers,
-//! middleware, etc.
+//! [`Error`] implements [`IntoResponse`], which means it can be returned from
+//! HTTP handlers, middleware, etc.
 //!
-//! This module also exposes a [`Result`] type alias, which sets [`Error`] as the default `E` type
-//! parameter.
+//! This module also exposes a [`Result`] type alias, which sets [`Error`] as
+//! the default `E` type parameter.
 //!
 //! [`Error`]: struct@Error
 
@@ -40,17 +41,18 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// The API's core error type.
 ///
 /// Any errors that ever reach the outside should be this type.
-/// It carries information about the kind of error that occurred, where it occurred, and any extra
-/// information like error sources or debug messages.
+/// It carries information about the kind of error that occurred, where it
+/// occurred, and any extra information like error sources or debug messages.
 ///
-/// This type implements [`IntoResponse`], which means it can be returned from HTTP handlers,
-/// middleware, etc.
+/// This type implements [`IntoResponse`], which means it can be returned from
+/// HTTP handlers, middleware, etc.
 #[derive(Debug, Error)]
-pub struct Error {
+pub struct Error
+{
 	/// The kind of error that occurred.
 	///
-	/// This is used for determining the HTTP status code and error message for the response
-	/// body, when an error is returned from a request.
+	/// This is used for determining the HTTP status code and error message for
+	/// the response body, when an error is returned from a request.
 	kind: ErrorKind,
 
 	/// The source code location of where the error occurred.
@@ -58,17 +60,16 @@ pub struct Error {
 	/// This is used for debugging / troubleshooting, and is included in logs.
 	location: Location<'static>,
 
-	/// Extra information about the error, like source errors or debug messages.
+	/// Extra information about the error, like source errors or debug
+	/// messages.
 	attachments: Vec<Attachment>,
 }
 
-impl Display for Error {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		let Self {
-			kind,
-			location,
-			attachments,
-		} = self;
+impl Display for Error
+{
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+	{
+		let Self { kind, location, attachments } = self;
 
 		write!(f, "[{location}] {kind}")?;
 
@@ -89,19 +90,26 @@ const UNAUTHORIZED_MSG: &str = "you are not permitted to perform this action";
 
 /// The different kinds of errors that can occur at runtime.
 ///
-/// Every individual error case should be covered by this enum, with its own error message and any
-/// extra information that is necessary to keep around.
+/// Every individual error case should be covered by this enum, with its own
+/// error message and any extra information that is necessary to keep around.
 #[allow(clippy::missing_docs_in_private_items)]
 #[derive(Debug, Error)]
-enum ErrorKind {
+enum ErrorKind
+{
 	#[error("no content")]
 	NoContent,
 
 	#[error("could not find {what}")]
-	NotFound { what: String },
+	NotFound
+	{
+		what: String
+	},
 
 	#[error("invalid {what}")]
-	InvalidInput { what: String },
+	InvalidInput
+	{
+		what: String
+	},
 
 	#[error("{UNAUTHORIZED_MSG}")]
 	Unauthorized,
@@ -113,35 +121,48 @@ enum ErrorKind {
 	MissingSessionID,
 
 	#[error("{UNAUTHORIZED_MSG}")]
-	InsufficientPermissions { required_permissions: Permissions },
+	InsufficientPermissions
+	{
+		required_permissions: Permissions
+	},
 
 	#[error("{UNAUTHORIZED_MSG}")]
 	MustBeServerOwner,
 
 	#[error("{what} already exists")]
-	AlreadyExists { what: &'static str },
+	AlreadyExists
+	{
+		what: &'static str
+	},
 
 	#[error("map/course cannot have 0 mappers")]
 	MustHaveMappers,
 
 	#[error("mismatching map/course ids; course `{course_id}` does not belong to map `{map_id}`")]
-	MismatchingMapCourse { course_id: CourseID, map_id: MapID },
+	MismatchingMapCourse
+	{
+		course_id: CourseID, map_id: MapID
+	},
 
 	#[error(
-		"mismatching course/filter ids; filter `{filter_id}` does not belong to course `{course_id}`"
+		"mismatching course/filter ids; filter `{filter_id}` does not belong to course \
+		 `{course_id}`"
 	)]
-	MismatchingCourseFilter {
-		filter_id: FilterID,
-		course_id: CourseID,
+	MismatchingCourseFilter
+	{
+		filter_id: FilterID, course_id: CourseID
 	},
 
 	#[error("ban `{ban_id}` was already reverted by unban `{unban_id}`")]
-	BanAlreadyReverted { ban_id: BanID, unban_id: UnbanID },
+	BanAlreadyReverted
+	{
+		ban_id: BanID, unban_id: UnbanID
+	},
 
 	#[error("submitted plugin version {submitted} is outdated (latest is {latest})")]
-	OutdatedPluginVersion {
-		submitted: semver::Version,
-		latest: semver::Version,
+	OutdatedPluginVersion
+	{
+		submitted: semver::Version, latest: semver::Version
 	},
 
 	#[error("logic assertion failed: {0}")]
@@ -190,32 +211,32 @@ type BoxedError = Box<dyn std::error::Error + Send + Sync + 'static>;
 /// Generic error attachments.
 #[derive(Debug, Display)]
 #[display("'{context}' at {location}")]
-struct Attachment {
+struct Attachment
+{
 	/// The attachment context.
 	///
-	/// This could be a more concrete error type, e.g. from a third party crate, or simply an
-	/// error message.
+	/// This could be a more concrete error type, e.g. from a third party
+	/// crate, or simply an error message.
 	context: BoxedError,
 
 	/// The source code location of where this attachment was created.
 	location: Location<'static>,
 }
 
-impl Attachment {
+impl Attachment
+{
 	/// Creates a new [`Attachment`].
 	#[track_caller]
 	fn new<C>(context: C) -> Self
 	where
 		C: Into<BoxedError>,
 	{
-		Self {
-			context: context.into(),
-			location: *Location::caller(),
-		}
+		Self { context: context.into(), location: *Location::caller() }
 	}
 }
 
-impl Error {
+impl Error
+{
 	/// Creates a new [`Error`] of the given [`ErrorKind`].
 	///
 	/// [`Error`]: struct@Error
@@ -224,17 +245,14 @@ impl Error {
 	where
 		E: Into<ErrorKind>,
 	{
-		Self {
-			kind: kind.into(),
-			location: *Location::caller(),
-			attachments: Vec::new(),
-		}
+		Self { kind: kind.into(), location: *Location::caller(), attachments: Vec::new() }
 	}
 
 	/// Attach additional context to an error.
 	///
-	/// This can be another, more concrete, error type, or simply an error message.
-	/// If `ctx` is also an [`Error`], it will have its attachments transferred to `self`.
+	/// This can be another, more concrete, error type, or simply an error
+	/// message. If `ctx` is also an [`Error`], it will have its attachments
+	/// transferred to `self`.
 	///
 	/// [`Error`]: struct@Error
 	#[track_caller]
@@ -257,10 +275,12 @@ impl Error {
 
 	/// A generic `204 No Content` error.
 	///
-	/// This should be returned from `PUT` / `PATCH` / `DELETE` handlers, as well as `GET`
-	/// handlers that would otherwise return an empty response body.
+	/// This should be returned from `PUT` / `PATCH` / `DELETE` handlers, as
+	/// well as `GET` handlers that would otherwise return an empty response
+	/// body.
 	#[track_caller]
-	pub(crate) fn no_content() -> Self {
+	pub(crate) fn no_content() -> Self
+	{
 		Self::new(ErrorKind::NoContent)
 	}
 
@@ -272,9 +292,7 @@ impl Error {
 	where
 		T: Display,
 	{
-		Self::new(ErrorKind::NotFound {
-			what: what.to_string(),
-		})
+		Self::new(ErrorKind::NotFound { what: what.to_string() })
 	}
 
 	/// An error signaling invalid user input.
@@ -285,19 +303,18 @@ impl Error {
 	where
 		T: Display,
 	{
-		Self::new(ErrorKind::InvalidInput {
-			what: what.to_string(),
-		})
+		Self::new(ErrorKind::InvalidInput { what: what.to_string() })
 	}
 
 	/// A generic `401 Unauthorized` error.
 	///
-	/// If you can, you should [attach additional context][context] to such an error to make
-	/// debugging the cause of the error easier later.
+	/// If you can, you should [attach additional context][context] to such an
+	/// error to make debugging the cause of the error easier later.
 	///
 	/// [context]: Error::context()
 	#[track_caller]
-	pub(crate) fn unauthorized() -> Self {
+	pub(crate) fn unauthorized() -> Self
+	{
 		Self::new(ErrorKind::Unauthorized)
 	}
 
@@ -305,7 +322,8 @@ impl Error {
 	///
 	/// Produces a `401 Unauthorized` status.
 	#[track_caller]
-	pub(crate) fn expired_key() -> Self {
+	pub(crate) fn expired_key() -> Self
+	{
 		Self::new(ErrorKind::ExpiredAccessKey)
 	}
 
@@ -316,31 +334,35 @@ impl Error {
 	///
 	/// Produces a `401 Unauthorized` status.
 	#[track_caller]
-	pub(crate) fn missing_session_id() -> Self {
+	pub(crate) fn missing_session_id() -> Self
+	{
 		Self::new(ErrorKind::MissingSessionID)
 	}
 
-	/// An error signaling an authorization failure caused by insufficient permissions.
+	/// An error signaling an authorization failure caused by insufficient
+	/// permissions.
 	///
-	/// For more information about permissions, see [`crate::authorization::Permissions`] and
+	/// For more information about permissions, see
+	/// [`crate::authorization::Permissions`] and
 	/// [`crate::authorization::HasPermissions`].
 	///
 	/// Produces a `401 Unauthorized` status.
 	#[track_caller]
-	pub(crate) fn insufficient_permissions(required_permissions: Permissions) -> Self {
-		Self::new(ErrorKind::InsufficientPermissions {
-			required_permissions,
-		})
+	pub(crate) fn insufficient_permissions(required_permissions: Permissions) -> Self
+	{
+		Self::new(ErrorKind::InsufficientPermissions { required_permissions })
 	}
 
-	/// An error signaling an authorization failure caused by the requesting user not
-	/// being a server owner.
+	/// An error signaling an authorization failure caused by the requesting
+	/// user not being a server owner.
 	///
-	/// For more information, see [`crate::authorization::IsServerAdminOrOwner`].
+	/// For more information, see
+	/// [`crate::authorization::IsServerAdminOrOwner`].
 	///
 	/// Produces a `401 Unauthorized` status.
 	#[track_caller]
-	pub(crate) fn must_be_server_owner() -> Self {
+	pub(crate) fn must_be_server_owner() -> Self
+	{
 		Self::new(ErrorKind::MustBeServerOwner)
 	}
 
@@ -348,85 +370,92 @@ impl Error {
 	///
 	/// Produces a `409 Conflict` status.
 	#[track_caller]
-	pub(crate) fn already_exists(what: &'static str) -> Self {
+	pub(crate) fn already_exists(what: &'static str) -> Self
+	{
 		Self::new(ErrorKind::AlreadyExists { what })
 	}
 
 	/// An error that can occur when creating or updating [maps].
 	///
-	/// Every map must always have at least 1 mapper. When a new map is submitted, or a map is
-	/// being updated, it must be ensured that there is at least 1 mapper.
+	/// Every map must always have at least 1 mapper. When a new map is
+	/// submitted, or a map is being updated, it must be ensured that there is
+	/// at least 1 mapper.
 	///
 	/// Produces a `409 Conflict` status.
 	///
 	/// [maps]: crate::maps
 	#[track_caller]
-	pub(crate) fn must_have_mappers() -> Self {
+	pub(crate) fn must_have_mappers() -> Self
+	{
 		Self::new(ErrorKind::MustHaveMappers)
 	}
 
 	/// An error that can occur when updating [maps].
 	///
-	/// Updating a map includes updating its courses. These updates are keyed by course ID. If
-	/// the supplied course IDs don't belong to the map being updated, that's most likely a
+	/// Updating a map includes updating its courses. These updates are keyed by
+	/// course ID. If the supplied course IDs don't belong to the map being
+	/// updated, that's most likely a mistake by the client and should produce
+	/// an error.
+	///
+	/// Produces a `409 Conflict` status.
+	///
+	/// [maps]: crate::maps
+	#[track_caller]
+	pub(crate) fn mismatching_map_course(course_id: CourseID, map_id: MapID) -> Self
+	{
+		Self::new(ErrorKind::MismatchingMapCourse { course_id, map_id })
+	}
+
+	/// An error that can occur when updating [maps].
+	///
+	/// Updating a map includes updating its courses, which includes updating
+	/// filters. These updates are keyed by filter ID. If the supplied filter
+	/// IDs don't belong to the course being updated, that's most likely a
 	/// mistake by the client and should produce an error.
 	///
 	/// Produces a `409 Conflict` status.
 	///
 	/// [maps]: crate::maps
 	#[track_caller]
-	pub(crate) fn mismatching_map_course(course_id: CourseID, map_id: MapID) -> Self {
-		Self::new(ErrorKind::MismatchingMapCourse { course_id, map_id })
-	}
-
-	/// An error that can occur when updating [maps].
-	///
-	/// Updating a map includes updating its courses, which includes updating filters. These
-	/// updates are keyed by filter ID. If the supplied filter IDs don't belong to the course
-	/// being updated, that's most likely a mistake by the client and should produce an error.
-	///
-	/// Produces a `409 Conflict` status.
-	///
-	/// [maps]: crate::maps
-	#[track_caller]
-	pub(crate) fn mismatching_course_filter(filter_id: FilterID, course_id: CourseID) -> Self {
-		Self::new(ErrorKind::MismatchingCourseFilter {
-			filter_id,
-			course_id,
-		})
+	pub(crate) fn mismatching_course_filter(filter_id: FilterID, course_id: CourseID) -> Self
+	{
+		Self::new(ErrorKind::MismatchingCourseFilter { filter_id, course_id })
 	}
 
 	/// An error that can occur when [unbanning] players.
 	///
-	/// Any given ban can only ever be reverted once. When an unban request is made for a ban
-	/// that has already been reverted, that should produce an error.
+	/// Any given ban can only ever be reverted once. When an unban request is
+	/// made for a ban that has already been reverted, that should produce an
+	/// error.
 	///
 	/// Produces a `409 Conflict` status.
 	///
 	/// [unbanning]: crate::bans::handlers::by_id::delete
 	#[track_caller]
-	pub(crate) fn ban_already_reverted(ban_id: BanID, unban_id: UnbanID) -> Self {
+	pub(crate) fn ban_already_reverted(ban_id: BanID, unban_id: UnbanID) -> Self
+	{
 		Self::new(ErrorKind::BanAlreadyReverted { ban_id, unban_id })
 	}
 
 	/// An error that can occur when submitting new CS2KZ plugin versions.
 	///
-	/// The API keeps track of all the versions, and if a new version is submitted that is
-	/// older than the latest one, that's probably wrong.
+	/// The API keeps track of all the versions, and if a new version is
+	/// submitted that is older than the latest one, that's probably wrong.
 	///
 	/// Produces a `409 Conflict` status.
 	#[track_caller]
 	pub(crate) fn outdated_plugin_version(
 		submitted: semver::Version,
 		latest: semver::Version,
-	) -> Self {
+	) -> Self
+	{
 		Self::new(ErrorKind::OutdatedPluginVersion { submitted, latest })
 	}
 
 	/// A generic `500 Internal Server Error`.
 	///
-	/// This constructor is reserved for errors that _should not_ occur, but _may_ occur. If
-	/// such an error is ever returned, that's a bug.
+	/// This constructor is reserved for errors that _should not_ occur, but
+	/// _may_ occur. If such an error is ever returned, that's a bug.
 	#[track_caller]
 	pub(crate) fn logic<T>(message: T) -> Self
 	where
@@ -441,53 +470,62 @@ impl Error {
 	///
 	/// Produces a `500 Internal Server Error` status.
 	#[track_caller]
-	pub(crate) fn encode_jwt(error: jwt::errors::Error) -> Self {
+	pub(crate) fn encode_jwt(error: jwt::errors::Error) -> Self
+	{
 		Self::new(ErrorKind::Jwt(error))
 	}
 
-	/// An error that can occur when downloading something from the Steam Workshop.
+	/// An error that can occur when downloading something from the Steam
+	/// Workshop.
 	///
-	/// This error can only occur if [`Config::workshop_artifacts_path`][config] is missing.
-	/// The environment variable for that value is required when compiled with the `production`
-	/// feature enabled. Because downloading Workshop files requires an external dependency,
-	/// it's optional for local testing.
+	/// This error can only occur if [`Config::workshop_artifacts_path`][config]
+	/// is missing. The environment variable for that value is required when
+	/// compiled with the `production` feature enabled. Because downloading
+	/// Workshop files requires an external dependency, it's optional for local
+	/// testing.
 	///
 	/// Produces a `500 Internal Server Error` status.
 	///
 	/// [config]: crate::Config::workshop_artifacts_path
 	#[track_caller]
 	#[cfg(not(feature = "production"))]
-	pub(crate) fn missing_workshop_asset_dir() -> Self {
+	pub(crate) fn missing_workshop_asset_dir() -> Self
+	{
 		Self::new(ErrorKind::MissingWorkshopAssetDirectory)
 	}
 
-	/// An error that can occur when downloading something from the Steam Workshop.
+	/// An error that can occur when downloading something from the Steam
+	/// Workshop.
 	///
-	/// This error can only occur if [`Config::depot_downloader_path`][config] is missing.
-	/// The environment variable for that value is required when compiled with the `production`
-	/// feature enabled. Because downloading Workshop files requires an external dependency,
-	/// it's optional for local testing.
+	/// This error can only occur if [`Config::depot_downloader_path`][config]
+	/// is missing. The environment variable for that value is required when
+	/// compiled with the `production` feature enabled. Because downloading
+	/// Workshop files requires an external dependency, it's optional for local
+	/// testing.
 	///
 	/// Produces a `500 Internal Server Error` status.
 	///
 	/// [config]: crate::Config::depot_downloader_path
 	#[track_caller]
 	#[cfg(not(feature = "production"))]
-	pub(crate) fn missing_depot_downloader() -> Self {
+	pub(crate) fn missing_depot_downloader() -> Self
+	{
 		Self::new(ErrorKind::MissingDepotDownloader)
 	}
 
-	/// An error that can occur when downloading something from the Steam Workshop.
+	/// An error that can occur when downloading something from the Steam
+	/// Workshop.
 	///
-	/// Workshop downloads require an external dependency called [DepotDownloader].
-	/// If that executable fails, it will produce an [`io::Error`], and constructing this error
-	/// is considered a bug.
+	/// Workshop downloads require an external dependency called
+	/// [DepotDownloader]. If that executable fails, it will produce an
+	/// [`io::Error`], and constructing this error is considered a bug.
 	///
 	/// Produces a `500 Internal Server Error` status.
 	///
 	/// [DepotDownloader]: https://github.com/SteamRE/DepotDownloader
 	#[track_caller]
-	pub(crate) fn depot_downloader(source: io::Error) -> Self {
+	pub(crate) fn depot_downloader(source: io::Error) -> Self
+	{
 		Self::new(ErrorKind::DepotDownloader(source))
 	}
 
@@ -497,31 +535,37 @@ impl Error {
 	///
 	/// Produces a `500 Internal Server Error` status.
 	#[track_caller]
-	pub(crate) fn open_map_file(source: io::Error) -> Self {
+	pub(crate) fn open_map_file(source: io::Error) -> Self
+	{
 		Self::new(ErrorKind::OpenMapFile(source))
 	}
 
-	/// An error that can occur when calculating the checksum for a downloaded Workshop map.
+	/// An error that can occur when calculating the checksum for a downloaded
+	/// Workshop map.
 	///
 	/// Produces a `500 Internal Server Error` status.
 	#[track_caller]
-	pub(crate) fn checksum(source: io::Error) -> Self {
+	pub(crate) fn checksum(source: io::Error) -> Self
+	{
 		Self::new(ErrorKind::Checksum(source))
 	}
 
-	/// An error that can occur when making HTTP requests to external APIs such as the Steam
-	/// Web API.
+	/// An error that can occur when making HTTP requests to external APIs such
+	/// as the Steam Web API.
 	///
 	/// Produces a `502 Bad Gateway` status.
 	#[track_caller]
-	pub(crate) fn external_api_call(source: reqwest::Error) -> Self {
+	pub(crate) fn external_api_call(source: reqwest::Error) -> Self
+	{
 		Self::new(ErrorKind::ExternalApiCall(source))
 	}
 }
 
-impl IntoResponse for Error {
+impl IntoResponse for Error
+{
 	#[track_caller]
-	fn into_response(self) -> Response {
+	fn into_response(self) -> Response
+	{
 		use ErrorKind as E;
 
 		let message = self.kind.to_string();
@@ -586,9 +630,11 @@ impl IntoResponse for Error {
 	}
 }
 
-impl From<sqlx::Error> for Error {
+impl From<sqlx::Error> for Error
+{
 	#[track_caller]
-	fn from(error: sqlx::Error) -> Self {
+	fn from(error: sqlx::Error) -> Self
+	{
 		use sqlx::Error as E;
 
 		match error {
@@ -600,9 +646,11 @@ impl From<sqlx::Error> for Error {
 	}
 }
 
-impl From<reqwest::Error> for Error {
+impl From<reqwest::Error> for Error
+{
 	#[track_caller]
-	fn from(error: reqwest::Error) -> Self {
+	fn from(error: reqwest::Error) -> Self
+	{
 		if matches!(error.status(), Some(status) if status.is_server_error()) {
 			Self::new(ErrorKind::ExternalApiCall(error))
 		} else {
@@ -611,16 +659,20 @@ impl From<reqwest::Error> for Error {
 	}
 }
 
-impl From<TypedHeaderRejection> for Error {
+impl From<TypedHeaderRejection> for Error
+{
 	#[track_caller]
-	fn from(rejection: TypedHeaderRejection) -> Self {
+	fn from(rejection: TypedHeaderRejection) -> Self
+	{
 		Self::new(rejection)
 	}
 }
 
-impl From<PathRejection> for Error {
+impl From<PathRejection> for Error
+{
 	#[track_caller]
-	fn from(rejection: PathRejection) -> Self {
+	fn from(rejection: PathRejection) -> Self
+	{
 		Self::new(rejection)
 	}
 }
@@ -630,7 +682,8 @@ where
 	E: std::error::Error + Send + Sync + 'static,
 {
 	#[track_caller]
-	fn from(error: ConvertIDError<E>) -> Self {
+	fn from(error: ConvertIDError<E>) -> Self
+	{
 		Self::logic("failed to convert a raw database id").context(error)
 	}
 }

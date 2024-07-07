@@ -21,7 +21,8 @@ use crate::{Error, Result, State};
     responses::NotFound,
   ),
 )]
-pub async fn get(state: State, Path(jumpstat_id): Path<JumpstatID>) -> Result<Json<Jumpstat>> {
+pub async fn get(state: State, Path(jumpstat_id): Path<JumpstatID>) -> Result<Json<Jumpstat>>
+{
 	let mut query = QueryBuilder::new(queries::SELECT);
 
 	query.push(" WHERE j.id = ").push_bind(jumpstat_id);

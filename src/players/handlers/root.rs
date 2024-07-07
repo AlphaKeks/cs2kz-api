@@ -19,7 +19,8 @@ use crate::{authentication, authorization, Error, Result, State};
 
 /// Query parameters for `/players`.
 #[derive(Debug, Clone, Copy, Deserialize, IntoParams)]
-pub struct GetParams {
+pub struct GetParams
+{
 	/// Maximum number of results to return.
 	#[serde(default)]
 	limit: Limit,
@@ -31,8 +32,8 @@ pub struct GetParams {
 
 /// Fetch players.
 ///
-/// The objects returned from this endpoint will include an `ip_address` field if and only if the
-/// requesting user is authorized to manage bans.
+/// The objects returned from this endpoint will include an `ip_address` field
+/// if and only if the requesting user is authorized to manage bans.
 #[tracing::instrument(skip(state))]
 #[utoipa::path(
   get,
@@ -51,7 +52,8 @@ pub async fn get(
 		authentication::Session<authorization::HasPermissions<{ Permissions::BANS.value() }>>,
 	>,
 	Query(GetParams { limit, offset }): Query<GetParams>,
-) -> Result<Json<PaginationResponse<FullPlayer>>> {
+) -> Result<Json<PaginationResponse<FullPlayer>>>
+{
 	let mut query = QueryBuilder::new(queries::SELECT);
 
 	query.push_limits(limit, offset);
@@ -83,17 +85,14 @@ pub async fn get(
 
 	transaction.commit().await?;
 
-	Ok(Json(PaginationResponse {
-		total,
-		results: players,
-	}))
+	Ok(Json(PaginationResponse { total, results: players }))
 }
 
 /// Create a new player.
 ///
-/// This endpoint is for CS2 servers. Whenever a player joins, they make a `GET` request to fetch
-/// information about that player. If that request fails, they will attempt to create one with this
-/// endpoint.
+/// This endpoint is for CS2 servers. Whenever a player joins, they make a `GET`
+/// request to fetch information about that player. If that request fails, they
+/// will attempt to create one with this endpoint.
 #[tracing::instrument(skip(state))]
 #[utoipa::path(
   post,
@@ -110,15 +109,10 @@ pub async fn get(
 )]
 pub async fn post(
 	state: State,
-	Jwt {
-		payload: server, ..
-	}: Jwt<authentication::Server>,
-	Json(NewPlayer {
-		name,
-		steam_id,
-		ip_address,
-	}): Json<NewPlayer>,
-) -> Result<Created> {
+	Jwt { payload: server, .. }: Jwt<authentication::Server>,
+	Json(NewPlayer { name, steam_id, ip_address }): Json<NewPlayer>,
+) -> Result<Created>
+{
 	sqlx::query! {
 		r#"
 		INSERT INTO
@@ -149,7 +143,8 @@ pub async fn post(
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
 	use std::net::{Ipv4Addr, Ipv6Addr};
 	use std::time::Duration;
 
@@ -160,7 +155,8 @@ mod tests {
 	use crate::players::{FullPlayer, NewPlayer};
 
 	#[crate::integration_test]
-	async fn fetch_players(ctx: &Context) {
+	async fn fetch_players(ctx: &Context)
+	{
 		let response = ctx
 			.http_client
 			.get(ctx.url("/players"))
@@ -176,7 +172,8 @@ mod tests {
 	}
 
 	#[crate::integration_test]
-	async fn register_player(ctx: &Context) {
+	async fn register_player(ctx: &Context)
+	{
 		let player = NewPlayer {
 			name: String::from("AlphaKeks"),
 			steam_id: SteamID::from_u64(76561198282622073_u64).unwrap(),

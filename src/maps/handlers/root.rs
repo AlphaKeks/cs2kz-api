@@ -14,7 +14,15 @@ use utoipa::IntoParams;
 use crate::authorization::Permissions;
 use crate::make_id::IntoID;
 use crate::maps::{
-	queries, CourseID, CreatedMap, FilterID, FullMap, MapID, NewCourse, NewFilter, NewMap,
+	queries,
+	CourseID,
+	CreatedMap,
+	FilterID,
+	FullMap,
+	MapID,
+	NewCourse,
+	NewFilter,
+	NewMap,
 };
 use crate::openapi::parameters::{Limit, Offset};
 use crate::openapi::responses;
@@ -25,7 +33,8 @@ use crate::{authentication, authorization, Error, Result, State};
 
 /// Query parameters for `/maps`.
 #[derive(Debug, Deserialize, IntoParams)]
-pub struct GetParams {
+pub struct GetParams
+{
 	/// Filter by name.
 	name: Option<String>,
 
@@ -73,7 +82,8 @@ pub async fn get(
 		limit,
 		offset,
 	}): Query<GetParams>,
-) -> Result<Json<PaginationResponse<FullMap>>> {
+) -> Result<Json<PaginationResponse<FullMap>>>
+{
 	let mut query = FilteredQuery::new(queries::SELECT);
 	let mut transaction = state.transaction().await?;
 
@@ -118,10 +128,7 @@ pub async fn get(
 
 	transaction.commit().await?;
 
-	Ok(Json(PaginationResponse {
-		total,
-		results: maps,
-	}))
+	Ok(Json(PaginationResponse { total, results: maps }))
 }
 
 /// Create a new map.
@@ -142,14 +149,9 @@ pub async fn get(
 pub async fn put(
 	state: State,
 	session: authentication::Session<authorization::HasPermissions<{ Permissions::MAPS.value() }>>,
-	Json(NewMap {
-		workshop_id,
-		description,
-		global_status,
-		mappers,
-		courses,
-	}): Json<NewMap>,
-) -> Result<Created<Json<CreatedMap>>> {
+	Json(NewMap { workshop_id, description, global_status, mappers, courses }): Json<NewMap>,
+) -> Result<Created<Json<CreatedMap>>>
+{
 	let (name, checksum) = tokio::try_join! {
 		workshop::fetch_map_name(workshop_id, &state.http_client),
 		workshop::MapFile::download(workshop_id, &state.config).and_then(|map| async move {
@@ -161,15 +163,9 @@ pub async fn put(
 
 	let mut transaction = state.transaction().await?;
 
-	let map_id = create_map(
-		name,
-		description,
-		global_status,
-		workshop_id,
-		checksum,
-		&mut transaction,
-	)
-	.await?;
+	let map_id =
+		create_map(name, description, global_status, workshop_id, checksum, &mut transaction)
+			.await?;
 
 	create_mappers(map_id, &mappers, &mut transaction).await?;
 	create_courses(map_id, &courses, &mut transaction).await?;
@@ -187,7 +183,8 @@ async fn create_map(
 	workshop_id: WorkshopID,
 	checksum: u32,
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<MapID> {
+) -> Result<MapID>
+{
 	let deglobal_old_result = sqlx::query! {
 		r#"
 		UPDATE
@@ -251,7 +248,8 @@ pub(super) async fn create_mappers(
 	map_id: MapID,
 	mappers: &[SteamID],
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<()> {
+) -> Result<()>
+{
 	let mut query = QueryBuilder::new("INSERT INTO Mappers (map_id, player_id)");
 
 	query.push_values(mappers, |mut query, steam_id| {
@@ -280,7 +278,8 @@ async fn create_courses(
 	map_id: MapID,
 	courses: &[NewCourse],
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<Vec<CourseID>> {
+) -> Result<Vec<CourseID>>
+{
 	let mut query = QueryBuilder::new("INSERT INTO Courses (name, description, map_id)");
 
 	query.push_values(courses, |mut query, course| {
@@ -323,7 +322,8 @@ pub(super) async fn insert_course_mappers(
 	course_id: CourseID,
 	mappers: &[SteamID],
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<()> {
+) -> Result<()>
+{
 	let mut query = QueryBuilder::new("INSERT INTO CourseMappers (course_id, player_id)");
 
 	query.push_values(mappers, |mut query, steam_id| {
@@ -347,12 +347,14 @@ pub(super) async fn insert_course_mappers(
 	Ok(())
 }
 
-/// Inserts course filters into the database and returns the generated [`FilterID`]s.
+/// Inserts course filters into the database and returns the generated
+/// [`FilterID`]s.
 async fn insert_course_filters(
 	course_id: CourseID,
 	filters: &[NewFilter; 4],
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<Vec<FilterID>> {
+) -> Result<Vec<FilterID>>
+{
 	let mut query = QueryBuilder::new(
 		r#"
 		INSERT INTO

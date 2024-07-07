@@ -59,8 +59,10 @@ type Server = axum::serve::Serve<
 /// Run the API.
 ///
 /// This function will not exit until a SIGINT signal is received.
-/// If you want to supply a custom signal for graceful shutdown, use [`run_until()`] instead.
-pub async fn run(config: Config) -> anyhow::Result<()> {
+/// If you want to supply a custom signal for graceful shutdown, use
+/// [`run_until()`] instead.
+pub async fn run(config: Config) -> anyhow::Result<()>
+{
 	server(config)
 		.await
 		.context("build http server")?
@@ -71,8 +73,9 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
 
 /// Run the API until a given future completes.
 ///
-/// This function is the same as [`run()`], except that it also waits for the provided `until`
-/// future, and shuts down the server when that future resolves.
+/// This function is the same as [`run()`], except that it also waits for the
+/// provided `until` future, and shuts down the server when that future
+/// resolves.
 pub async fn run_until<Until>(config: Config, until: Until) -> anyhow::Result<()>
 where
 	Until: Future<Output = ()> + Send + 'static,
@@ -90,10 +93,12 @@ where
 		.context("run http server")
 }
 
-/// Runs the necessary setup for the API and returns a future that will run the server when polled.
+/// Runs the necessary setup for the API and returns a future that will run the
+/// server when polled.
 ///
 /// See [`run()`] and [`run_until()`].
-async fn server(config: Config) -> anyhow::Result<Server> {
+async fn server(config: Config) -> anyhow::Result<Server>
+{
 	tracing::debug!(addr = %config.addr, "establishing TCP connection");
 
 	let tcp_listener = TcpListener::bind(config.addr)
@@ -135,7 +140,8 @@ async fn server(config: Config) -> anyhow::Result<Server> {
 
 /// Waits for a SIGINT signal from the operating system.
 #[tracing::instrument(name = "runtime::signals")]
-async fn sigint() {
+async fn sigint()
+{
 	let signal_result = signal::ctrl_c().await;
 
 	if let Err(err) = signal_result {

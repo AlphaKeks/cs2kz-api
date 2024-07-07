@@ -13,10 +13,12 @@ use utoipa::IntoParams;
 
 use crate::{Error, Result, State};
 
-/// Form parameters that will be sent to Steam when redirecting a user for login.
+/// Form parameters that will be sent to Steam when redirecting a user for
+/// login.
 #[derive(Debug, Serialize)]
 #[allow(clippy::missing_docs_in_private_items)]
-pub struct LoginForm {
+pub struct LoginForm
+{
 	#[serde(rename = "openid.ns")]
 	namespace: &'static str,
 
@@ -36,8 +38,10 @@ pub struct LoginForm {
 	return_to: Url,
 }
 
-impl LoginForm {
-	/// The API route that Steam should redirect back to after a successful login.
+impl LoginForm
+{
+	/// The API route that Steam should redirect back to after a successful
+	/// login.
 	const RETURN_ROUTE: &'static str = "/auth/callback";
 
 	/// Steam URL to redirect the user in for login.
@@ -50,7 +54,8 @@ impl LoginForm {
 		realm = %realm,
 		return_to = tracing::field::Empty
 	))]
-	pub fn new(realm: Url) -> Self {
+	pub fn new(realm: Url) -> Self
+	{
 		let return_to = realm.join(Self::RETURN_ROUTE).expect("this is valid");
 
 		tracing::Span::current().record("return_to", format_args!("{return_to}"));
@@ -65,9 +70,11 @@ impl LoginForm {
 		}
 	}
 
-	/// Creates a [`Redirect`] that will redirect a request to Steam so the user can login.
+	/// Creates a [`Redirect`] that will redirect a request to Steam so the user
+	/// can login.
 	#[tracing::instrument(level = "debug", name = "auth::steam::redirect", skip(self))]
-	pub fn redirect_to(mut self, redirect_to: &Url) -> Redirect {
+	pub fn redirect_to(mut self, redirect_to: &Url) -> Redirect
+	{
 		self.return_to
 			.query_pairs_mut()
 			.append_pair("redirect_to", redirect_to.as_str());
@@ -85,10 +92,12 @@ impl LoginForm {
 
 /// Form parameters that Steam will send to us after a successful login.
 ///
-/// These can be sent back to Steam for validation, see [`LoginResponse::verify()`].
+/// These can be sent back to Steam for validation, see
+/// [`LoginResponse::verify()`].
 #[derive(Debug, Serialize, Deserialize, IntoParams)]
 #[allow(clippy::missing_docs_in_private_items)]
-pub struct LoginResponse {
+pub struct LoginResponse
+{
 	/// The injected query parameter that was passed as an argument to
 	/// [`LoginForm::redirect_to()`].
 	#[serde(skip_serializing)]
@@ -128,12 +137,15 @@ pub struct LoginResponse {
 	sig: String,
 }
 
-impl LoginResponse {
-	/// Verifies this payload with Steam and extracts the user's SteamID from it.
+impl LoginResponse
+{
+	/// Verifies this payload with Steam and extracts the user's SteamID from
+	/// it.
 	#[tracing::instrument(level = "debug", skip_all, ret, fields(
 		redirect_to = %self.redirect_to
 	))]
-	pub async fn verify(&mut self, http_client: &reqwest::Client) -> Result<SteamID> {
+	pub async fn verify(&mut self, http_client: &reqwest::Client) -> Result<SteamID>
+	{
 		self.mode = String::from("check_authentication");
 
 		let response = http_client
@@ -160,7 +172,8 @@ impl LoginResponse {
 	}
 
 	/// Extracts the SteamID from this form.
-	fn steam_id(&self) -> SteamID {
+	fn steam_id(&self) -> SteamID
+	{
 		self.claimed_id
 			.path_segments()
 			.and_then(|segments| segments.last())
@@ -170,7 +183,8 @@ impl LoginResponse {
 }
 
 #[async_trait]
-impl FromRequestParts<State> for LoginResponse {
+impl FromRequestParts<State> for LoginResponse
+{
 	type Rejection = Error;
 
 	#[tracing::instrument(
@@ -180,7 +194,8 @@ impl FromRequestParts<State> for LoginResponse {
 		fields(steam_id = tracing::field::Empty),
 		err(level = "debug"),
 	)]
-	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self> {
+	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self>
+	{
 		let Query(mut login) = Query::<Self>::from_request_parts(parts, &())
 			.await
 			.map_err(|err| {

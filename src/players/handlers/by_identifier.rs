@@ -22,8 +22,8 @@ use crate::{authentication, authorization, Error, Result, State};
 
 /// Fetch a specific player by their name or SteamID.
 ///
-/// The object returned from this endpoint will include an `ip_address` field if and only if the
-/// requesting user is authorized to manage bans.
+/// The object returned from this endpoint will include an `ip_address` field if
+/// and only if the requesting user is authorized to manage bans.
 #[tracing::instrument(skip(state))]
 #[utoipa::path(
   get,
@@ -42,7 +42,8 @@ pub async fn get(
 		authentication::Session<authorization::HasPermissions<{ Permissions::BANS.value() }>>,
 	>,
 	Path(player): Path<PlayerIdentifier>,
-) -> Result<Json<FullPlayer>> {
+) -> Result<Json<FullPlayer>>
+{
 	let mut query = QueryBuilder::new(queries::SELECT);
 
 	query.push(" WHERE ");
@@ -62,8 +63,8 @@ pub async fn get(
 		.await?
 		.ok_or_else(|| Error::not_found("player"))?;
 
-	// Filter out IP address if we're not in a test and the user does not have permission to
-	// view IP addresses
+	// Filter out IP address if we're not in a test and the user does not have
+	// permission to view IP addresses
 	if cfg!(not(test)) && session.is_none() {
 		player.ip_address = None;
 	}
@@ -73,8 +74,8 @@ pub async fn get(
 
 /// Update an existing player.
 ///
-/// This endpoint is for CS2 servers. Whenever a player disconnects, or when the map changes, they
-/// will update players using this endpoint.
+/// This endpoint is for CS2 servers. Whenever a player disconnects, or when the
+/// map changes, they will update players using this endpoint.
 #[tracing::instrument(skip(state))]
 #[utoipa::path(
   patch,
@@ -93,17 +94,11 @@ pub async fn get(
 )]
 pub async fn patch(
 	state: State,
-	Jwt {
-		payload: server, ..
-	}: Jwt<authentication::Server>,
+	Jwt { payload: server, .. }: Jwt<authentication::Server>,
 	Path(steam_id): Path<SteamID>,
-	Json(PlayerUpdate {
-		name,
-		ip_address,
-		session,
-		preferences,
-	}): Json<PlayerUpdate>,
-) -> Result<NoContent> {
+	Json(PlayerUpdate { name, ip_address, session, preferences }): Json<PlayerUpdate>,
+) -> Result<NoContent>
+{
 	let mut transaction = state.transaction().await?;
 
 	let query_result = sqlx::query! {
@@ -180,16 +175,9 @@ pub async fn patch(
 		.into_iter()
 		.flat_map(|(course_id, sessions)| iter::zip(iter::repeat(course_id), sessions))
 	{
-		insert_course_session(
-			steam_id,
-			server.id(),
-			course_id,
-			mode,
-			session,
-			&mut transaction,
-		)
-		.map_ok(|id| course_session_ids.push(id))
-		.await?;
+		insert_course_session(steam_id, server.id(), course_id, mode, session, &mut transaction)
+			.map_ok(|id| course_session_ids.push(id))
+			.await?;
 	}
 
 	tracing::trace!(target: "cs2kz_api::audit_log", ?course_session_ids, "created course sessions");
@@ -199,20 +187,17 @@ pub async fn patch(
 	Ok(NoContent)
 }
 
-/// Inserts a [`CourseSession`] into the database and returns the generated [`CourseSessionID`].
+/// Inserts a [`CourseSession`] into the database and returns the generated
+/// [`CourseSessionID`].
 async fn insert_course_session(
 	steam_id: SteamID,
 	server_id: ServerID,
 	course_id: CourseID,
 	mode: Mode,
-	CourseSession {
-		playtime,
-		started_runs,
-		finished_runs,
-		bhop_stats,
-	}: CourseSession,
+	CourseSession { playtime, started_runs, finished_runs, bhop_stats }: CourseSession,
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<CourseSessionID> {
+) -> Result<CourseSessionID>
+{
 	let session_id = sqlx::query! {
 		r#"
 		INSERT INTO
@@ -265,7 +250,8 @@ async fn insert_course_session(
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
 	use std::collections::BTreeMap;
 	use std::net::{IpAddr, Ipv4Addr};
 	use std::time::Duration;
@@ -278,7 +264,8 @@ mod tests {
 	use crate::records::BhopStats;
 
 	#[crate::integration_test]
-	async fn fetch_player(ctx: &Context) {
+	async fn fetch_player(ctx: &Context)
+	{
 		let response = ctx
 			.http_client
 			.get(ctx.url("/players/alphakeks"))
@@ -294,7 +281,8 @@ mod tests {
 	}
 
 	#[crate::integration_test]
-	async fn update_player(ctx: &Context) {
+	async fn update_player(ctx: &Context)
+	{
 		let response = ctx
 			.http_client
 			.get(ctx.url("/players/alphakeks"))
@@ -316,10 +304,7 @@ mod tests {
 					spectating: Duration::from_secs(1337).into(),
 					afk: Duration::from_secs(0).into(),
 				},
-				bhop_stats: BhopStats {
-					bhops: 13847,
-					perfs: 6237,
-				},
+				bhop_stats: BhopStats { bhops: 13847, perfs: 6237 },
 				course_sessions: BTreeMap::new(),
 			},
 			preferences: json!({ "funny_test": ctx.test_id }),

@@ -7,8 +7,8 @@ use axum::response::Response;
 use crate::authentication;
 use crate::authorization::AuthorizeSession;
 
-/// Extracts an [`authentication::Session`] from the request and inserts it into the request's
-/// extensions, and then returns it to extend it.
+/// Extracts an [`authentication::Session`] from the request and inserts it into
+/// the request's extensions, and then returns it to extend it.
 #[tracing::instrument(level = "debug", name = "middleware::auth", skip(request, next))]
 pub async fn layer<A>(
 	session: authentication::Session<A>,

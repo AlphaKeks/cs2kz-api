@@ -1,8 +1,9 @@
 //! Global Status for KZ maps.
 //!
-//! When maps are submitted for global approval, they will either undergo a public [testing] phase,
-//! or be [globalled] right away. At some later point they might be [degloballed] again because the
-//! creator requested it, or because the map approval team decided so.
+//! When maps are submitted for global approval, they will either undergo a
+//! public [testing] phase, or be [globalled] right away. At some later point
+//! they might be [degloballed] again because the creator requested it, or
+//! because the map approval team decided so.
 //!
 //! [testing]: GlobalStatus::InTesting
 //! [globalled]: GlobalStatus::Global
@@ -18,7 +19,8 @@ use thiserror::Error;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
-pub enum GlobalStatus {
+pub enum GlobalStatus
+{
 	/// The map is not global.
 	NotGlobal = -1,
 
@@ -29,23 +31,28 @@ pub enum GlobalStatus {
 	Global = 1,
 }
 
-impl GlobalStatus {
+impl GlobalStatus
+{
 	/// Checks whether `self` is [Global].
 	///
 	/// [Global]: Self::Global
-	pub const fn is_global(&self) -> bool {
+	pub const fn is_global(&self) -> bool
+	{
 		matches!(*self, Self::Global)
 	}
 
 	/// Checks whether `self` is [in testing].
 	///
 	/// [in testing]: Self::InTesting
-	pub const fn is_in_testing(&self) -> bool {
+	pub const fn is_in_testing(&self) -> bool
+	{
 		matches!(*self, Self::InTesting)
 	}
 
-	/// Returns a string representation of this [GlobalStatus], as accepted by the API.
-	pub const fn as_str(&self) -> &'static str {
+	/// Returns a string representation of this [GlobalStatus], as accepted by
+	/// the API.
+	pub const fn as_str(&self) -> &'static str
+	{
 		match *self {
 			Self::NotGlobal => "not_global",
 			Self::InTesting => "in_testing",
@@ -54,8 +61,10 @@ impl GlobalStatus {
 	}
 }
 
-impl Display for GlobalStatus {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl Display for GlobalStatus
+{
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+	{
 		f.write_str(match *self {
 			Self::NotGlobal => "not global",
 			Self::InTesting => "in testing",
@@ -69,10 +78,12 @@ impl Display for GlobalStatus {
 #[error("unknown global status `{0}`")]
 pub struct UnknownGlobalStatus(pub String);
 
-impl FromStr for GlobalStatus {
+impl FromStr for GlobalStatus
+{
 	type Err = UnknownGlobalStatus;
 
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
+	fn from_str(s: &str) -> Result<Self, Self::Err>
+	{
 		let s = s.to_lowercase();
 
 		match s.as_str() {
@@ -89,10 +100,12 @@ impl FromStr for GlobalStatus {
 #[error("invalid global status `{0}`")]
 pub struct InvalidGlobalStatus(pub i8);
 
-impl TryFrom<i8> for GlobalStatus {
+impl TryFrom<i8> for GlobalStatus
+{
 	type Error = InvalidGlobalStatus;
 
-	fn try_from(value: i8) -> Result<Self, Self::Error> {
+	fn try_from(value: i8) -> Result<Self, Self::Error>
+	{
 		match value {
 			-1 => Ok(Self::NotGlobal),
 			0 => Ok(Self::InTesting),
@@ -102,21 +115,25 @@ impl TryFrom<i8> for GlobalStatus {
 	}
 }
 
-impl From<GlobalStatus> for i8 {
+impl From<GlobalStatus> for i8
+{
 	#[allow(clippy::as_conversions)]
-	fn from(value: GlobalStatus) -> Self {
+	fn from(value: GlobalStatus) -> Self
+	{
 		value as i8
 	}
 }
 
 /// Method and Trait implementations when depending on [`serde`].
 #[cfg(feature = "serde")]
-mod serde_impls {
+mod serde_impls
+{
 	use serde::{de, Deserialize, Deserializer};
 
 	use super::GlobalStatus;
 
-	impl<'de> Deserialize<'de> for GlobalStatus {
+	impl<'de> Deserialize<'de> for GlobalStatus
+	{
 		fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 		where
 			D: Deserializer<'de>,
@@ -124,7 +141,8 @@ mod serde_impls {
 			#[derive(Deserialize)]
 			#[serde(untagged)]
 			#[allow(clippy::missing_docs_in_private_items)]
-			enum Helper {
+			enum Helper
+			{
 				I8(i8),
 				Str(String),
 			}
@@ -139,7 +157,8 @@ mod serde_impls {
 
 /// Method and Trait implementations when depending on [`sqlx`].
 #[cfg(feature = "sqlx")]
-mod sqlx_impls {
+mod sqlx_impls
+{
 	use sqlx::database::{HasArguments, HasValueRef};
 	use sqlx::encode::IsNull;
 	use sqlx::error::BoxDynError;
@@ -152,7 +171,8 @@ mod sqlx_impls {
 		DB: Database,
 		i8: Type<DB>,
 	{
-		fn type_info() -> <DB as Database>::TypeInfo {
+		fn type_info() -> <DB as Database>::TypeInfo
+		{
 			<i8 as Type<DB>>::type_info()
 		}
 	}
@@ -162,7 +182,8 @@ mod sqlx_impls {
 		DB: Database,
 		i8: Encode<'q, DB>,
 	{
-		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull {
+		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull
+		{
 			<i8 as Encode<'q, DB>>::encode_by_ref(&i8::from(*self), buf)
 		}
 	}
@@ -172,7 +193,8 @@ mod sqlx_impls {
 		DB: Database,
 		i8: Decode<'r, DB>,
 	{
-		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError> {
+		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError>
+		{
 			<i8 as Decode<'r, DB>>::decode(value)
 				.map(Self::try_from)?
 				.map_err(Into::into)
@@ -182,7 +204,8 @@ mod sqlx_impls {
 
 /// Method and Trait implementations when depending on [`utoipa`].
 #[cfg(feature = "utoipa")]
-mod utoipa_impls {
+mod utoipa_impls
+{
 	use utoipa::openapi::path::{Parameter, ParameterBuilder, ParameterIn};
 	use utoipa::openapi::schema::OneOfBuilder;
 	use utoipa::openapi::{ObjectBuilder, RefOr, Schema, SchemaType};
@@ -190,8 +213,10 @@ mod utoipa_impls {
 
 	use crate::GlobalStatus;
 
-	impl<'s> ToSchema<'s> for GlobalStatus {
-		fn schema() -> (&'s str, RefOr<Schema>) {
+	impl<'s> ToSchema<'s> for GlobalStatus
+	{
+		fn schema() -> (&'s str, RefOr<Schema>)
+		{
 			(
 				"GlobalStatus",
 				Schema::OneOf(
@@ -222,8 +247,10 @@ mod utoipa_impls {
 		}
 	}
 
-	impl IntoParams for GlobalStatus {
-		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter> {
+	impl IntoParams for GlobalStatus
+	{
+		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter>
+		{
 			vec![
 				ParameterBuilder::new()
 					.name("global_status")

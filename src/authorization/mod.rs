@@ -1,9 +1,10 @@
 //! Everything related to authorization.
 //!
-//! [Sessions][session] are parameterized by an authorization method `A`. This module defines the
-//! [`AuthorizeSession`] trait which that parameter is bound by, as well as implementations of that
-//! trait. This `A` parameter can be used to control the authorization method for any given
-//! [session] at the type system level.
+//! [Sessions][session] are parameterized by an authorization method `A`. This
+//! module defines the [`AuthorizeSession`] trait which that parameter is bound
+//! by, as well as implementations of that trait. This `A` parameter can be used
+//! to control the authorization method for any given [session] at the type
+//! system level.
 //!
 //! [session]: crate::authentication::Session
 
@@ -32,7 +33,8 @@ pub use is_server_admin_or_owner::IsServerAdminOrOwner;
 ///
 /// [session]: crate::authentication::Session
 /// [module level docs]: crate::authorization
-pub trait AuthorizeSession: Send + Sync + 'static {
+pub trait AuthorizeSession: Send + Sync + 'static
+{
 	/// Authorize the session of the given `user`.
 	fn authorize_session(
 		user: &authentication::User,

@@ -9,7 +9,8 @@ use thiserror::Error;
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
-pub enum JumpType {
+pub enum JumpType
+{
 	/// LJ
 	LongJump = 1,
 
@@ -32,9 +33,12 @@ pub enum JumpType {
 	Jumpbug = 7,
 }
 
-impl JumpType {
-	/// Returns a string representation of this [JumpType], as accepted by the API.
-	pub const fn as_str(&self) -> &'static str {
+impl JumpType
+{
+	/// Returns a string representation of this [JumpType], as accepted by the
+	/// API.
+	pub const fn as_str(&self) -> &'static str
+	{
 		match *self {
 			Self::LongJump => "longjump",
 			Self::Bhop => "bhop",
@@ -47,8 +51,10 @@ impl JumpType {
 	}
 }
 
-impl Display for JumpType {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl Display for JumpType
+{
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+	{
 		f.write_str(match *self {
 			Self::LongJump => "LongJump",
 			Self::Bhop => "Bhop",
@@ -66,10 +72,12 @@ impl Display for JumpType {
 #[error("unrecognized jump type `{0}`")]
 pub struct UnknownJumpType(pub String);
 
-impl FromStr for JumpType {
+impl FromStr for JumpType
+{
 	type Err = UnknownJumpType;
 
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
+	fn from_str(s: &str) -> Result<Self, Self::Err>
+	{
 		let s = s.to_lowercase();
 
 		match s.as_str() {
@@ -90,10 +98,12 @@ impl FromStr for JumpType {
 #[error("invalid jump type `{0}`")]
 pub struct InvalidJumpType(pub u8);
 
-impl TryFrom<u8> for JumpType {
+impl TryFrom<u8> for JumpType
+{
 	type Error = InvalidJumpType;
 
-	fn try_from(value: u8) -> Result<Self, Self::Error> {
+	fn try_from(value: u8) -> Result<Self, Self::Error>
+	{
 		match value {
 			1 => Ok(Self::LongJump),
 			2 => Ok(Self::Bhop),
@@ -107,21 +117,25 @@ impl TryFrom<u8> for JumpType {
 	}
 }
 
-impl From<JumpType> for u8 {
+impl From<JumpType> for u8
+{
 	#[allow(clippy::as_conversions)]
-	fn from(value: JumpType) -> Self {
+	fn from(value: JumpType) -> Self
+	{
 		value as u8
 	}
 }
 
 /// Method and Trait implementations when depending on [`serde`].
 #[cfg(feature = "serde")]
-mod serde_impls {
+mod serde_impls
+{
 	use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 	use super::JumpType;
 
-	impl Serialize for JumpType {
+	impl Serialize for JumpType
+	{
 		fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 		where
 			S: Serializer,
@@ -130,7 +144,8 @@ mod serde_impls {
 		}
 	}
 
-	impl<'de> Deserialize<'de> for JumpType {
+	impl<'de> Deserialize<'de> for JumpType
+	{
 		fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 		where
 			D: Deserializer<'de>,
@@ -138,7 +153,8 @@ mod serde_impls {
 			#[derive(Deserialize)]
 			#[serde(untagged)]
 			#[allow(clippy::missing_docs_in_private_items)]
-			enum Helper {
+			enum Helper
+			{
 				U8(u8),
 				Str(String),
 			}
@@ -153,7 +169,8 @@ mod serde_impls {
 
 /// Method and Trait implementations when depending on [`sqlx`].
 #[cfg(feature = "sqlx")]
-mod sqlx_impls {
+mod sqlx_impls
+{
 	use sqlx::database::{HasArguments, HasValueRef};
 	use sqlx::encode::IsNull;
 	use sqlx::error::BoxDynError;
@@ -166,7 +183,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Type<DB>,
 	{
-		fn type_info() -> <DB as Database>::TypeInfo {
+		fn type_info() -> <DB as Database>::TypeInfo
+		{
 			<u8 as Type<DB>>::type_info()
 		}
 	}
@@ -176,7 +194,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Encode<'q, DB>,
 	{
-		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull {
+		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull
+		{
 			<u8 as Encode<'q, DB>>::encode_by_ref(&u8::from(*self), buf)
 		}
 	}
@@ -186,7 +205,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Decode<'r, DB>,
 	{
-		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError> {
+		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError>
+		{
 			<u8 as Decode<'r, DB>>::decode(value)
 				.map(Self::try_from)?
 				.map_err(Into::into)
@@ -196,7 +216,8 @@ mod sqlx_impls {
 
 /// Method and Trait implementations when depending on [`utoipa`].
 #[cfg(feature = "utoipa")]
-mod utoipa_impls {
+mod utoipa_impls
+{
 	use utoipa::openapi::path::{Parameter, ParameterBuilder, ParameterIn};
 	use utoipa::openapi::schema::OneOfBuilder;
 	use utoipa::openapi::{ObjectBuilder, RefOr, Schema, SchemaType};
@@ -204,8 +225,10 @@ mod utoipa_impls {
 
 	use crate::JumpType;
 
-	impl<'s> ToSchema<'s> for JumpType {
-		fn schema() -> (&'s str, RefOr<Schema>) {
+	impl<'s> ToSchema<'s> for JumpType
+	{
+		fn schema() -> (&'s str, RefOr<Schema>)
+		{
 			(
 				"JumpType",
 				Schema::OneOf(
@@ -242,8 +265,10 @@ mod utoipa_impls {
 		}
 	}
 
-	impl IntoParams for JumpType {
-		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter> {
+	impl IntoParams for JumpType
+	{
+		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter>
+		{
 			vec![
 				ParameterBuilder::new()
 					.name("jump_type")

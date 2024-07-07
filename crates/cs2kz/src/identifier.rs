@@ -1,6 +1,7 @@
 //! A helper macro for defining "SomethingIdentifier" enums.
 //!
-//! These all share largely the same code, so this macro reduces code duplication.
+//! These all share largely the same code, so this macro reduces code
+//! duplication.
 
 /// Define an "identifier" type.
 macro_rules! identifier {

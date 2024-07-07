@@ -14,10 +14,12 @@ const API_URL: &str = "https://api.steampowered.com/ISteamRemoteStorage/GetPubli
 pub async fn fetch_map_name(
 	workshop_id: WorkshopID,
 	http_client: &reqwest::Client,
-) -> Result<String> {
+) -> Result<String>
+{
 	#[derive(Serialize)]
 	#[allow(clippy::missing_docs_in_private_items)]
-	struct Params {
+	struct Params
+	{
 		workshop_id: WorkshopID,
 	}
 
@@ -37,11 +39,13 @@ pub async fn fetch_map_name(
 }
 
 #[allow(clippy::missing_docs_in_private_items)]
-struct MapInfo {
+struct MapInfo
+{
 	title: String,
 }
 
-impl<'de> Deserialize<'de> for MapInfo {
+impl<'de> Deserialize<'de> for MapInfo
+{
 	#[allow(clippy::missing_docs_in_private_items)]
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
@@ -50,12 +54,14 @@ impl<'de> Deserialize<'de> for MapInfo {
 		use serde::de::Error as E;
 
 		#[derive(Deserialize)]
-		struct Helper1 {
+		struct Helper1
+		{
 			response: Helper2,
 		}
 
 		#[derive(Deserialize)]
-		struct Helper2 {
+		struct Helper2
+		{
 			publishedfiledetails: Vec<JsonValue>,
 		}
 

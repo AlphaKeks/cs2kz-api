@@ -1,7 +1,8 @@
 //! JWT authentication.
 //!
-//! This module contains the [`Jwt`] type, which is used by [`State::encode_jwt()`] /
-//! [`State::decode_jwt()`], and can be used as an [extractor].
+//! This module contains the [`Jwt`] type, which is used by
+//! [`State::encode_jwt()`] / [`State::decode_jwt()`], and can be used as an
+//! [extractor].
 //!
 //! [extractor]: axum::extract
 
@@ -26,7 +27,8 @@ use crate::{Error, Result, State};
 
 /// An extractor for JWTs.
 #[derive(Debug, Deref, DerefMut, Serialize, Deserialize)]
-pub struct Jwt<T> {
+pub struct Jwt<T>
+{
 	/// The token payload.
 	#[serde(flatten)]
 	#[deref]
@@ -39,9 +41,10 @@ pub struct Jwt<T> {
 	exp: u64,
 }
 
-impl<T> Jwt<T> {
-	/// Creates a new JWT from the given `payload`, that will expire after the specified
-	/// duration.
+impl<T> Jwt<T>
+{
+	/// Creates a new JWT from the given `payload`, that will expire after the
+	/// specified duration.
 	#[track_caller]
 	#[tracing::instrument(
 		level = "debug",
@@ -49,27 +52,28 @@ impl<T> Jwt<T> {
 		skip(payload),
 		fields(location = %Location::caller()),
 	)]
-	pub fn new(payload: T, expires_after: Duration) -> Self {
-		Self {
-			payload,
-			exp: jwt::get_current_timestamp() + expires_after.as_secs(),
-		}
+	pub fn new(payload: T, expires_after: Duration) -> Self
+	{
+		Self { payload, exp: jwt::get_current_timestamp() + expires_after.as_secs() }
 	}
 
 	/// Returns a timestamp of when this JWT will expire.
-	pub fn expires_on(&self) -> DateTime<Utc> {
+	pub fn expires_on(&self) -> DateTime<Utc>
+	{
 		let secs = i64::try_from(self.exp).expect("invalid expiration date");
 
 		DateTime::from_timestamp(secs, 0).expect("invalid expiration date")
 	}
 
 	/// Checks if this JWT has expired.
-	pub fn has_expired(&self) -> bool {
+	pub fn has_expired(&self) -> bool
+	{
 		self.exp < jwt::get_current_timestamp()
 	}
 
 	/// Turns this JWT into its inner payload.
-	pub fn into_payload(self) -> T {
+	pub fn into_payload(self) -> T
+	{
 		self.payload
 	}
 }
@@ -88,7 +92,8 @@ where
 		fields(token = tracing::field::Empty),
 		err(level = "debug"),
 	)]
-	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self> {
+	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self>
+	{
 		let header = TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await?;
 		let jwt = state
 			.decode_jwt::<T>(header.token())
@@ -105,8 +110,10 @@ where
 	}
 }
 
-impl<'s, T> ToSchema<'s> for Jwt<T> {
-	fn schema() -> (&'s str, RefOr<Schema>) {
+impl<'s, T> ToSchema<'s> for Jwt<T>
+{
+	fn schema() -> (&'s str, RefOr<Schema>)
+	{
 		(
 			"JWT",
 			ObjectBuilder::new()

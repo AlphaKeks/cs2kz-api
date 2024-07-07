@@ -23,7 +23,8 @@ use crate::{authentication, authorization, Error, Result, State};
     responses::NotFound,
   ),
 )]
-pub async fn get(state: State, Path(server): Path<ServerIdentifier>) -> Result<Json<Server>> {
+pub async fn get(state: State, Path(server): Path<ServerIdentifier>) -> Result<Json<Server>>
+{
 	let mut query = QueryBuilder::new(queries::SELECT);
 
 	query.push(" WHERE ");
@@ -65,13 +66,9 @@ pub async fn patch(
 	state: State,
 	session: authentication::Session<authorization::IsServerAdminOrOwner>,
 	Path(server_id): Path<ServerID>,
-	Json(ServerUpdate {
-		name,
-		host,
-		port,
-		owned_by,
-	}): Json<ServerUpdate>,
-) -> Result<NoContent> {
+	Json(ServerUpdate { name, host, port, owned_by }): Json<ServerUpdate>,
+) -> Result<NoContent>
+{
 	if name.is_none() && host.is_none() && port.is_none() && owned_by.is_none() {
 		return Ok(NoContent);
 	}
@@ -116,7 +113,8 @@ pub async fn patch(
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
 	use axum_extra::extract::cookie::Cookie;
 	use cs2kz::SteamID;
 	use reqwest::header;
@@ -124,7 +122,8 @@ mod tests {
 	use crate::servers::{Server, ServerUpdate};
 
 	#[crate::integration_test]
-	async fn fetch_server(ctx: &Context) {
+	async fn fetch_server(ctx: &Context)
+	{
 		let response = ctx
 			.http_client
 			.get(ctx.url("/servers/alpha"))
@@ -140,7 +139,8 @@ mod tests {
 	}
 
 	#[crate::integration_test]
-	async fn update_server(ctx: &Context) {
+	async fn update_server(ctx: &Context)
+	{
 		let update = ServerUpdate {
 			name: Some(String::from("Church of Schnose")),
 			host: None,

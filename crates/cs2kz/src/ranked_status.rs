@@ -1,7 +1,8 @@
 //! Ranked Status for course filters.
 //!
-//! Every global map is made up of 1 or more courses. Each course has 4 filters, and each filter
-//! has its own [ranked status]. This determines whether players gain points from those filters.
+//! Every global map is made up of 1 or more courses. Each course has 4 filters,
+//! and each filter has its own [ranked status]. This determines whether players
+//! gain points from those filters.
 //!
 //! [ranked status]: RankedStatus
 
@@ -15,7 +16,8 @@ use thiserror::Error;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum RankedStatus {
+pub enum RankedStatus
+{
 	/// The filter will never be [ranked], as per the mapper's request.
 	///
 	/// [ranked]: Self::Ranked
@@ -29,16 +31,20 @@ pub enum RankedStatus {
 	Ranked = 1,
 }
 
-impl RankedStatus {
+impl RankedStatus
+{
 	/// Checks whether `self` is [Ranked].
 	///
 	/// [Ranked]: Self::Ranked
-	pub const fn is_ranked(&self) -> bool {
+	pub const fn is_ranked(&self) -> bool
+	{
 		matches!(*self, Self::Ranked)
 	}
 
-	/// Returns a string representation of this [RankedStatus], as accepted by the API.
-	pub const fn as_str(&self) -> &'static str {
+	/// Returns a string representation of this [RankedStatus], as accepted by
+	/// the API.
+	pub const fn as_str(&self) -> &'static str
+	{
 		match *self {
 			Self::Never => "never",
 			Self::Unranked => "unranked",
@@ -47,8 +53,10 @@ impl RankedStatus {
 	}
 }
 
-impl Display for RankedStatus {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl Display for RankedStatus
+{
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+	{
 		f.write_str(self.as_str())
 	}
 }
@@ -58,10 +66,12 @@ impl Display for RankedStatus {
 #[error("unknown ranked status `{0}`")]
 pub struct UnknownRankedStatus(pub String);
 
-impl FromStr for RankedStatus {
+impl FromStr for RankedStatus
+{
 	type Err = UnknownRankedStatus;
 
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
+	fn from_str(s: &str) -> Result<Self, Self::Err>
+	{
 		let s = s.to_lowercase();
 
 		match s.as_str() {
@@ -78,10 +88,12 @@ impl FromStr for RankedStatus {
 #[error("invalid ranked status `{0}`")]
 pub struct InvalidRankedStatus(pub i8);
 
-impl TryFrom<i8> for RankedStatus {
+impl TryFrom<i8> for RankedStatus
+{
 	type Error = InvalidRankedStatus;
 
-	fn try_from(value: i8) -> Result<Self, Self::Error> {
+	fn try_from(value: i8) -> Result<Self, Self::Error>
+	{
 		match value {
 			-1 => Ok(Self::Never),
 			0 => Ok(Self::Unranked),
@@ -91,21 +103,25 @@ impl TryFrom<i8> for RankedStatus {
 	}
 }
 
-impl From<RankedStatus> for i8 {
+impl From<RankedStatus> for i8
+{
 	#[allow(clippy::as_conversions)]
-	fn from(value: RankedStatus) -> Self {
+	fn from(value: RankedStatus) -> Self
+	{
 		value as i8
 	}
 }
 
 /// Method and Trait implementations when depending on [`serde`].
 #[cfg(feature = "serde")]
-mod serde_impls {
+mod serde_impls
+{
 	use serde::{de, Deserialize, Deserializer};
 
 	use super::RankedStatus;
 
-	impl<'de> Deserialize<'de> for RankedStatus {
+	impl<'de> Deserialize<'de> for RankedStatus
+	{
 		fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 		where
 			D: Deserializer<'de>,
@@ -113,7 +129,8 @@ mod serde_impls {
 			#[derive(Deserialize)]
 			#[serde(untagged)]
 			#[allow(clippy::missing_docs_in_private_items)]
-			enum Helper {
+			enum Helper
+			{
 				I8(i8),
 				Str(String),
 			}
@@ -128,7 +145,8 @@ mod serde_impls {
 
 /// Method and Trait implementations when depending on [`sqlx`].
 #[cfg(feature = "sqlx")]
-mod sqlx_impls {
+mod sqlx_impls
+{
 	use sqlx::database::{HasArguments, HasValueRef};
 	use sqlx::encode::IsNull;
 	use sqlx::error::BoxDynError;
@@ -141,7 +159,8 @@ mod sqlx_impls {
 		DB: Database,
 		i8: Type<DB>,
 	{
-		fn type_info() -> <DB as Database>::TypeInfo {
+		fn type_info() -> <DB as Database>::TypeInfo
+		{
 			<i8 as Type<DB>>::type_info()
 		}
 	}
@@ -151,7 +170,8 @@ mod sqlx_impls {
 		DB: Database,
 		i8: Encode<'q, DB>,
 	{
-		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull {
+		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull
+		{
 			<i8 as Encode<'q, DB>>::encode_by_ref(&i8::from(*self), buf)
 		}
 	}
@@ -161,7 +181,8 @@ mod sqlx_impls {
 		DB: Database,
 		i8: Decode<'r, DB>,
 	{
-		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError> {
+		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError>
+		{
 			<i8 as Decode<'r, DB>>::decode(value)
 				.map(Self::try_from)?
 				.map_err(Into::into)
@@ -171,7 +192,8 @@ mod sqlx_impls {
 
 /// Method and Trait implementations when depending on [`utoipa`].
 #[cfg(feature = "utoipa")]
-mod utoipa_impls {
+mod utoipa_impls
+{
 	use utoipa::openapi::path::{Parameter, ParameterBuilder, ParameterIn};
 	use utoipa::openapi::schema::OneOfBuilder;
 	use utoipa::openapi::{ObjectBuilder, RefOr, Schema, SchemaType};
@@ -179,8 +201,10 @@ mod utoipa_impls {
 
 	use crate::RankedStatus;
 
-	impl<'s> ToSchema<'s> for RankedStatus {
-		fn schema() -> (&'s str, RefOr<Schema>) {
+	impl<'s> ToSchema<'s> for RankedStatus
+	{
+		fn schema() -> (&'s str, RefOr<Schema>)
+		{
 			(
 				"RankedStatus",
 				Schema::OneOf(
@@ -210,8 +234,10 @@ mod utoipa_impls {
 		}
 	}
 
-	impl IntoParams for RankedStatus {
-		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter> {
+	impl IntoParams for RankedStatus
+	{
+		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter>
+		{
 			vec![
 				ParameterBuilder::new()
 					.name("ranked_status")

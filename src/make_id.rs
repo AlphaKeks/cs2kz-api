@@ -1,6 +1,7 @@
 //! Helper macro & trait to make "ID" types.
 //!
-//! Defining concrete types for different kinds of IDs makes it harder to accidentally mix them up.
+//! Defining concrete types for different kinds of IDs makes it harder to
+//! accidentally mix them up.
 
 use std::error::Error as StdError;
 
@@ -8,7 +9,8 @@ use thiserror::Error;
 
 /// Extension trait to turn a raw integer into a specific ID type.
 #[allow(private_bounds)] // this is intentional
-pub trait IntoID: sealed::Sealed + Sized {
+pub trait IntoID: sealed::Sealed + Sized
+{
 	/// Convert `self` into an `ID`.
 	fn into_id<ID>(self) -> Result<ID, ConvertIDError<<Self as TryInto<ID>>::Error>>
 	where
@@ -16,7 +18,8 @@ pub trait IntoID: sealed::Sealed + Sized {
 		<Self as TryInto<ID>>::Error: StdError;
 }
 
-impl IntoID for u64 {
+impl IntoID for u64
+{
 	fn into_id<ID>(self) -> Result<ID, ConvertIDError<<Self as TryInto<ID>>::Error>>
 	where
 		Self: TryInto<ID>,
@@ -34,7 +37,8 @@ where
 	E: StdError;
 
 #[allow(clippy::missing_docs_in_private_items)]
-mod sealed {
+mod sealed
+{
 	pub(super) trait Sealed {}
 
 	impl Sealed for u64 {}
@@ -42,8 +46,8 @@ mod sealed {
 
 /// A helper macro for defining an "ID" type.
 ///
-/// All database tables with an `id` column get their own types defined by this macro in their
-/// respective modules.
+/// All database tables with an `id` column get their own types defined by this
+/// macro in their respective modules.
 ///
 /// # Example
 ///

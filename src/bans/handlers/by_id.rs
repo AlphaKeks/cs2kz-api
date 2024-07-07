@@ -24,7 +24,8 @@ use crate::{authentication, Error, Result, State};
     responses::BadRequest,
   ),
 )]
-pub async fn get(state: State, Path(ban_id): Path<BanID>) -> Result<Json<Ban>> {
+pub async fn get(state: State, Path(ban_id): Path<BanID>) -> Result<Json<Ban>>
+{
 	let mut query = QueryBuilder::new(queries::SELECT);
 
 	query.push(" WHERE b.id = ").push_bind(ban_id);
@@ -60,7 +61,8 @@ pub async fn patch(
 	session: authentication::Session<authorization::HasPermissions<{ Permissions::BANS.value() }>>,
 	Path(ban_id): Path<BanID>,
 	Json(BanUpdate { reason, expires_on }): Json<BanUpdate>,
-) -> Result<NoContent> {
+) -> Result<NoContent>
+{
 	if reason.is_none() && expires_on.is_none() {
 		return Ok(NoContent);
 	}
@@ -118,7 +120,8 @@ pub async fn delete(
 	session: authentication::Session<authorization::HasPermissions<{ Permissions::BANS.value() }>>,
 	Path(ban_id): Path<BanID>,
 	Json(NewUnban { reason }): Json<NewUnban>,
-) -> Result<Created<Json<CreatedUnban>>> {
+) -> Result<Created<Json<CreatedUnban>>>
+{
 	let mut transaction = state.transaction().await?;
 
 	if let Some(unban_id) = is_already_unbanned(ban_id, transaction.as_mut()).await? {
@@ -169,11 +172,13 @@ pub async fn delete(
 	Ok(Created(Json(CreatedUnban { unban_id })))
 }
 
-/// Checks if a ban has already been reverted, and returns the corresponding [`UnbanID`].
+/// Checks if a ban has already been reverted, and returns the corresponding
+/// [`UnbanID`].
 async fn is_already_unbanned(
 	ban_id: BanID,
 	executor: impl MySqlExecutor<'_>,
-) -> Result<Option<UnbanID>> {
+) -> Result<Option<UnbanID>>
+{
 	sqlx::query_scalar! {
 		r#"
 		SELECT

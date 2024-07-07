@@ -1,7 +1,7 @@
 //! Everything related to authentication.
 //!
-//! This module contains types, traits, and HTTP handlers related to authentication.
-//! This includes JWT, sessions, and opaque API keys.
+//! This module contains types, traits, and HTTP handlers related to
+//! authentication. This includes JWT, sessions, and opaque API keys.
 
 use axum::http::Method;
 use axum::{routing, Router};
@@ -29,7 +29,8 @@ pub mod steam;
 pub mod handlers;
 
 /// Returns a [Router] with all the `/auth` handlers.
-pub fn router(state: State) -> Router {
+pub fn router(state: State) -> Router
+{
 	let logout = Router::new()
 		.route("/logout", routing::get(handlers::logout))
 		.route_layer(cors::dashboard([Method::GET]))

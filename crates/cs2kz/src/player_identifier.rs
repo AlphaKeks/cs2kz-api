@@ -17,15 +17,18 @@ crate::identifier::identifier! {
 
 /// Method and Trait implementations when depending on [`utoipa`].
 #[cfg(feature = "utoipa")]
-mod utoipa_impls {
+mod utoipa_impls
+{
 	use utoipa::openapi::path::{Parameter, ParameterBuilder, ParameterIn};
 	use utoipa::openapi::{ObjectBuilder, OneOfBuilder, RefOr, Schema, SchemaType};
 	use utoipa::{IntoParams, ToSchema};
 
 	use crate::{PlayerIdentifier, SteamID};
 
-	impl<'s> ToSchema<'s> for PlayerIdentifier {
-		fn schema() -> (&'s str, RefOr<Schema>) {
+	impl<'s> ToSchema<'s> for PlayerIdentifier
+	{
+		fn schema() -> (&'s str, RefOr<Schema>)
+		{
 			(
 				"PlayerIdentifier",
 				Schema::OneOf(
@@ -46,8 +49,10 @@ mod utoipa_impls {
 		}
 	}
 
-	impl IntoParams for PlayerIdentifier {
-		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter> {
+	impl IntoParams for PlayerIdentifier
+	{
+		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter>
+		{
 			vec![
 				ParameterBuilder::new()
 					.name("player")

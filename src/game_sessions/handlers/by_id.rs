@@ -20,7 +20,8 @@ use crate::{Error, Result, State};
     responses::NotFound,
   ),
 )]
-pub async fn get(state: State, Path(session_id): Path<GameSessionID>) -> Result<Json<GameSession>> {
+pub async fn get(state: State, Path(session_id): Path<GameSessionID>) -> Result<Json<GameSession>>
+{
 	let session = sqlx::query_as(
 		r#"
 		SELECT

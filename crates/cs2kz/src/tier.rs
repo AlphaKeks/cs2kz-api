@@ -8,7 +8,8 @@ use thiserror::Error;
 /// All the different course difficulties.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Tier {
+pub enum Tier
+{
 	/// The lowest tier.
 	///
 	/// Someone who has never played KZ before should be able to complete this.
@@ -34,25 +35,28 @@ pub enum Tier {
 	/// [Hard]: type@Tier::Hard
 	VeryHard = 6,
 
-	/// For players with a lot of KZ experience who want to challenge themselves.
-	/// Getting a top time on these requires mastering KZ.
+	/// For players with a lot of KZ experience who want to challenge
+	/// themselves. Getting a top time on these requires mastering KZ.
 	Extreme = 7,
 
 	/// These are the hardest in the game, and only very good KZ players can
 	/// complete these at all.
 	Death = 8,
 
-	/// Technically possible, but not feasible for humans. This tier is reserved for
-	/// TAS runs, and any runs submitted by humans will be reviewed for cheats.
+	/// Technically possible, but not feasible for humans. This tier is reserved
+	/// for TAS runs, and any runs submitted by humans will be reviewed for
+	/// cheats.
 	Unfeasible = 9,
 
 	/// Technically impossible. Even with perfect inputs.
 	Impossible = 10,
 }
 
-impl Tier {
+impl Tier
+{
 	/// Returns a string representation of this [Tier], as accepted by the API.
-	pub const fn as_str(&self) -> &'static str {
+	pub const fn as_str(&self) -> &'static str
+	{
 		match *self {
 			Self::VeryEasy => "very_easy",
 			Self::Easy => "easy",
@@ -68,8 +72,10 @@ impl Tier {
 	}
 }
 
-impl Display for Tier {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl Display for Tier
+{
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+	{
 		f.write_str(match *self {
 			Self::VeryEasy => "Very Easy",
 			Self::Easy => "Easy",
@@ -90,10 +96,12 @@ impl Display for Tier {
 #[error("unrecognized tier `{0}`")]
 pub struct UnknownTier(pub String);
 
-impl FromStr for Tier {
+impl FromStr for Tier
+{
 	type Err = UnknownTier;
 
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
+	fn from_str(s: &str) -> Result<Self, Self::Err>
+	{
 		let s = s.to_lowercase();
 
 		match s.as_str() {
@@ -117,10 +125,12 @@ impl FromStr for Tier {
 #[error("invalid tier `{0}`")]
 pub struct InvalidTier(pub u8);
 
-impl TryFrom<u8> for Tier {
+impl TryFrom<u8> for Tier
+{
 	type Error = InvalidTier;
 
-	fn try_from(value: u8) -> Result<Self, Self::Error> {
+	fn try_from(value: u8) -> Result<Self, Self::Error>
+	{
 		match value {
 			1 => Ok(Self::VeryEasy),
 			2 => Ok(Self::Easy),
@@ -137,21 +147,25 @@ impl TryFrom<u8> for Tier {
 	}
 }
 
-impl From<Tier> for u8 {
+impl From<Tier> for u8
+{
 	#[allow(clippy::as_conversions)]
-	fn from(value: Tier) -> Self {
+	fn from(value: Tier) -> Self
+	{
 		value as u8
 	}
 }
 
 /// Method and Trait implementations when depending on [`serde`].
 #[cfg(feature = "serde")]
-mod serde_impls {
+mod serde_impls
+{
 	use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 	use super::Tier;
 
-	impl Serialize for Tier {
+	impl Serialize for Tier
+	{
 		fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 		where
 			S: Serializer,
@@ -160,7 +174,8 @@ mod serde_impls {
 		}
 	}
 
-	impl<'de> Deserialize<'de> for Tier {
+	impl<'de> Deserialize<'de> for Tier
+	{
 		fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 		where
 			D: Deserializer<'de>,
@@ -168,7 +183,8 @@ mod serde_impls {
 			#[derive(Deserialize)]
 			#[serde(untagged)]
 			#[allow(clippy::missing_docs_in_private_items)]
-			enum Helper {
+			enum Helper
+			{
 				U8(u8),
 				Str(String),
 			}
@@ -183,7 +199,8 @@ mod serde_impls {
 
 /// Method and Trait implementations when depending on [`sqlx`].
 #[cfg(feature = "sqlx")]
-mod sqlx_impls {
+mod sqlx_impls
+{
 	use sqlx::database::{HasArguments, HasValueRef};
 	use sqlx::encode::IsNull;
 	use sqlx::error::BoxDynError;
@@ -196,7 +213,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Type<DB>,
 	{
-		fn type_info() -> <DB as Database>::TypeInfo {
+		fn type_info() -> <DB as Database>::TypeInfo
+		{
 			<u8 as Type<DB>>::type_info()
 		}
 	}
@@ -206,7 +224,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Encode<'q, DB>,
 	{
-		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull {
+		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull
+		{
 			<u8 as Encode<'q, DB>>::encode_by_ref(&u8::from(*self), buf)
 		}
 	}
@@ -216,7 +235,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Decode<'r, DB>,
 	{
-		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError> {
+		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError>
+		{
 			<u8 as Decode<'r, DB>>::decode(value)
 				.map(Self::try_from)?
 				.map_err(Into::into)
@@ -226,7 +246,8 @@ mod sqlx_impls {
 
 /// Method and Trait implementations when depending on [`utoipa`].
 #[cfg(feature = "utoipa")]
-mod utoipa_impls {
+mod utoipa_impls
+{
 	use utoipa::openapi::path::{Parameter, ParameterBuilder, ParameterIn};
 	use utoipa::openapi::schema::OneOfBuilder;
 	use utoipa::openapi::{ObjectBuilder, RefOr, Schema, SchemaType};
@@ -234,8 +255,10 @@ mod utoipa_impls {
 
 	use crate::Tier;
 
-	impl<'s> ToSchema<'s> for Tier {
-		fn schema() -> (&'s str, RefOr<Schema>) {
+	impl<'s> ToSchema<'s> for Tier
+	{
+		fn schema() -> (&'s str, RefOr<Schema>)
+		{
 			(
 				"Tier",
 				Schema::OneOf(
@@ -276,8 +299,10 @@ mod utoipa_impls {
 		}
 	}
 
-	impl IntoParams for Tier {
-		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter> {
+	impl IntoParams for Tier
+	{
+		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter>
+		{
 			vec![
 				ParameterBuilder::new()
 					.name("tier")
