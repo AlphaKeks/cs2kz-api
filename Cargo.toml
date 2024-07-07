@@ -151,6 +151,13 @@ version = "0.13"
 [dependencies.crc32fast]
 version = "1"
 
+[dependencies.clap]
+version = "4.5"
+features = ["derive"]
+
+[dependencies.similar]
+version = "2.4"
+
 [dev-dependencies.ctor]
 version = "0.2"
 
@@ -165,7 +172,7 @@ version = "0.5.0"
 features = ["mariadb"]
 
 [workspace]
-members = ["crates/cs2kz", "crates/macros", "crates/spec-generator"]
+members = ["crates/cs2kz", "crates/macros"]
 
 # See https://doc.rust-lang.org/rustc/lints/listing/index.html
 [workspace.lints.rust]
@@ -236,6 +243,7 @@ todo = "warn"
 unimplemented = "deny"
 unnecessary_safety_comment = "warn"
 unnecessary_safety_doc = "warn"
+upper_case_acronyms = "allow"
 wildcard_imports = "deny"
 
 [workspace.dependencies.anyhow]

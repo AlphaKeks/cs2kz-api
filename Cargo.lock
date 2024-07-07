@@ -668,6 +668,7 @@ dependencies = [
  "axum 0.7.5",
  "axum-extra",
  "chrono",
+ "clap",
  "console-subscriber",
  "crc32fast",
  "cs2kz",
@@ -684,6 +685,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
+ "similar",
  "sqlx",
  "testcontainers",
  "testcontainers-modules",
@@ -2752,16 +2754,6 @@ checksum = "ce305eb0b4296696835b71df73eb912e0f1ffd2556a501fcede6e0c50349191c"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "spec-generator"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "clap",
- "cs2kz-api",
- "similar",
 ]
 
 [[package]]
