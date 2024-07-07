@@ -48,9 +48,12 @@ pub fn expand(TestArgs { queries }: TestArgs, test_function: ItemFn) -> syn::Res
 		}
 	};
 
+	let test_name =
+		Ident::new(&format!("integration_{test_function_ident}"), test_function_ident.span());
+
 	let output = quote! {
 		#[tokio::test]
-		async fn #test_function_ident() -> ::anyhow::Result<()> {
+		async fn #test_name() -> ::anyhow::Result<()> {
 			use crate::test::Context;
 			use ::anyhow::Context as _;
 
