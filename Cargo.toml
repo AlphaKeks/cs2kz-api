@@ -1,0 +1,133 @@
+# CS2KZ API - the core infrastructure for CS2KZ.
+# Copyright (C) 2024  AlphaKeks <alphakeks@dawn>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see https://www.gnu.org/licenses.
+
+[package]
+name = "cs2kz-api"
+version = "0.0.0"
+authors = ["AlphaKeks <alphakeks@dawn.sh>"]
+edition = "2021"
+homepage = "https://cs2kz.org"
+repository = "https://github.com/KZGlobalTeam/cs2kz-api"
+license-file = "LICENSE.md"
+default-run = "cs2kz-api"
+
+[[bin]]
+name = "cs2kz-api"
+path = "src/bin/server.rs"
+
+[[bin]]
+name = "cs2kz-api-cli"
+path = "src/bin/cli.rs"
+
+[lints]
+workspace = true
+
+[dependencies.cs2kz]
+path = "lib/cs2kz"
+features = ["serde", "sqlx", "utoipa"]
+
+[dependencies.color-eyre]
+workspace = true
+
+[dependencies.clap]
+workspace = true
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1.0"
+
+[dependencies.utoipa]
+version = "4.2"
+
+[dev-dependencies]
+
+[workspace]
+members = ["lib/cs2kz"]
+
+[workspace.dependencies.thiserror]
+version = "1.0"
+
+[workspace.dependencies.color-eyre]
+version = "0.6"
+
+[workspace.dependencies.clap]
+version = "4.5"
+features = ["derive"]
+
+# See https://doc.rust-lang.org/rustc/lints/listing/index.html
+[workspace.lints.rust]
+elided_lifetimes_in_paths = "warn"
+explicit_outlives_requirements = "warn"
+keyword_idents_2024 = "warn"
+let_underscore_drop = "warn"
+macro_use_extern_crate = "deny"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+non_ascii_idents = "deny"
+redundant_lifetimes = "warn"
+unit_bindings = "warn"
+unsafe_op_in_unsafe_fn = "forbid"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+# See https://doc.rust-lang.org/rustdoc/lints.html
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+
+# See https://rust-lang.github.io/rust-clippy/stable/index.html
+[workspace.lints.clippy]
+bool_to_int_with_if = "warn"
+branches_sharing_code = "warn"
+builtin_type_shadow = "deny"
+clone_on_ref_ptr = "warn"
+cloned_instead_of_copied = "warn"
+dbg_macro = "warn"
+enum_glob_use = "deny"
+filter_map_next = "warn"
+flat_map_option = "warn"
+fn_params_excessive_bools = "warn"
+future_not_send = "warn"
+if_not_else = "warn"
+ignored_unit_patterns = "warn"
+inconsistent_struct_constructor = "deny"
+manual_assert = "warn"
+manual_instant_elapsed = "warn"
+manual_is_variant_and = "warn"
+manual_let_else = "warn"
+manual_ok_or = "warn"
+manual_string_new = "deny"
+many_single_char_names = "deny"
+map_unwrap_or = "warn"
+missing_assert_message = "deny"
+missing_const_for_fn = "warn"
+missing_docs_in_private_items = "warn"
+missing_safety_doc = "deny"
+needless_collect = "warn"
+needless_continue = "warn"
+needless_for_each = "warn"
+new_without_default = "allow"
+redundant_closure = "allow"
+redundant_else = "warn"
+same_name_method = "warn"
+todo = "warn"
+unimplemented = "deny"
+unnecessary_safety_comment = "warn"
+unnecessary_safety_doc = "warn"
+upper_case_acronyms = "allow"
+wildcard_imports = "deny"
