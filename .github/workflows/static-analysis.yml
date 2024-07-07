@@ -67,4 +67,4 @@ jobs:
       - name: cargo doc
         run: |
           cargo doc --all-features --document-private-items --no-deps
-          cargo run --package spec-generator -- --check api-spec.json
+          cargo run --package cs2kz-api -- generate-spec --check api-spec.json
