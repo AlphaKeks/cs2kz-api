@@ -24,7 +24,7 @@ repository = "https://github.com/KZGlobalTeam/cs2kz-api"
 license-file = "../../LICENSE.md"
 
 [features]
-sqlx-as-u32 = []
+sqlx-steamid-as-u32 = []
 
 [lints]
 workspace = true
