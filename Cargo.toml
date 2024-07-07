@@ -16,11 +16,11 @@ console = ["dep:console-subscriber", "tokio/tracing"]
 workspace = true
 
 [dependencies.cs2kz]
-path = "./crates/cs2kz"
+path = "./lib/cs2kz"
 features = ["serde", "sqlx", "utoipa"]
 
 [dependencies.cs2kz-api-macros]
-path = "./crates/macros"
+path = "./lib/macros"
 
 [dependencies.anyhow]
 workspace = true
@@ -172,7 +172,7 @@ version = "0.5.0"
 features = ["mariadb"]
 
 [workspace]
-members = ["crates/cs2kz", "crates/macros"]
+members = ["lib/cs2kz", "lib/macros"]
 
 # See https://doc.rust-lang.org/rustc/lints/listing/index.html
 [workspace.lints.rust]
