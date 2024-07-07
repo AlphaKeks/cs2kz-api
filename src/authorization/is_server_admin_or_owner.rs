@@ -1,5 +1,5 @@
-//! Authorization for `/servers` routes, checking if the requesting user is either an admin or the
-//! owner of the server that is being modified.
+//! Authorization for `/servers` routes, checking if the requesting user is
+//! either an admin or the owner of the server that is being modified.
 
 use axum::extract::{FromRequestParts, Path};
 use axum::http::request;
@@ -10,15 +10,16 @@ use crate::authorization::{self, Permissions};
 use crate::servers::ServerID;
 use crate::{authentication, Error, Result};
 
-/// An authorization method that checks if the requesting user is either an admin with the
-/// [`SERVERS`] permission, or the owner of the server that is supposed to be modified by the
-/// request.
+/// An authorization method that checks if the requesting user is either an
+/// admin with the [`SERVERS`] permission, or the owner of the server that is
+/// supposed to be modified by the request.
 ///
 /// [`SERVERS`]: Permissions::SERVERS
 #[derive(Debug, Clone, Copy)]
 pub struct IsServerAdminOrOwner;
 
-impl AuthorizeSession for IsServerAdminOrOwner {
+impl AuthorizeSession for IsServerAdminOrOwner
+{
 	#[tracing::instrument(
 		level = "debug",
 		name = "auth::is_server_admin_or_owner",
@@ -35,7 +36,8 @@ impl AuthorizeSession for IsServerAdminOrOwner {
 		user: &authentication::User,
 		req: &mut request::Parts,
 		transaction: &mut Transaction<'_, MySql>,
-	) -> Result<()> {
+	) -> Result<()>
+	{
 		let current_span = tracing::Span::current();
 
 		if authorization::HasPermissions::<{ Permissions::SERVERS.value() }>::authorize_session(

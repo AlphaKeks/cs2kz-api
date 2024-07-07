@@ -17,11 +17,12 @@ make_id!(CourseSessionID as u64);
 
 /// A game session.
 ///
-/// Game sessions start when a player joins a server, and end either when the player disconnects,
-/// or when the map changes. They record statistics about playtime, bhops, and potentially other
-/// metrics in the future.
+/// Game sessions start when a player joins a server, and end either when the
+/// player disconnects, or when the map changes. They record statistics about
+/// playtime, bhops, and potentially other metrics in the future.
 #[derive(Debug, Serialize, FromRow, ToSchema)]
-pub struct GameSession {
+pub struct GameSession
+{
 	/// The session's ID.
 	pub id: GameSessionID,
 
@@ -37,8 +38,8 @@ pub struct GameSession {
 	#[sqlx(flatten)]
 	pub time_spent: TimeSpent,
 
-	/// Stats about how many bhops were performed by the player, and how many of them were
-	/// perfect bhops.
+	/// Stats about how many bhops were performed by the player, and how many
+	/// of them were perfect bhops.
 	#[sqlx(flatten)]
 	pub bhop_stats: BhopStats,
 
@@ -48,7 +49,8 @@ pub struct GameSession {
 
 /// Statistics about how a player spent their time on a KZ server.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
-pub struct TimeSpent {
+pub struct TimeSpent
+{
 	/// How many seconds they were actively playing (had a running timer).
 	pub active: Seconds,
 
@@ -59,8 +61,10 @@ pub struct TimeSpent {
 	pub afk: Seconds,
 }
 
-impl FromRow<'_, MySqlRow> for TimeSpent {
-	fn from_row(row: &MySqlRow) -> sqlx::Result<Self> {
+impl FromRow<'_, MySqlRow> for TimeSpent
+{
+	fn from_row(row: &MySqlRow) -> sqlx::Result<Self>
+	{
 		Ok(Self {
 			active: row.try_get("time_active")?,
 			spectating: row.try_get("time_spectating")?,

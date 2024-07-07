@@ -6,19 +6,34 @@ use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{
-	Expr, ExprArray, ExprAssign, ExprLit, ExprPath, FnArg, Ident, ItemFn, Lit, Pat, PatIdent,
-	PatType, PathArguments, PathSegment, ReturnType, Signature, Type, TypePath, TypeReference,
+	Expr,
+	ExprArray,
+	ExprAssign,
+	ExprLit,
+	ExprPath,
+	FnArg,
+	Ident,
+	ItemFn,
+	Lit,
+	Pat,
+	PatIdent,
+	PatType,
+	PathArguments,
+	PathSegment,
+	ReturnType,
+	Signature,
+	Type,
+	TypePath,
+	TypeReference,
 	Visibility,
 };
 
 use crate::error;
 
-pub fn expand(TestArgs { queries }: TestArgs, test_function: ItemFn) -> syn::Result<TokenStream> {
+pub fn expand(TestArgs { queries }: TestArgs, test_function: ItemFn) -> syn::Result<TokenStream>
+{
 	let Visibility::Inherited = &test_function.vis else {
-		error!(
-			test_function.vis,
-			"test functions do not have to be marked `pub`"
-		);
+		error!(test_function.vis, "test functions do not have to be marked `pub`");
 	};
 
 	let signature = &test_function.sig;
@@ -73,15 +88,16 @@ pub fn expand(TestArgs { queries }: TestArgs, test_function: ItemFn) -> syn::Res
 	Ok(output.into())
 }
 
-pub struct TestArgs {
+pub struct TestArgs
+{
 	queries: Vec<String>,
 }
 
-impl Parse for TestArgs {
-	fn parse(input: ParseStream) -> syn::Result<Self> {
-		let mut args = Self {
-			queries: Vec::new(),
-		};
+impl Parse for TestArgs
+{
+	fn parse(input: ParseStream) -> syn::Result<Self>
+	{
+		let mut args = Self { queries: Vec::new() };
 
 		if input.is_empty() {
 			return Ok(args);
@@ -91,42 +107,25 @@ impl Parse for TestArgs {
 
 		let Expr::Path(ExprPath {
 			qself: None,
-			path: syn::Path {
-				segments: fixtures_ident_path,
-				..
-			},
+			path: syn::Path { segments: fixtures_ident_path, .. },
 			..
 		}) = fixtures.left.as_ref()
 		else {
-			error!(
-				fixtures.left.as_ref(),
-				"arguments must be `<ident> = <value>`"
-			);
+			error!(fixtures.left.as_ref(), "arguments must be `<ident> = <value>`");
 		};
 
-		let Some(PathSegment {
-			ident: fixtures_ident,
-			arguments: PathArguments::None,
-		}) = fixtures_ident_path.first()
+		let Some(PathSegment { ident: fixtures_ident, arguments: PathArguments::None }) =
+			fixtures_ident_path.first()
 		else {
-			error!(
-				fixtures.left.as_ref(),
-				"arguments must be `<ident> = <value>`"
-			);
+			error!(fixtures.left.as_ref(), "arguments must be `<ident> = <value>`");
 		};
 
 		if fixtures_ident != "fixtures" {
 			error!(fixtures_ident, "unknown argument; try `fixtures`");
 		}
 
-		let Expr::Array(ExprArray {
-			elems: fixtures, ..
-		}) = fixtures.right.as_ref()
-		else {
-			error!(
-				fixtures.right,
-				"`fixtures` must be a list of file names: `[\"my-fixture\"]`"
-			);
+		let Expr::Array(ExprArray { elems: fixtures, .. }) = fixtures.right.as_ref() else {
+			error!(fixtures.right, "`fixtures` must be a list of file names: `[\"my-fixture\"]`");
 		};
 
 		for filename in fixtures {
@@ -159,7 +158,8 @@ impl Parse for TestArgs {
 	}
 }
 
-fn validate_signature(signature: &Signature) -> syn::Result<&Ident> {
+fn validate_signature(signature: &Signature) -> syn::Result<&Ident>
+{
 	if let Some(constness) = &signature.constness {
 		error!(constness, "test functions cannot be marked `const`");
 	}
@@ -177,61 +177,34 @@ fn validate_signature(signature: &Signature) -> syn::Result<&Ident> {
 	}
 
 	if !signature.generics.params.is_empty() {
-		error!(
-			signature.generics,
-			"test functions cannot take generic parameters"
-		);
+		error!(signature.generics, "test functions cannot take generic parameters");
 	}
 
 	if signature.inputs.len() != 1 {
-		error!(
-			signature.inputs,
-			"test functions must take a single parameter of type `&Context`"
-		);
+		error!(signature.inputs, "test functions must take a single parameter of type `&Context`");
 	}
 
-	let Some(FnArg::Typed(PatType {
-		pat: ctx_param_ident,
-		ty: ctx_param_ty,
-		..
-	})) = signature.inputs.first()
+	let Some(FnArg::Typed(PatType { pat: ctx_param_ident, ty: ctx_param_ty, .. })) =
+		signature.inputs.first()
 	else {
-		error!(
-			signature.inputs,
-			"test functions do not take a `self` parameter"
-		);
+		error!(signature.inputs, "test functions do not take a `self` parameter");
 	};
 
 	let Type::Reference(TypeReference {
-		lifetime: None,
-		mutability: None,
-		elem: ctx_ty_path,
-		..
+		lifetime: None, mutability: None, elem: ctx_ty_path, ..
 	}) = ctx_param_ty.as_ref()
 	else {
-		error!(
-			ctx_param_ty,
-			"test functions must take a single parameter of type `&Context`"
-		);
+		error!(ctx_param_ty, "test functions must take a single parameter of type `&Context`");
 	};
 
-	let Type::Path(TypePath {
-		path: ctx_ty_path, ..
-	}) = ctx_ty_path.as_ref()
-	else {
-		error!(
-			ctx_ty_path,
-			"test functions must take a single parameter of type `&Context`"
-		);
+	let Type::Path(TypePath { path: ctx_ty_path, .. }) = ctx_ty_path.as_ref() else {
+		error!(ctx_ty_path, "test functions must take a single parameter of type `&Context`");
 	};
 
 	let ctx_ty_ident = ctx_ty_path.require_ident()?;
 
 	if ctx_ty_ident != "Context" {
-		error!(
-			ctx_ty_path,
-			"test functions must take a single parameter of type `Context`"
-		);
+		error!(ctx_ty_path, "test functions must take a single parameter of type `Context`");
 	}
 
 	if let Some(variadic) = &signature.variadic {
@@ -245,11 +218,7 @@ fn validate_signature(signature: &Signature) -> syn::Result<&Ident> {
 		);
 	}
 
-	let Pat::Ident(PatIdent {
-		ident: ctx_param_ident,
-		..
-	}) = ctx_param_ident.as_ref()
-	else {
+	let Pat::Ident(PatIdent { ident: ctx_param_ident, .. }) = ctx_param_ident.as_ref() else {
 		error!(ctx_param_ident, "`ctx` parameter cannot be destructured");
 	};
 

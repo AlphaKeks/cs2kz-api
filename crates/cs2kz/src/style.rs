@@ -9,7 +9,8 @@ use thiserror::Error;
 #[repr(u8)]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Style {
+pub enum Style
+{
 	/// The "normal" style (default).
 	#[default]
 	Normal = 1,
@@ -18,24 +19,29 @@ pub enum Style {
 	AutoBhop = 2,
 }
 
-impl Style {
+impl Style
+{
 	/// Checks whether `self` is the default [Normal] style.
 	///
 	/// [Normal]: Self::Normal
-	pub const fn is_normal(&self) -> bool {
+	pub const fn is_normal(&self) -> bool
+	{
 		matches!(*self, Self::Normal)
 	}
 
 	/// Returns a string representation of this [Style], as accepted by the API.
-	pub const fn as_str(&self) -> &'static str {
+	pub const fn as_str(&self) -> &'static str
+	{
 		match *self {
 			Self::Normal => "normal",
 			Self::AutoBhop => "auto_bhop",
 		}
 	}
 
-	/// Returns a short string representation of this [Style], as displayed in-game.
-	pub const fn as_str_short(&self) -> &'static str {
+	/// Returns a short string representation of this [Style], as displayed
+	/// in-game.
+	pub const fn as_str_short(&self) -> &'static str
+	{
 		match *self {
 			Self::Normal => "NRM",
 			Self::AutoBhop => "ABH",
@@ -43,8 +49,10 @@ impl Style {
 	}
 }
 
-impl Display for Style {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl Display for Style
+{
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+	{
 		f.write_str(match *self {
 			Self::Normal => "Normal",
 			Self::AutoBhop => "Auto Bhop",
@@ -57,10 +65,12 @@ impl Display for Style {
 #[error("unrecognized style `{0}`")]
 pub struct UnknownStyle(pub String);
 
-impl FromStr for Style {
+impl FromStr for Style
+{
 	type Err = UnknownStyle;
 
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
+	fn from_str(s: &str) -> Result<Self, Self::Err>
+	{
 		let s = s.to_lowercase();
 
 		match s.as_str() {
@@ -76,10 +86,12 @@ impl FromStr for Style {
 #[error("invalid style ID `{0}`")]
 pub struct InvalidStyleID(pub u8);
 
-impl TryFrom<u8> for Style {
+impl TryFrom<u8> for Style
+{
 	type Error = InvalidStyleID;
 
-	fn try_from(value: u8) -> Result<Self, Self::Error> {
+	fn try_from(value: u8) -> Result<Self, Self::Error>
+	{
 		match value {
 			1 => Ok(Self::Normal),
 			2 => Ok(Self::AutoBhop),
@@ -88,21 +100,25 @@ impl TryFrom<u8> for Style {
 	}
 }
 
-impl From<Style> for u8 {
+impl From<Style> for u8
+{
 	#[allow(clippy::as_conversions)]
-	fn from(value: Style) -> Self {
+	fn from(value: Style) -> Self
+	{
 		value as u8
 	}
 }
 
 /// Method and Trait implementations when depending on [`serde`].
 #[cfg(feature = "serde")]
-mod serde_impls {
+mod serde_impls
+{
 	use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 	use super::Style;
 
-	impl Serialize for Style {
+	impl Serialize for Style
+	{
 		fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 		where
 			S: Serializer,
@@ -111,7 +127,8 @@ mod serde_impls {
 		}
 	}
 
-	impl<'de> Deserialize<'de> for Style {
+	impl<'de> Deserialize<'de> for Style
+	{
 		fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 		where
 			D: Deserializer<'de>,
@@ -119,7 +136,8 @@ mod serde_impls {
 			#[derive(Deserialize)]
 			#[serde(untagged)]
 			#[allow(clippy::missing_docs_in_private_items)]
-			enum Helper {
+			enum Helper
+			{
 				U8(u8),
 				Str(String),
 			}
@@ -134,7 +152,8 @@ mod serde_impls {
 
 /// Method and Trait implementations when depending on [`sqlx`].
 #[cfg(feature = "sqlx")]
-mod sqlx_impls {
+mod sqlx_impls
+{
 	use sqlx::database::{HasArguments, HasValueRef};
 	use sqlx::encode::IsNull;
 	use sqlx::error::BoxDynError;
@@ -147,7 +166,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Type<DB>,
 	{
-		fn type_info() -> <DB as Database>::TypeInfo {
+		fn type_info() -> <DB as Database>::TypeInfo
+		{
 			<u8 as Type<DB>>::type_info()
 		}
 	}
@@ -157,7 +177,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Encode<'q, DB>,
 	{
-		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull {
+		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull
+		{
 			<u8 as Encode<'q, DB>>::encode_by_ref(&u8::from(*self), buf)
 		}
 	}
@@ -167,7 +188,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Decode<'r, DB>,
 	{
-		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError> {
+		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError>
+		{
 			<u8 as Decode<'r, DB>>::decode(value)
 				.map(Self::try_from)?
 				.map_err(Into::into)
@@ -177,7 +199,8 @@ mod sqlx_impls {
 
 /// Method and Trait implementations when depending on [`utoipa`].
 #[cfg(feature = "utoipa")]
-mod utoipa_impls {
+mod utoipa_impls
+{
 	use utoipa::openapi::path::{Parameter, ParameterBuilder, ParameterIn};
 	use utoipa::openapi::schema::OneOfBuilder;
 	use utoipa::openapi::{ObjectBuilder, RefOr, Schema, SchemaType};
@@ -185,8 +208,10 @@ mod utoipa_impls {
 
 	use crate::Style;
 
-	impl<'s> ToSchema<'s> for Style {
-		fn schema() -> (&'s str, RefOr<Schema>) {
+	impl<'s> ToSchema<'s> for Style
+	{
+		fn schema() -> (&'s str, RefOr<Schema>)
+		{
 			(
 				"Style",
 				Schema::OneOf(
@@ -216,8 +241,10 @@ mod utoipa_impls {
 		}
 	}
 
-	impl IntoParams for Style {
-		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter> {
+	impl IntoParams for Style
+	{
+		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter>
+		{
 			vec![
 				ParameterBuilder::new()
 					.parameter_in(parameter_in_provider().unwrap_or_default())

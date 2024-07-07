@@ -15,15 +15,18 @@ crate::identifier::identifier! {
 
 /// Method and Trait implementations when depending on [`utoipa`].
 #[cfg(feature = "utoipa")]
-mod utoipa_impls {
+mod utoipa_impls
+{
 	use utoipa::openapi::path::{Parameter, ParameterBuilder, ParameterIn};
 	use utoipa::openapi::{ObjectBuilder, OneOfBuilder, RefOr, Schema, SchemaType};
 	use utoipa::{IntoParams, ToSchema};
 
 	use crate::CourseIdentifier;
 
-	impl<'s> ToSchema<'s> for CourseIdentifier {
-		fn schema() -> (&'s str, RefOr<Schema>) {
+	impl<'s> ToSchema<'s> for CourseIdentifier
+	{
+		fn schema() -> (&'s str, RefOr<Schema>)
+		{
 			(
 				"CourseIdentifier",
 				Schema::OneOf(
@@ -49,8 +52,10 @@ mod utoipa_impls {
 		}
 	}
 
-	impl IntoParams for CourseIdentifier {
-		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter> {
+	impl IntoParams for CourseIdentifier
+	{
+		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter>
+		{
 			vec![
 				ParameterBuilder::new()
 					.name("course")

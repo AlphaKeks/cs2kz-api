@@ -7,14 +7,21 @@ use crate::State;
 
 mod models;
 pub use models::{
-	CourseSession, CourseSessions, FullPlayer, NewPlayer, Player, PlayerUpdate, Session,
+	CourseSession,
+	CourseSessions,
+	FullPlayer,
+	NewPlayer,
+	Player,
+	PlayerUpdate,
+	Session,
 };
 
 mod queries;
 pub mod handlers;
 
 /// Returns an [`axum::Router`] for the `/players` routes.
-pub fn router(state: State) -> Router {
+pub fn router(state: State) -> Router
+{
 	let root = Router::new()
 		.route("/", routing::get(handlers::root::get))
 		.route_layer(cors::permissive())
@@ -33,10 +40,7 @@ pub fn router(state: State) -> Router {
 		.with_state(state.clone());
 
 	let preferences = Router::new()
-		.route(
-			"/:player/preferences",
-			routing::get(handlers::preferences::get),
-		)
+		.route("/:player/preferences", routing::get(handlers::preferences::get))
 		.route_layer(cors::permissive())
 		.with_state(state.clone());
 

@@ -24,7 +24,8 @@ use crate::plugin::PluginVersionID;
 use crate::servers::ServerID;
 use crate::{steam, Config, Result};
 
-/// Replacement for the builtin [`assert!()`] macro that uses [`anyhow::ensure!()`] instead.
+/// Replacement for the builtin [`assert!()`] macro that uses
+/// [`anyhow::ensure!()`] instead.
 macro_rules! assert {
 	($($t:tt)*) => {
 		::anyhow::ensure!($($t)*)
@@ -33,7 +34,8 @@ macro_rules! assert {
 
 pub(crate) use assert;
 
-/// Replacement for the builtin [`assert_eq!()`] macro that uses [`anyhow::ensure!()`] instead.
+/// Replacement for the builtin [`assert_eq!()`] macro that uses
+/// [`anyhow::ensure!()`] instead.
 macro_rules! assert_eq {
 	($left:expr, $right:expr $(,)?) => {
 		if $left != $right {
@@ -47,7 +49,8 @@ macro_rules! assert_eq {
 
 pub(crate) use assert_eq;
 
-/// Replacement for the builtin [`assert_ne!()`] macro that uses [`anyhow::ensure!()`] instead.
+/// Replacement for the builtin [`assert_ne!()`] macro that uses
+/// [`anyhow::ensure!()`] instead.
 macro_rules! assert_ne {
 	($left:expr, $right:expr $(,)?) => {
 		if $left == $right {
@@ -65,7 +68,8 @@ pub(crate) use assert_ne;
 ///
 /// An instance of this struct is passed to every integration test.
 #[allow(clippy::missing_docs_in_private_items)]
-pub(crate) struct Context {
+pub(crate) struct Context
+{
 	/// The test's ID.
 	pub test_id: Uuid,
 
@@ -84,7 +88,8 @@ pub(crate) struct Context {
 	/// The [`tokio::task`] running the API.
 	api_task: task::JoinHandle<anyhow::Result<()>>,
 
-	/// Handle to a docker container running a database exclusively for this test.
+	/// Handle to a docker container running a database exclusively for this
+	/// test.
 	database_container: ContainerAsync<Mariadb>,
 
 	jwt_header: jwt::Header,
@@ -93,12 +98,14 @@ pub(crate) struct Context {
 	jwt_validation: jwt::Validation,
 }
 
-impl Context {
+impl Context
+{
 	/// Creates a new [`Context`].
 	///
 	/// This is used by macro code and should not be called manually.
 	#[doc(hidden)]
-	pub async fn new() -> anyhow::Result<Self> {
+	pub async fn new() -> anyhow::Result<Self>
+	{
 		let test_id = Uuid::now_v7();
 
 		eprintln!("[{test_id}] setting up");
@@ -124,7 +131,9 @@ impl Context {
 
 		let database_ip = match database_host {
 			Host::Domain(domain) if domain == "localhost" => IpAddr::V4(Ipv4Addr::LOCALHOST),
-			Host::Domain(domain) => anyhow::bail!("cannot use domain for database url ({domain})"),
+			Host::Domain(domain) => {
+				anyhow::bail!("cannot use domain for database url ({domain})")
+			}
 			Host::Ipv4(ip) => IpAddr::V4(ip),
 			Host::Ipv6(ip) => IpAddr::V6(ip),
 		};
@@ -200,15 +209,9 @@ impl Context {
 	///
 	/// This is used by macro code and should not be called manually.
 	#[doc(hidden)]
-	pub async fn cleanup(self) -> anyhow::Result<()> {
-		let Self {
-			test_id,
-			api_config: config,
-			shutdown,
-			api_task,
-			database_container,
-			..
-		} = self;
+	pub async fn cleanup(self) -> anyhow::Result<()>
+	{
+		let Self { test_id, api_config: config, shutdown, api_task, database_container, .. } = self;
 
 		eprintln!("[{test_id}] sending shutdown signal");
 
@@ -237,7 +240,8 @@ impl Context {
 		Ok(())
 	}
 
-	/// Generates a URL for the given `path` that can be used to make an API request.
+	/// Generates a URL for the given `path` that can be used to make an API
+	/// request.
 	pub fn url<P>(&self, path: P) -> Url
 	where
 		P: Display,
@@ -249,14 +253,16 @@ impl Context {
 	}
 
 	/// Generates a JWT for a fake CS2 server.
-	pub fn auth_server(&self, expires_after: Duration) -> Result<String, jwt::errors::Error> {
+	pub fn auth_server(&self, expires_after: Duration) -> Result<String, jwt::errors::Error>
+	{
 		let server = authentication::Server::new(ServerID(1), PluginVersionID(1));
 
 		self.encode_jwt(&server, expires_after)
 	}
 
 	/// Generates a fake session for the player with the given `steam_id`.
-	pub async fn auth_session(&self, steam_id: SteamID) -> Result<authentication::Session> {
+	pub async fn auth_session(&self, steam_id: SteamID) -> Result<authentication::Session>
+	{
 		let user = steam::User::invalid(steam_id);
 
 		authentication::Session::create(
@@ -277,11 +283,7 @@ impl Context {
 	where
 		T: Serialize,
 	{
-		jwt::encode(
-			&self.jwt_header,
-			&Jwt::new(payload, expires_after),
-			&self.jwt_encoding_key,
-		)
+		jwt::encode(&self.jwt_header, &Jwt::new(payload, expires_after), &self.jwt_encoding_key)
 	}
 
 	/// Decodes a JWT.
@@ -295,7 +297,8 @@ impl Context {
 
 /// This function runs before every test to set up things like logging.
 #[ctor::ctor]
-fn setup() {
+fn setup()
+{
 	use std::{env, io};
 
 	use tracing_subscriber::EnvFilter;
@@ -316,7 +319,8 @@ fn setup() {
 }
 
 #[crate::integration_test]
-async fn hello_world(ctx: &Context) {
+async fn hello_world(ctx: &Context)
+{
 	let response = ctx
 		.http_client
 		.get(ctx.api_config.public_url.as_str())

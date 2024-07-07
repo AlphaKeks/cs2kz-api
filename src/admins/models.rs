@@ -9,7 +9,8 @@ use crate::authorization::Permissions;
 
 /// A KZ admin.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct Admin {
+pub struct Admin
+{
 	/// The admin's name.
 	pub name: String,
 
@@ -24,7 +25,8 @@ pub struct Admin {
 
 /// Request payload for updating an admin.
 #[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
-pub struct AdminUpdate {
+pub struct AdminUpdate
+{
 	/// New set of permissions for the admin.
 	#[debug("{permissions}")]
 	#[schema(value_type = Vec<String>, example = json!(["bans", "servers"]))]

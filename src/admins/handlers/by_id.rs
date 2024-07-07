@@ -23,7 +23,8 @@ use crate::{authentication, Error, Result, State};
     responses::BadRequest,
   ),
 )]
-pub async fn get(state: State, Path(steam_id): Path<SteamID>) -> Result<Json<Admin>> {
+pub async fn get(state: State, Path(steam_id): Path<SteamID>) -> Result<Json<Admin>>
+{
 	let admin = sqlx::query! {
 		r#"
 		SELECT
@@ -39,11 +40,7 @@ pub async fn get(state: State, Path(steam_id): Path<SteamID>) -> Result<Json<Adm
 	}
 	.fetch_optional(&state.database)
 	.await?
-	.map(|row| Admin {
-		name: row.name,
-		steam_id: row.id,
-		permissions: row.permissions,
-	})
+	.map(|row| Admin { name: row.name, steam_id: row.id, permissions: row.permissions })
 	.ok_or_else(|| Error::not_found("admin"))?;
 
 	Ok(Json(admin))
@@ -73,7 +70,8 @@ pub async fn put(
 	session: authentication::Session<authorization::HasPermissions<{ Permissions::ADMIN.value() }>>,
 	Path(steam_id): Path<SteamID>,
 	Json(AdminUpdate { permissions }): Json<AdminUpdate>,
-) -> Result<NoContent> {
+) -> Result<NoContent>
+{
 	let mut transaction = state.transaction().await?;
 
 	let query_result = sqlx::query! {

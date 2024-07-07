@@ -7,16 +7,18 @@ use clap::Parser;
 use similar::TextDiff;
 
 #[derive(Parser)]
-struct Args {
+struct Args
+{
 	/// Diff the generated spec against an existing one.
 	///
-	/// If there is any diff at all, it will be emitted on stderr and the program will exit
-	/// with code 1.
+	/// If there is any diff at all, it will be emitted on stderr and the
+	/// program will exit with code 1.
 	#[arg(long, name = "FILE")]
 	check: Option<PathBuf>,
 }
 
-fn main() -> anyhow::Result<ExitCode> {
+fn main() -> anyhow::Result<ExitCode>
+{
 	let args = Args::parse();
 	let spec = cs2kz_api::openapi::Spec::new().as_json();
 

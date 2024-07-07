@@ -19,6 +19,7 @@ use crate::openapi::responses;
     responses::BadRequest,
   ),
 )]
-pub async fn get(Path(_jumpstat_id): Path<JumpstatID>) -> StatusCode {
+pub async fn get(Path(_jumpstat_id): Path<JumpstatID>) -> StatusCode
+{
 	StatusCode::SERVICE_UNAVAILABLE
 }

@@ -19,7 +19,8 @@ use crate::{authentication, Error, Result, State};
 
 /// Query parameters for `/servers`.
 #[derive(Debug, Deserialize, IntoParams)]
-pub struct GetParams {
+pub struct GetParams
+{
 	/// Filter by name.
 	name: Option<String>,
 
@@ -62,16 +63,11 @@ pub struct GetParams {
 )]
 pub async fn get(
 	state: State,
-	Query(GetParams {
-		name,
-		host,
-		owned_by,
-		created_after,
-		created_before,
-		limit,
-		offset,
-	}): Query<GetParams>,
-) -> Result<Json<PaginationResponse<Server>>> {
+	Query(GetParams { name, host, owned_by, created_after, created_before, limit, offset }): Query<
+		GetParams,
+	>,
+) -> Result<Json<PaginationResponse<Server>>>
+{
 	let mut query = FilteredQuery::new(queries::SELECT);
 	let mut transaction = state.transaction().await?;
 
@@ -112,10 +108,7 @@ pub async fn get(
 
 	transaction.commit().await?;
 
-	Ok(Json(PaginationResponse {
-		total,
-		results: servers,
-	}))
+	Ok(Json(PaginationResponse { total, results: servers }))
 }
 
 /// Create a new server.
@@ -139,13 +132,9 @@ pub async fn post(
 	session: authentication::Session<
 		authorization::HasPermissions<{ Permissions::SERVERS.value() }>,
 	>,
-	Json(NewServer {
-		name,
-		host,
-		port,
-		owned_by,
-	}): Json<NewServer>,
-) -> Result<Created<Json<CreatedServer>>> {
+	Json(NewServer { name, host, port, owned_by }): Json<NewServer>,
+) -> Result<Created<Json<CreatedServer>>>
+{
 	let mut transaction = state.transaction().await?;
 	let refresh_key = Uuid::new_v4();
 	let server_id = sqlx::query! {
@@ -182,14 +171,12 @@ pub async fn post(
 		"created new server",
 	};
 
-	Ok(Created(Json(CreatedServer {
-		server_id,
-		refresh_key,
-	})))
+	Ok(Created(Json(CreatedServer { server_id, refresh_key })))
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
 	use std::net::Ipv6Addr;
 
 	use axum_extra::extract::cookie::Cookie;
@@ -200,7 +187,8 @@ mod tests {
 	use crate::servers::{self, CreatedServer, NewServer, Server};
 
 	#[crate::integration_test]
-	async fn fetch_servers(ctx: &Context) {
+	async fn fetch_servers(ctx: &Context)
+	{
 		let response = ctx
 			.http_client
 			.get(ctx.url("/servers"))
@@ -216,7 +204,8 @@ mod tests {
 	}
 
 	#[crate::integration_test(fixtures = ["alphakeks-server-role"])]
-	async fn approve_server(ctx: &Context) {
+	async fn approve_server(ctx: &Context)
+	{
 		let alphakeks = SteamID::from_u64(76561198282622073_u64).unwrap();
 		let server = NewServer {
 			name: String::from("very cool server"),

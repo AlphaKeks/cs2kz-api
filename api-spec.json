@@ -20,7 +20,7 @@
           "Players"
         ],
         "summary": "Fetch players.",
-        "description": "The objects returned from this endpoint will include an `ip_address` field if and only if the\nrequesting user is authorized to manage bans.",
+        "description": "The objects returned from this endpoint will include an `ip_address` field\nif and only if the requesting user is authorized to manage bans.",
         "operationId": "get",
         "parameters": [
           {
@@ -79,7 +79,7 @@
                           },
                           "ip_address": {
                             "type": "string",
-                            "description": "The player's IP address.\n\nThis field is only included if the requesting user has `BANS` permissions.",
+                            "description": "The player's IP address.\n\nThis field is only included if the requesting user has `BANS`\npermissions.",
                             "nullable": true
                           },
                           "is_banned": {
@@ -107,7 +107,7 @@
           "Players"
         ],
         "summary": "Create a new player.",
-        "description": "This endpoint is for CS2 servers. Whenever a player joins, they make a `GET` request to fetch\ninformation about that player. If that request fails, they will attempt to create one with this\nendpoint.",
+        "description": "This endpoint is for CS2 servers. Whenever a player joins, they make a `GET`\nrequest to fetch information about that player. If that request fails, they\nwill attempt to create one with this endpoint.",
         "operationId": "post",
         "requestBody": {
           "content": {
@@ -154,7 +154,7 @@
           "Players"
         ],
         "summary": "Fetch a specific player by their name or SteamID.",
-        "description": "The object returned from this endpoint will include an `ip_address` field if and only if the\nrequesting user is authorized to manage bans.",
+        "description": "The object returned from this endpoint will include an `ip_address` field if\nand only if the requesting user is authorized to manage bans.",
         "operationId": "get",
         "parameters": [
           {
@@ -222,7 +222,7 @@
                     },
                     "ip_address": {
                       "type": "string",
-                      "description": "The player's IP address.\n\nThis field is only included if the requesting user has `BANS` permissions.",
+                      "description": "The player's IP address.\n\nThis field is only included if the requesting user has `BANS`\npermissions.",
                       "nullable": true
                     },
                     "is_banned": {
@@ -249,7 +249,7 @@
           "Players"
         ],
         "summary": "Update an existing player.",
-        "description": "This endpoint is for CS2 servers. Whenever a player disconnects, or when the map changes, they\nwill update players using this endpoint.",
+        "description": "This endpoint is for CS2 servers. Whenever a player disconnects, or when the\nmap changes, they will update players using this endpoint.",
         "operationId": "patch",
         "parameters": [
           {
@@ -1148,7 +1148,7 @@
           "Servers"
         ],
         "summary": "Generate a temporary access token using a CS2 server's API key.",
-        "description": "This endpoint is for CS2 servers. They will generate a new access token every ~30min.",
+        "description": "This endpoint is for CS2 servers. They will generate a new access token\nevery ~30min.",
         "operationId": "generate_temp",
         "requestBody": {
           "description": "",
@@ -2986,7 +2986,7 @@
           "Auth"
         ],
         "summary": "Login with Steam.",
-        "description": "This will redirect the user to Steam, where they can login. A session for them will be created\nand they're redirected back to `redirect_to`.",
+        "description": "This will redirect the user to Steam, where they can login. A session for\nthem will be created and they're redirected back to `redirect_to`.",
         "operationId": "login",
         "parameters": [
           {
@@ -3016,7 +3016,7 @@
           "Auth"
         ],
         "summary": "Logout again.",
-        "description": "This will invalidate your current session, and potentially every other session as well (if\n`invalidate_all_sessions=true` is specified).",
+        "description": "This will invalidate your current session, and potentially every other\nsession as well (if `invalidate_all_sessions=true` is specified).",
         "operationId": "logout",
         "parameters": [
           {
@@ -3735,7 +3735,7 @@
           "expires_on": {
             "type": "string",
             "format": "date-time",
-            "description": "A new expiration date.\n\nIf this field is omitted, nothing will happen.\nIf it is explicitly set to `null`, the expiration date will be set to `NULL`\n(permanent).",
+            "description": "A new expiration date.\n\nIf this field is omitted, nothing will happen.\nIf it is explicitly set to `null`, the expiration date will be set to\n`NULL` (permanent).",
             "nullable": true
           }
         }
@@ -4156,7 +4156,7 @@
       },
       "GameSession": {
         "type": "object",
-        "description": "A game session.\n\nGame sessions start when a player joins a server, and end either when the player disconnects,\nor when the map changes. They record statistics about playtime, bhops, and potentially other\nmetrics in the future.",
+        "description": "A game session.\n\nGame sessions start when a player joins a server, and end either when the\nplayer disconnects, or when the map changes. They record statistics about\nplaytime, bhops, and potentially other metrics in the future.",
         "required": [
           "id",
           "player",
@@ -4551,7 +4551,7 @@
             "items": {
               "$ref": "#/components/schemas/SteamID"
             },
-            "description": "List of SteamIDs of the players who contributed to the creation of this course."
+            "description": "List of SteamIDs of the players who contributed to the creation of this\ncourse."
           },
           "filters": {
             "type": "array",
@@ -4709,7 +4709,7 @@
             "items": {
               "$ref": "#/components/schemas/SteamID"
             },
-            "description": "List of SteamIDs of the players who contributed to the creation of this map."
+            "description": "List of SteamIDs of the players who contributed to the creation of this\nmap."
           },
           "courses": {
             "type": "array",
@@ -5077,7 +5077,7 @@
       "Seconds": {
         "type": "number",
         "format": "double",
-        "description": "A transparent wrapper around [`std::time::Duration`] that will encode/decode as seconds."
+        "description": "A transparent wrapper around [`std::time::Duration`] that will encode/decode\nas seconds."
       },
       "Server": {
         "type": "object",
@@ -5221,7 +5221,7 @@
             }
           }
         ],
-        "description": "Game Session information.\n\nA game session starts when a player joins a server, and ends either when they disconnect or\nwhen the map changes."
+        "description": "Game Session information.\n\nA game session starts when a player joins a server, and ends either when\nthey disconnect or when the map changes."
       },
       "SortRecordsBy": {
         "type": "string",
@@ -5233,7 +5233,7 @@
       },
       "SortingOrder": {
         "type": "string",
-        "description": "An \"sorting order\" query parameter used for controlling the order of returned results.",
+        "description": "An \"sorting order\" query parameter used for controlling the order of\nreturned results.",
         "enum": [
           "ascending",
           "descending"

@@ -1,7 +1,7 @@
 //! Opaque API keys.
 //!
-//! These are one-off authentication keys used for special requests like GitHub actions submitting
-//! new cs2kz plugin versions.
+//! These are one-off authentication keys used for special requests like GitHub
+//! actions submitting new cs2kz plugin versions.
 
 use axum::async_trait;
 use axum::extract::FromRequestParts;
@@ -18,7 +18,8 @@ use crate::{Error, Result, State};
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Into)]
 #[debug("{name}")]
 #[display("{key} ({name})")]
-pub struct ApiKey {
+pub struct ApiKey
+{
 	/// The key itself.
 	#[into]
 	key: Uuid,
@@ -27,15 +28,18 @@ pub struct ApiKey {
 	name: String,
 }
 
-impl ApiKey {
+impl ApiKey
+{
 	/// Returns this key's service's name.
-	pub fn name(&self) -> &str {
+	pub fn name(&self) -> &str
+	{
 		&self.name
 	}
 }
 
 #[async_trait]
-impl FromRequestParts<State> for ApiKey {
+impl FromRequestParts<State> for ApiKey
+{
 	type Rejection = Error;
 
 	#[tracing::instrument(
@@ -45,7 +49,8 @@ impl FromRequestParts<State> for ApiKey {
 		fields(name = tracing::field::Empty, value = tracing::field::Empty),
 		err(level = "debug"),
 	)]
-	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self> {
+	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self>
+	{
 		let key = TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state)
 			.await?
 			.token()
@@ -68,10 +73,7 @@ impl FromRequestParts<State> for ApiKey {
 		.await?
 		.map(|row| match row.is_expired {
 			true => Err(Error::expired_key()),
-			false => Ok(ApiKey {
-				key,
-				name: row.name,
-			}),
+			false => Ok(ApiKey { key, name: row.name }),
 		})
 		.ok_or_else(|| Error::unauthorized())??;
 

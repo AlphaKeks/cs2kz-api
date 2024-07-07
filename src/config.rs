@@ -1,7 +1,8 @@
 //! Runtime configuration for the API.
 //!
-//! When starting up, the API will read configuration values from the environment to construct a
-//! [`Config`]. It will then be part of the global application state.
+//! When starting up, the API will read configuration values from the
+//! environment to construct a [`Config`]. It will then be part of the global
+//! application state.
 
 use std::env;
 use std::error::Error as StdError;
@@ -15,7 +16,8 @@ use url::Url;
 
 /// The API's runtime configuration.
 #[derive(Debug, Clone)]
-pub struct Config {
+pub struct Config
+{
 	/// The address the API server will be listening on.
 	#[debug("{addr}")]
 	pub addr: SocketAddr,
@@ -63,9 +65,11 @@ pub struct Config {
 	pub jwt_secret: String,
 }
 
-impl Config {
+impl Config
+{
 	/// Creates a new [`Config`] by reading environment variables.
-	pub fn new() -> anyhow::Result<Self> {
+	pub fn new() -> anyhow::Result<Self>
+	{
 		tracing::debug!("loading configuration from environment");
 
 		let ip_addr = parse_from_env("KZ_API_IP")?;
@@ -120,8 +124,8 @@ where
 
 /// Parses a value from the environment.
 ///
-/// Returns `Ok(None)` if the value does not exist, and `Err` if the value does exist, and parsing
-/// it failed.
+/// Returns `Ok(None)` if the value does not exist, and `Err` if the value does
+/// exist, and parsing it failed.
 #[cfg(not(feature = "production"))]
 fn parse_from_env_opt<T>(var: &str) -> anyhow::Result<Option<T>>
 where

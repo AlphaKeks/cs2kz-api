@@ -17,7 +17,8 @@ use crate::{Error, Result, State};
 
 /// Query parameters for `/plugin/versions`.
 #[derive(Debug, Clone, Copy, Deserialize, IntoParams)]
-pub struct GetParams {
+pub struct GetParams
+{
 	/// Maximum number of results to return.
 	#[serde(default)]
 	limit: Limit,
@@ -43,7 +44,8 @@ pub struct GetParams {
 pub async fn get(
 	state: State,
 	Query(GetParams { limit, offset }): Query<GetParams>,
-) -> Result<Json<PaginationResponse<PluginVersion>>> {
+) -> Result<Json<PaginationResponse<PluginVersion>>>
+{
 	let mut query = QueryBuilder::new("SELECT SQL_CALC_FOUND_ROWS * FROM PluginVersions");
 
 	query.push_limits(limit, offset);
@@ -63,10 +65,7 @@ pub async fn get(
 
 	transaction.commit().await?;
 
-	Ok(Json(PaginationResponse {
-		total,
-		results: plugin_versions,
-	}))
+	Ok(Json(PaginationResponse { total, results: plugin_versions }))
 }
 
 /// Submit a new CS2KZ plugin version.
@@ -90,11 +89,9 @@ pub async fn get(
 pub async fn post(
 	state: State,
 	api_key: ApiKey,
-	Json(NewPluginVersion {
-		semver,
-		git_revision,
-	}): Json<NewPluginVersion>,
-) -> Result<Created<Json<CreatedPluginVersion>>> {
+	Json(NewPluginVersion { semver, git_revision }): Json<NewPluginVersion>,
+) -> Result<Created<Json<CreatedPluginVersion>>>
+{
 	if api_key.name() != "plugin_versions" {
 		return Err(Error::unauthorized().context(api_key.to_string()));
 	}

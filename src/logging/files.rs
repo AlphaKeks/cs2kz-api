@@ -13,8 +13,8 @@ use tracing_subscriber::Layer;
 
 /// Creates a tracing layer that will emit logs to files.
 ///
-/// The returned [`WorkerGuard`] must be kept alive so it can perform cleanup when the application
-/// shuts down.
+/// The returned [`WorkerGuard`] must be kept alive so it can perform cleanup
+/// when the application shuts down.
 ///
 /// The returned [`PathBuf`] is the directory storing the log files.
 pub fn layer<S>() -> anyhow::Result<(impl tracing_subscriber::Layer<S>, WorkerGuard, PathBuf)>

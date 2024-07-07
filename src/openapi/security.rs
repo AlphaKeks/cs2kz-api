@@ -9,8 +9,10 @@ use crate::authentication;
 #[derive(Debug, Clone, Copy)]
 pub struct Security;
 
-impl Modify for Security {
-	fn modify(&self, openapi: &mut OpenApi) {
+impl Modify for Security
+{
+	fn modify(&self, openapi: &mut OpenApi)
+	{
 		let components = openapi
 			.components
 			.as_mut()

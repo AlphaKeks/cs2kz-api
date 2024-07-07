@@ -22,7 +22,8 @@ use crate::{authentication, authorization, Error, Result, State};
 
 /// Query parameters for `/bans`.
 #[derive(Debug, Deserialize, IntoParams)]
-pub struct GetParams {
+pub struct GetParams
+{
 	/// Filter by player.
 	player: Option<PlayerIdentifier>,
 
@@ -83,7 +84,8 @@ pub async fn get(
 		limit,
 		offset,
 	}): Query<GetParams>,
-) -> Result<Json<PaginationResponse<Ban>>> {
+) -> Result<Json<PaginationResponse<Ban>>>
+{
 	let mut query = FilteredQuery::new(queries::SELECT);
 	let mut transaction = state.transaction().await?;
 
@@ -130,10 +132,7 @@ pub async fn get(
 
 	transaction.commit().await?;
 
-	Ok(Json(PaginationResponse {
-		total,
-		results: bans,
-	}))
+	Ok(Json(PaginationResponse { total, results: bans }))
 }
 
 /// Create a new ban.
@@ -158,12 +157,9 @@ pub async fn post(
 	session: Option<
 		authentication::Session<authorization::HasPermissions<{ Permissions::BANS.value() }>>,
 	>,
-	Json(NewBan {
-		player_id,
-		player_ip,
-		reason,
-	}): Json<NewBan>,
-) -> Result<Created<Json<CreatedBan>>> {
+	Json(NewBan { player_id, player_ip, reason }): Json<NewBan>,
+) -> Result<Created<Json<CreatedBan>>>
+{
 	let (server, admin) = match (server, session) {
 		(Some(server), None) => (Some(server.into_payload()), None),
 		(None, Some(session)) => (None, Some(session.user())),

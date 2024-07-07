@@ -16,15 +16,16 @@ use crate::{authentication, steam, Result, State};
 
 /// Query parameters for the login endpoint.
 #[derive(Debug, Deserialize, IntoParams)]
-pub struct LoginParams {
+pub struct LoginParams
+{
 	/// URL to redirect the user back to after a successful login.
 	redirect_to: Url,
 }
 
 /// Login with Steam.
 ///
-/// This will redirect the user to Steam, where they can login. A session for them will be created
-/// and they're redirected back to `redirect_to`.
+/// This will redirect the user to Steam, where they can login. A session for
+/// them will be created and they're redirected back to `redirect_to`.
 #[tracing::instrument(skip(state))]
 #[utoipa::path(
   get,
@@ -36,16 +37,16 @@ pub struct LoginParams {
     responses::BadRequest,
   ),
 )]
-pub async fn login(
-	state: State,
-	Query(LoginParams { redirect_to }): Query<LoginParams>,
-) -> Redirect {
+pub async fn login(state: State, Query(LoginParams { redirect_to }): Query<LoginParams>)
+-> Redirect
+{
 	authentication::steam::LoginForm::new(state.config.public_url.clone()).redirect_to(&redirect_to)
 }
 
 /// Query parameters for the logout endpoint.
 #[derive(Debug, Clone, Copy, Deserialize, IntoParams)]
-pub struct LogoutParams {
+pub struct LogoutParams
+{
 	/// Whether to invalidate all (still valid) sessions of this user.
 	#[serde(default)]
 	invalidate_all_sessions: bool,
@@ -53,8 +54,8 @@ pub struct LogoutParams {
 
 /// Logout again.
 ///
-/// This will invalidate your current session, and potentially every other session as well (if
-/// `invalidate_all_sessions=true` is specified).
+/// This will invalidate your current session, and potentially every other
+/// session as well (if `invalidate_all_sessions=true` is specified).
 #[tracing::instrument(skip(state))]
 #[utoipa::path(
   get,
@@ -71,10 +72,9 @@ pub struct LogoutParams {
 pub async fn logout(
 	state: State,
 	mut session: Session,
-	Query(LogoutParams {
-		invalidate_all_sessions,
-	}): Query<LogoutParams>,
-) -> Result<(Session, StatusCode)> {
+	Query(LogoutParams { invalidate_all_sessions }): Query<LogoutParams>,
+) -> Result<(Session, StatusCode)>
+{
 	let mut transaction = state.transaction().await?;
 
 	session
@@ -109,7 +109,8 @@ pub async fn callback(
 	cookies: CookieJar,
 	login: authentication::steam::LoginResponse,
 	user: steam::User,
-) -> Result<(CookieJar, Redirect)> {
+) -> Result<(CookieJar, Redirect)>
+{
 	let transaction = state.transaction().await?;
 	let session = Session::create(&user, req_addr.ip(), &state.config, transaction).await?;
 	let user_cookie = user.to_cookie(&state.config);

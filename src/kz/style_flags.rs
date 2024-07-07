@@ -12,7 +12,8 @@ crate::bitflags! {
 	iter: StyleFlagsIter
 }
 
-impl FromIterator<Style> for StyleFlags {
+impl FromIterator<Style> for StyleFlags
+{
 	fn from_iter<I>(iter: I) -> Self
 	where
 		I: IntoIterator<Item = Style>,

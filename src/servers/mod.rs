@@ -10,15 +10,24 @@ use crate::{authorization, State};
 
 mod models;
 pub use models::{
-	AccessKeyRequest, AccessKeyResponse, CreatedServer, Host, NewServer, RefreshKey, Server,
-	ServerID, ServerInfo, ServerUpdate,
+	AccessKeyRequest,
+	AccessKeyResponse,
+	CreatedServer,
+	Host,
+	NewServer,
+	RefreshKey,
+	Server,
+	ServerID,
+	ServerInfo,
+	ServerUpdate,
 };
 
 mod queries;
 pub mod handlers;
 
 /// Returns an [`axum::Router`] for the `/servers` routes.
-pub fn router(state: State) -> Router {
+pub fn router(state: State) -> Router
+{
 	let is_admin = session_auth!(
 		authorization::HasPermissions<{ Permissions::SERVERS.value() }>,
 		state.clone(),
@@ -29,10 +38,7 @@ pub fn router(state: State) -> Router {
 	let root = Router::new()
 		.route("/", routing::get(handlers::root::get))
 		.route_layer(cors::permissive())
-		.route(
-			"/",
-			routing::post(handlers::root::post).route_layer(is_admin()),
-		)
+		.route("/", routing::post(handlers::root::post).route_layer(is_admin()))
 		.route_layer(cors::dashboard([Method::POST]))
 		.with_state(state.clone());
 
@@ -55,10 +61,7 @@ pub fn router(state: State) -> Router {
 			"/:server/key",
 			routing::put(handlers::key::put_perma).route_layer(is_admin_or_owner()),
 		)
-		.route(
-			"/:server/key",
-			routing::delete(handlers::key::delete_perma).route_layer(is_admin()),
-		)
+		.route("/:server/key", routing::delete(handlers::key::delete_perma).route_layer(is_admin()))
 		.route_layer(cors::dashboard([Method::PUT, Method::DELETE]))
 		.with_state(state.clone());
 

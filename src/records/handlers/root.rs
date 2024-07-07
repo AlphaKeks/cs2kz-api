@@ -19,7 +19,8 @@ use crate::{Error, Result, State};
 
 /// Query parameters for `/records`.
 #[derive(Debug, Deserialize, IntoParams)]
-pub struct GetParams {
+pub struct GetParams
+{
 	/// Filter by mode.
 	mode: Option<Mode>,
 
@@ -69,7 +70,8 @@ pub struct GetParams {
 /// Fields to sort records by.
 #[derive(Debug, Default, Clone, Copy, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
-pub enum SortRecordsBy {
+pub enum SortRecordsBy
+{
 	/// Sort by time.
 	Time,
 
@@ -108,7 +110,8 @@ pub async fn get(
 		limit,
 		offset,
 	}): Query<GetParams>,
-) -> Result<Json<PaginationResponse<Record>>> {
+) -> Result<Json<PaginationResponse<Record>>>
+{
 	let mut query = FilteredQuery::new(queries::SELECT);
 
 	if let Some(mode) = mode {
@@ -187,10 +190,7 @@ pub async fn get(
 
 	transaction.commit().await?;
 
-	Ok(Json(PaginationResponse {
-		total,
-		results: records,
-	}))
+	Ok(Json(PaginationResponse { total, results: records }))
 }
 
 /// Create a new record.
@@ -209,19 +209,12 @@ pub async fn get(
 )]
 pub async fn post(
 	state: State,
-	Jwt {
-		payload: server, ..
-	}: Jwt<authentication::Server>,
-	Json(NewRecord {
-		player_id,
-		mode,
-		styles,
-		course_id,
-		teleports,
-		time,
-		bhop_stats,
-	}): Json<NewRecord>,
-) -> Result<Created<Json<CreatedRecord>>> {
+	Jwt { payload: server, .. }: Jwt<authentication::Server>,
+	Json(NewRecord { player_id, mode, styles, course_id, teleports, time, bhop_stats }): Json<
+		NewRecord,
+	>,
+) -> Result<Created<Json<CreatedRecord>>>
+{
 	let mut transaction = state.transaction().await?;
 
 	let filter_id = sqlx::query_scalar! {

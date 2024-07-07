@@ -6,8 +6,10 @@ use axum::http::{header, request, HeaderValue, Method};
 use tower_http::cors::{AllowMethods, AllowOrigin, CorsLayer};
 use url::Url;
 
-/// Creates a permissive CORS layer, allowing any origins or headers, but only GET requests.
-pub fn permissive() -> CorsLayer {
+/// Creates a permissive CORS layer, allowing any origins or headers, but only
+/// GET requests.
+pub fn permissive() -> CorsLayer
+{
 	CorsLayer::permissive().allow_methods([Method::GET])
 }
 
@@ -31,7 +33,8 @@ where
 
 /// Checks if a request is coming from localhost.
 #[tracing::instrument(level = "debug", name = "middleware::cors", skip(_request))]
-fn is_localhost(origin: &HeaderValue, _request: &request::Parts) -> bool {
+fn is_localhost(origin: &HeaderValue, _request: &request::Parts) -> bool
+{
 	#[allow(clippy::missing_docs_in_private_items)]
 	macro_rules! reject {
 		($($reason:tt)*) => {
