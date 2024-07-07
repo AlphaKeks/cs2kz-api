@@ -1,5 +1,5 @@
-// Everything in here should be self-explanatory, and doc comments would end up as descriptions in
-// the OpenAPI spec, which we don't want.
+// Everything in here should be self-explanatory, and doc comments would end up
+// as descriptions in the OpenAPI spec, which we don't want.
 #![allow(missing_docs, clippy::missing_docs_in_private_items)]
 
 use std::collections::BTreeMap;
@@ -36,7 +36,8 @@ impl<T> IntoResponse for Created<T>
 where
 	T: IntoResponse,
 {
-	fn into_response(self) -> Response {
+	fn into_response(self) -> Response
+	{
 		(StatusCode::CREATED, self.0).into_response()
 	}
 }
@@ -46,7 +47,8 @@ where
 	T: ToSchema<'static>,
 {
 	#[allow(clippy::missing_docs_in_private_items)]
-	fn responses() -> BTreeMap<String, RefOr<ResponseSchema>> {
+	fn responses() -> BTreeMap<String, RefOr<ResponseSchema>>
+	{
 		#[derive(IntoResponses)]
 		#[response(status = 201)]
 		struct Helper<T>(#[to_schema] T)
@@ -61,8 +63,10 @@ where
 #[response(status = 204)]
 pub struct NoContent;
 
-impl IntoResponse for NoContent {
-	fn into_response(self) -> Response {
+impl IntoResponse for NoContent
+{
+	fn into_response(self) -> Response
+	{
 		StatusCode::NO_CONTENT.into_response()
 	}
 }
@@ -98,8 +102,10 @@ pub struct BadGateway;
 #[derive(Debug, Clone, Copy)]
 pub struct Object;
 
-impl<'s> ToSchema<'s> for Object {
-	fn schema() -> (&'s str, RefOr<Schema>) {
+impl<'s> ToSchema<'s> for Object
+{
+	fn schema() -> (&'s str, RefOr<Schema>)
+	{
 		(
 			"Object",
 			ObjectBuilder::new()

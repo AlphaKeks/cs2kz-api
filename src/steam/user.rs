@@ -20,7 +20,8 @@ const COOKIE_NAME: &str = "kz-player";
 
 /// A Steam user.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct User {
+pub struct User
+{
 	/// The user's SteamID.
 	pub steam_id: SteamID,
 
@@ -45,14 +46,16 @@ pub struct User {
 	pub avatar_url: Url,
 }
 
-impl User {
+impl User
+{
 	/// Fetches a user from Steam's API.
 	#[tracing::instrument(level = "debug", skip(http_client, api_config))]
 	pub async fn fetch(
 		steam_id: SteamID,
 		http_client: &reqwest::Client,
 		api_config: &crate::Config,
-	) -> Result<Self> {
+	) -> Result<Self>
+	{
 		let url = Url::parse_with_params(API_URL, [
 			("key", api_config.steam_api_key.clone()),
 			("steamids", steam_id.as_u64().to_string()),
@@ -77,7 +80,8 @@ impl User {
 
 	/// Generates a fake user for use in tests.
 	#[cfg(test)]
-	pub fn invalid(steam_id: SteamID) -> Self {
+	pub fn invalid(steam_id: SteamID) -> Self
+	{
 		let url = Url::parse("https://cs2kz.org").unwrap();
 
 		Self {
@@ -92,7 +96,8 @@ impl User {
 	}
 
 	/// Serializes this user into an HTTP cookie.
-	pub fn to_cookie(&self, api_config: &crate::Config) -> Cookie<'static> {
+	pub fn to_cookie(&self, api_config: &crate::Config) -> Cookie<'static>
+	{
 		let json = serde_json::to_string(self).expect("this is valid json");
 
 		Cookie::build((COOKIE_NAME, json))
@@ -105,24 +110,28 @@ impl User {
 	}
 }
 
-impl<'de> Deserialize<'de> for User {
+impl<'de> Deserialize<'de> for User
+{
 	#[allow(clippy::missing_docs_in_private_items)]
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
 		D: Deserializer<'de>,
 	{
 		#[derive(Deserialize)]
-		struct Helper1 {
+		struct Helper1
+		{
 			response: Helper2,
 		}
 
 		#[derive(Deserialize)]
-		struct Helper2 {
+		struct Helper2
+		{
 			players: [Helper3; 1],
 		}
 
 		#[derive(Deserialize)]
-		struct Helper3 {
+		struct Helper3
+		{
 			steamid: SteamID,
 			personaname: String,
 			realname: Option<String>,
@@ -146,7 +155,8 @@ impl<'de> Deserialize<'de> for User {
 }
 
 #[async_trait]
-impl FromRequestParts<State> for User {
+impl FromRequestParts<State> for User
+{
 	type Rejection = Error;
 
 	#[tracing::instrument(
@@ -156,7 +166,8 @@ impl FromRequestParts<State> for User {
 		fields(steam_id = tracing::field::Empty),
 		err(level = "debug"),
 	)]
-	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self> {
+	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self>
+	{
 		let steam_id = parts
 			.extensions
 			.get::<SteamID>()

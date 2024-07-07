@@ -1,7 +1,8 @@
 //! Workshop Map files.
 //!
-//! This module provides the [`MapFile`] type, which can be used to download `.vpk` files from the
-//! Workshop. It utilizes an external program called [DepotDownloader] to achieve this.
+//! This module provides the [`MapFile`] type, which can be used to download
+//! `.vpk` files from the Workshop. It utilizes an external program called
+//! [DepotDownloader] to achieve this.
 //!
 //! [DepotDownloader]: https://github.com/SteamRE/DepotDownloader
 
@@ -15,18 +16,21 @@ use crate::{Config, Error, Result};
 
 /// A handle to a downloaded map file.
 #[derive(Debug)]
-pub struct MapFile {
+pub struct MapFile
+{
 	/// The OS file handle.
 	#[debug(skip)]
 	file: File,
 }
 
-impl MapFile {
+impl MapFile
+{
 	/// Downloads a map from the workshop.
 	#[tracing::instrument(level = "debug", skip(api_config), fields(
 		file.path = tracing::field::Empty
 	))]
-	pub async fn download(workshop_id: WorkshopID, api_config: &Config) -> Result<Self> {
+	pub async fn download(workshop_id: WorkshopID, api_config: &Config) -> Result<Self>
+	{
 		#[cfg(not(feature = "production"))]
 		let out_dir = api_config
 			.workshop_artifacts_path
@@ -89,7 +93,8 @@ impl MapFile {
 
 	/// Computes the crc32 checksum for this file.
 	#[tracing::instrument(level = "debug", skip(self), ret)]
-	pub async fn checksum(mut self) -> io::Result<u32> {
+	pub async fn checksum(mut self) -> io::Result<u32>
+	{
 		let metadata = self.file.metadata().await?;
 		let filesize = usize::try_from(metadata.len()).expect("64-bit platform");
 		let mut buf = Vec::with_capacity(filesize);

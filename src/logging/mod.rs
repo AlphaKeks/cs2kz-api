@@ -10,9 +10,11 @@ mod files;
 
 /// Initializes [`tracing-subscriber`].
 ///
-/// NOTE: the returned [`WorkerGuard`] will perform cleanup for the tracing layer that emits logs
-///       to files, which means it has to stay alive until the program exits!
-pub fn init() -> anyhow::Result<WorkerGuard> {
+/// NOTE: the returned [`WorkerGuard`] will perform cleanup for the tracing
+/// layer that emits logs       to files, which means it has to stay alive until
+/// the program exits!
+pub fn init() -> anyhow::Result<WorkerGuard>
+{
 	let (files_layer, guard, log_dir) = files::layer().context("files layer")?;
 	let registry = tracing_subscriber::registry()
 		.with(stderr::layer())

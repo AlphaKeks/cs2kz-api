@@ -7,24 +7,26 @@
 //!
 //! The typical life cycle of a session is as follows:
 //!    1. A request comes in, with a [session ID] inside a [cookie]
-//!    2. [`Session`] acts as an [extractor] via its [`FromRequestParts`] implementation
-//!       2.1. The auth [cookie] value will be extracted from the request headers and parsed into a
-//!            UUID
-//!       2.2. The session is looked up in the database
-//!       2.3. The session is authorized by invoking [`AuthorizeSession::authorize_session()`]
-//!       2.4. The session is extended both in the database and in the cookie timestamp
-//!       2.5. The session is inserted into the request's extensions so we don't run auth logic
-//!            more than once
+//!    2. [`Session`] acts as an [extractor] via its [`FromRequestParts`]
+//!       implementation 2.1. The auth [cookie] value will be extracted from the
+//!       request headers and parsed into a UUID 2.2. The session is looked up
+//!       in the database 2.3. The session is authorized by invoking
+//!       [`AuthorizeSession::authorize_session()`] 2.4. The session is extended
+//!       both in the database and in the cookie timestamp 2.5. The session is
+//!       inserted into the request's extensions so we don't run auth logic more
+//!       than once
 //!    3. The [session ID] and [user] can be accessed by the request handler
 //!    4. The request handler runs
-//!    5. [`Session`]'s [`IntoResponseParts`] implementation is invoked, and the resulting response
-//!       will include a `Set-Cookie` header with the updated information
+//!    5. [`Session`]'s [`IntoResponseParts`] implementation is invoked, and the
+//!       resulting response will include a `Set-Cookie` header with the updated
+//!       information
 //!
 //! # Invalidating Sessions
 //!
-//! If a session should be invalidated, like in the [`/auth/logout` handler][logout], you can call
-//! [`Session::invalidate()`] before returning it in the response. This will set the session's
-//! expiration date to "now" both in the database and the cookie that will be returned to the user.
+//! If a session should be invalidated, like in the [`/auth/logout`
+//! handler][logout], you can call [`Session::invalidate()`] before returning it
+//! in the response. This will set the session's expiration date to "now" both
+//! in the database and the cookie that will be returned to the user.
 //!
 //! [extractor]: axum::extract
 //! [session ID]: SessionID
@@ -68,7 +70,8 @@ pub const COOKIE_NAME: &str = "kz-auth";
 /// [module level docs]: crate::authentication::session
 #[must_use = "sessions are stateful, and creating a new one involves database operations"]
 #[derive(Debug, Into)]
-pub struct Session<A = authorization::None> {
+pub struct Session<A = authorization::None>
+{
 	/// The session's ID.
 	id: SessionID,
 
@@ -76,36 +79,41 @@ pub struct Session<A = authorization::None> {
 	#[debug("{} ({})", user.steam_id(), user.permissions())]
 	user: User,
 
-	/// The cookie that was extracted from the user request / will be sent back to the user in
-	/// the response.
+	/// The cookie that was extracted from the user request / will be sent back
+	/// to the user in the response.
 	#[debug(skip)]
 	#[into]
 	cookie: Cookie<'static>,
 
-	/// Marker to tie an authorization method to any given [`Session`] without actually storing
-	/// anything.
+	/// Marker to tie an authorization method to any given [`Session`] without
+	/// actually storing anything.
 	#[debug(skip)]
 	_authorization: PhantomData<A>,
 }
 
-impl<A> Session<A> {
+impl<A> Session<A>
+{
 	/// Returns this session's ID.
-	pub const fn id(&self) -> SessionID {
+	pub const fn id(&self) -> SessionID
+	{
 		self.id
 	}
 
 	/// Returns the user associated with this session.
-	pub const fn user(&self) -> User {
+	pub const fn user(&self) -> User
+	{
 		self.user
 	}
 
 	/// Generates a new expiration date for any given session.
-	fn expires_on() -> OffsetDateTime {
+	fn expires_on() -> OffsetDateTime
+	{
 		OffsetDateTime::now_utc() + time::Duration::WEEK
 	}
 }
 
-impl Session {
+impl Session
+{
 	/// Creates a new [`Session`].
 	///
 	/// NOTE: this inserts new data into the database
@@ -121,7 +129,8 @@ impl Session {
 		user_ip: IpAddr,
 		api_config: &crate::Config,
 		mut transaction: Transaction<'_, MySql>,
-	) -> Result<Self> {
+	) -> Result<Self>
+	{
 		let session_id = SessionID::new();
 		let expires_on = Self::expires_on();
 
@@ -222,12 +231,7 @@ impl Session {
 			.expires(expires_on)
 			.build();
 
-		Ok(Self {
-			id: session_id,
-			user,
-			cookie,
-			_authorization: PhantomData,
-		})
+		Ok(Self { id: session_id, user, cookie, _authorization: PhantomData })
 	}
 }
 
@@ -237,17 +241,18 @@ where
 {
 	/// Invalidate this session.
 	///
-	/// This will set the session's expiration date to "now", both in the database and the
-	/// cookie that will be returned in the response.
+	/// This will set the session's expiration date to "now", both in the
+	/// database and the cookie that will be returned in the response.
 	///
-	/// If `invalid_all` is `true`, **every** session in the database associated with this
-	/// session's user will be invalidated.
+	/// If `invalid_all` is `true`, **every** session in the database associated
+	/// with this session's user will be invalidated.
 	#[tracing::instrument(level = "debug", name = "auth::session::logout", skip(database))]
 	pub async fn invalidate(
 		&mut self,
 		invalidate_all: bool,
 		database: &mut Transaction<'_, MySql>,
-	) -> Result<()> {
+	) -> Result<()>
+	{
 		sqlx::query! {
 			r#"
 			UPDATE
@@ -298,7 +303,8 @@ where
 		fields(session.id = tracing::field::Empty, session.user.id = tracing::field::Empty),
 		err(level = "debug"),
 	)]
-	async fn from_request_parts(request: &mut request::Parts, state: &State) -> Result<Self> {
+	async fn from_request_parts(request: &mut request::Parts, state: &State) -> Result<Self>
+	{
 		if let Some(session) = request.extensions.remove::<Self>() {
 			tracing::debug!(%session.id, "extracting cached session");
 			return Ok(session);
@@ -413,7 +419,8 @@ where
 	}
 }
 
-impl<A> IntoResponseParts for Session<A> {
+impl<A> IntoResponseParts for Session<A>
+{
 	type Error = Error;
 
 	#[tracing::instrument(
@@ -422,7 +429,8 @@ impl<A> IntoResponseParts for Session<A> {
 		skip_all,
 		fields(cookie = tracing::field::Empty),
 	)]
-	fn into_response_parts(self, mut response: ResponseParts) -> Result<ResponseParts> {
+	fn into_response_parts(self, mut response: ResponseParts) -> Result<ResponseParts>
+	{
 		let cookie = Cookie::from(self)
 			.encoded()
 			.to_string()
@@ -438,8 +446,10 @@ impl<A> IntoResponseParts for Session<A> {
 	}
 }
 
-impl<A> Clone for Session<A> {
-	fn clone(&self) -> Self {
+impl<A> Clone for Session<A>
+{
+	fn clone(&self) -> Self
+	{
 		Self {
 			id: self.id,
 			user: self.user,

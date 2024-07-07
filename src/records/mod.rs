@@ -12,7 +12,8 @@ mod queries;
 pub mod handlers;
 
 /// Returns an [`axum::Router`] for the `/records` routes.
-pub fn router(state: State) -> Router {
+pub fn router(state: State) -> Router
+{
 	let root = Router::new()
 		.route("/", routing::get(handlers::root::get))
 		.route_layer(cors::permissive())

@@ -16,7 +16,8 @@ use crate::time::Seconds;
 
 /// Basic information about a KZ player.
 #[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
-pub struct Player {
+pub struct Player
+{
 	/// The player's name.
 	#[sqlx(rename = "player_name")]
 	pub name: String,
@@ -28,7 +29,8 @@ pub struct Player {
 
 /// Detailed information about a KZ player.
 #[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
-pub struct FullPlayer {
+pub struct FullPlayer
+{
 	/// The player's name.
 	pub name: String,
 
@@ -38,7 +40,8 @@ pub struct FullPlayer {
 
 	/// The player's IP address.
 	///
-	/// This field is only included if the requesting user has `BANS` permissions.
+	/// This field is only included if the requesting user has `BANS`
+	/// permissions.
 	#[serde(
 		skip_serializing_if = "Option::is_none",
 		serialize_with = "FullPlayer::serialize_ip_address",
@@ -51,12 +54,13 @@ pub struct FullPlayer {
 	pub is_banned: bool,
 }
 
-impl FullPlayer {
+impl FullPlayer
+{
 	/// Serializes the [`ip_address`] field with respect to IP mapping.
 	///
-	/// If a player is submitted with an IPv4 address, it will be mapped to an IPv6 address to
-	/// be stored in the database. When retrieving this IP address later, it should be mapped
-	/// back to IPv4.
+	/// If a player is submitted with an IPv4 address, it will be mapped to an
+	/// IPv6 address to be stored in the database. When retrieving this IP
+	/// address later, it should be mapped back to IPv4.
 	///
 	/// [`ip_address`]: FullPlayer::ip_address
 	fn serialize_ip_address<S>(ip: &Option<Ipv6Addr>, serializer: S) -> Result<S::Ok, S::Error>
@@ -86,7 +90,8 @@ impl FullPlayer {
 
 /// Request payload for creating a new player.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct NewPlayer {
+pub struct NewPlayer
+{
 	/// The player's name.
 	pub name: String,
 
@@ -100,7 +105,8 @@ pub struct NewPlayer {
 
 /// Request payload for updating an existing player.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct PlayerUpdate {
+pub struct PlayerUpdate
+{
 	/// The player's name.
 	pub name: String,
 
@@ -118,16 +124,17 @@ pub struct PlayerUpdate {
 
 /// Game Session information.
 ///
-/// A game session starts when a player joins a server, and ends either when they disconnect or
-/// when the map changes.
+/// A game session starts when a player joins a server, and ends either when
+/// they disconnect or when the map changes.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct Session {
+pub struct Session
+{
 	/// Stats about how the player spent their time.
 	#[serde(flatten)]
 	pub time_spent: TimeSpent,
 
-	/// Stats about how many bhops were performed by the player, and how many of them were
-	/// perfect bhops.
+	/// Stats about how many bhops were performed by the player, and how many
+	/// of them were perfect bhops.
 	#[serde(deserialize_with = "BhopStats::deserialize_checked")]
 	pub bhop_stats: BhopStats,
 
@@ -149,14 +156,16 @@ pub struct Session {
 	pub course_sessions: BTreeMap<CourseID, CourseSessions>,
 }
 
-impl Session {
+impl Session
+{
 	/// Deserializes course sessions and (partially) validates them.
 	///
 	/// This function ensures **logical invariants**, such as:
 	///    1. no session has more [finished runs] than [started runs]
 	///
-	/// This function does **not** ensure that IDs actually exist, or belong to appropriate
-	/// courses. That validation needs to be done later, as it requires database access.
+	/// This function does **not** ensure that IDs actually exist, or belong to
+	/// appropriate courses. That validation needs to be done later, as it
+	/// requires database access.
 	///
 	/// [finished runs]: CourseSession::finished_runs
 	/// [started runs]: CourseSession::started_runs
@@ -184,7 +193,8 @@ impl Session {
 
 /// Course sessions for all the modes.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
-pub struct CourseSessions {
+pub struct CourseSessions
+{
 	/// Course session for vanilla.
 	pub vanilla: Option<CourseSession>,
 
@@ -192,9 +202,11 @@ pub struct CourseSessions {
 	pub classic: Option<CourseSession>,
 }
 
-impl CourseSessions {
+impl CourseSessions
+{
 	/// Checks if these sessions are logically valid.
-	fn is_valid(&self) -> bool {
+	fn is_valid(&self) -> bool
+	{
 		[&self.vanilla, &self.classic]
 			.into_iter()
 			.filter_map(Option::as_ref)
@@ -202,11 +214,13 @@ impl CourseSessions {
 	}
 }
 
-impl IntoIterator for CourseSessions {
+impl IntoIterator for CourseSessions
+{
 	type Item = (Mode, CourseSession);
 	type IntoIter = CourseSessionsIter;
 
-	fn into_iter(self) -> Self::IntoIter {
+	fn into_iter(self) -> Self::IntoIter
+	{
 		CourseSessionsIter(self)
 	}
 }
@@ -215,10 +229,12 @@ impl IntoIterator for CourseSessions {
 #[derive(Debug)]
 pub struct CourseSessionsIter(CourseSessions);
 
-impl Iterator for CourseSessionsIter {
+impl Iterator for CourseSessionsIter
+{
 	type Item = (Mode, CourseSession);
 
-	fn next(&mut self) -> Option<Self::Item> {
+	fn next(&mut self) -> Option<Self::Item>
+	{
 		if let Some(session) = self.0.vanilla.take() {
 			return Some((Mode::Vanilla, session));
 		}
@@ -233,7 +249,8 @@ impl Iterator for CourseSessionsIter {
 
 /// Session information tied to a specific course.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
-pub struct CourseSession {
+pub struct CourseSession
+{
 	/// The amount of seconds the player spent playing this course.
 	pub playtime: Seconds,
 
@@ -248,9 +265,11 @@ pub struct CourseSession {
 	pub bhop_stats: BhopStats,
 }
 
-impl CourseSession {
+impl CourseSession
+{
 	/// Checks if this session is logically valid.
-	const fn is_valid(&self) -> bool {
+	const fn is_valid(&self) -> bool
+	{
 		self.finished_runs <= self.started_runs
 	}
 }

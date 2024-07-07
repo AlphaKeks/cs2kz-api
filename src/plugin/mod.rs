@@ -13,7 +13,8 @@ pub use models::{CreatedPluginVersion, NewPluginVersion, PluginVersion, PluginVe
 pub mod handlers;
 
 /// Returns an [`axum::Router`] for the `/plugin` routes.
-pub fn router(state: State) -> Router {
+pub fn router(state: State) -> Router
+{
 	Router::new()
 		.route("/versions", routing::get(handlers::versions::get))
 		.route_layer(cors::permissive())

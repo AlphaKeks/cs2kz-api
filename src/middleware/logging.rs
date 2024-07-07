@@ -24,7 +24,8 @@ macro_rules! layer {
 pub(crate) use layer;
 
 #[doc(hidden)]
-pub(crate) fn make_span_with(request: &Request) -> tracing::Span {
+pub(crate) fn make_span_with(request: &Request) -> tracing::Span
+{
 	tracing::info_span! {
 		target: "cs2kz_api::requests",
 		"request",
@@ -40,7 +41,8 @@ pub(crate) fn make_span_with(request: &Request) -> tracing::Span {
 }
 
 #[doc(hidden)]
-pub(crate) fn on_response(response: &Response, latency: Duration, span: &tracing::Span) {
+pub(crate) fn on_response(response: &Response, latency: Duration, span: &tracing::Span)
+{
 	span.record("response.status", format_args!("{}", response.status()))
 		.record("response.headers", format_args!("{:?}", response.headers()))
 		.record("latency", format_args!("{:?}", latency));
@@ -51,7 +53,8 @@ pub(crate) fn on_failure(
 	failure: ServerErrorsFailureClass,
 	_latency: Duration,
 	_span: &tracing::Span,
-) {
+)
+{
 	match failure {
 		ServerErrorsFailureClass::Error(error) => {
 			tracing::error!(target: "cs2kz_api::audit_log", %error, "error occurred during request");

@@ -1,7 +1,7 @@
 //! The API's global application state.
 //!
-//! A [`State`] instance is created on startup and then passed to axum so it can be accessed in
-//! handlers, [middleware], [extractors], etc.
+//! A [`State`] instance is created on startup and then passed to axum so it can
+//! be accessed in handlers, [middleware], [extractors], etc.
 //!
 //! [middleware]: axum::middleware
 //! [extractors]: axum::extract
@@ -42,7 +42,8 @@ const MAX_DB_CONNECTIONS: u32 = match (cfg!(test), cfg!(feature = "production"))
 
 /// The API's state.
 #[derive(Debug, Clone)]
-pub struct State {
+pub struct State
+{
 	/// Runtime configuration.
 	#[debug(skip)]
 	pub config: Arc<crate::Config>,
@@ -60,9 +61,11 @@ pub struct State {
 	jwt_state: Arc<JwtState>,
 }
 
-impl State {
+impl State
+{
 	/// Creates a new [`State`].
-	pub async fn new(api_config: crate::Config) -> anyhow::Result<Self> {
+	pub async fn new(api_config: crate::Config) -> anyhow::Result<Self>
+	{
 		tracing::debug!(?api_config, "initializing application state");
 		tracing::debug! {
 			url = %api_config.database_url,
@@ -86,19 +89,16 @@ impl State {
 		let http_client = reqwest::Client::new();
 		let jwt_state = JwtState::new(&config).map(Arc::new)?;
 
-		Ok(Self {
-			config,
-			database,
-			http_client,
-			jwt_state,
-		})
+		Ok(Self { config, database, http_client, jwt_state })
 	}
 
 	/// Begins a database transaction.
 	///
-	/// If the returned [`Transaction`] gets dropped without [`Transaction::commit()`] or
-	/// [`Transaction::rollback()`] being called, it will be rolled back.
-	pub async fn transaction(&self) -> Result<Transaction<'_, MySql>> {
+	/// If the returned [`Transaction`] gets dropped without
+	/// [`Transaction::commit()`] or [`Transaction::rollback()`] being called,
+	/// it will be rolled back.
+	pub async fn transaction(&self) -> Result<Transaction<'_, MySql>>
+	{
 		self.database.begin().await.map_err(Error::from)
 	}
 
@@ -120,29 +120,34 @@ impl State {
 }
 
 #[async_trait]
-impl FromRequestParts<State> for State {
+impl FromRequestParts<State> for State
+{
 	type Rejection = Infallible;
 
 	async fn from_request_parts(
 		_parts: &mut request::Parts,
 		state: &State,
-	) -> Result<Self, Self::Rejection> {
+	) -> Result<Self, Self::Rejection>
+	{
 		Ok(state.clone())
 	}
 }
 
 /// JWT state for encoding/decoding tokens.
 #[allow(missing_debug_implementations, clippy::missing_docs_in_private_items)]
-struct JwtState {
+struct JwtState
+{
 	jwt_header: jwt::Header,
 	jwt_encoding_key: jwt::EncodingKey,
 	jwt_decoding_key: jwt::DecodingKey,
 	jwt_validation: jwt::Validation,
 }
 
-impl JwtState {
+impl JwtState
+{
 	/// Creates a new [`JwtState`].
-	fn new(api_config: &crate::Config) -> Result<Self> {
+	fn new(api_config: &crate::Config) -> Result<Self>
+	{
 		let jwt_header = jwt::Header::default();
 
 		let jwt_encoding_key = jwt::EncodingKey::from_base64_secret(&api_config.jwt_secret)
@@ -153,12 +158,7 @@ impl JwtState {
 
 		let jwt_validation = jwt::Validation::default();
 
-		Ok(Self {
-			jwt_header,
-			jwt_encoding_key,
-			jwt_decoding_key,
-			jwt_validation,
-		})
+		Ok(Self { jwt_header, jwt_encoding_key, jwt_decoding_key, jwt_validation })
 	}
 
 	/// Encodes a JWT.

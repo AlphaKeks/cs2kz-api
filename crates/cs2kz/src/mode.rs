@@ -10,7 +10,8 @@ use thiserror::Error;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum Mode {
+pub enum Mode
+{
 	/// The VNL gamemode.
 	Vanilla = 1,
 
@@ -18,31 +19,37 @@ pub enum Mode {
 	Classic = 2,
 }
 
-impl Mode {
+impl Mode
+{
 	/// Checks whether `self` is of the [Vanilla] variant.
 	///
 	/// [Vanilla]: Self::Vanilla
-	pub const fn is_vanilla(&self) -> bool {
+	pub const fn is_vanilla(&self) -> bool
+	{
 		matches!(*self, Self::Vanilla)
 	}
 
 	/// Checks whether `self` is of the [Classic] variant.
 	///
 	/// [Classic]: Self::Classic
-	pub const fn is_classic(&self) -> bool {
+	pub const fn is_classic(&self) -> bool
+	{
 		matches!(*self, Self::Classic)
 	}
 
 	/// Returns a string representation of this [Mode], as accepted by the API.
-	pub const fn as_str(&self) -> &'static str {
+	pub const fn as_str(&self) -> &'static str
+	{
 		match *self {
 			Self::Vanilla => "vanilla",
 			Self::Classic => "classic",
 		}
 	}
 
-	/// Returns a short string representation of this [Mode], as displayed in-game.
-	pub const fn as_str_short(&self) -> &'static str {
+	/// Returns a short string representation of this [Mode], as displayed
+	/// in-game.
+	pub const fn as_str_short(&self) -> &'static str
+	{
 		match *self {
 			Self::Vanilla => "VNL",
 			Self::Classic => "CKZ",
@@ -50,8 +57,10 @@ impl Mode {
 	}
 }
 
-impl Display for Mode {
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl Display for Mode
+{
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+	{
 		f.write_str(match *self {
 			Self::Vanilla => "Vanilla",
 			Self::Classic => "Classic",
@@ -64,10 +73,12 @@ impl Display for Mode {
 #[error("unrecognized mode `{0}`")]
 pub struct UnknownMode(pub String);
 
-impl FromStr for Mode {
+impl FromStr for Mode
+{
 	type Err = UnknownMode;
 
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
+	fn from_str(s: &str) -> Result<Self, Self::Err>
+	{
 		let s = s.to_lowercase();
 
 		match s.as_str() {
@@ -83,10 +94,12 @@ impl FromStr for Mode {
 #[error("invalid mode ID `{0}`")]
 pub struct InvalidModeID(pub u8);
 
-impl TryFrom<u8> for Mode {
+impl TryFrom<u8> for Mode
+{
 	type Error = InvalidModeID;
 
-	fn try_from(value: u8) -> Result<Self, Self::Error> {
+	fn try_from(value: u8) -> Result<Self, Self::Error>
+	{
 		match value {
 			1 => Ok(Self::Vanilla),
 			2 => Ok(Self::Classic),
@@ -95,21 +108,25 @@ impl TryFrom<u8> for Mode {
 	}
 }
 
-impl From<Mode> for u8 {
+impl From<Mode> for u8
+{
 	#[allow(clippy::as_conversions)]
-	fn from(value: Mode) -> Self {
+	fn from(value: Mode) -> Self
+	{
 		value as u8
 	}
 }
 
 /// Method and Trait implementations when depending on [`serde`].
 #[cfg(feature = "serde")]
-mod serde_impls {
+mod serde_impls
+{
 	use serde::{de, Deserialize, Deserializer};
 
 	use super::Mode;
 
-	impl<'de> Deserialize<'de> for Mode {
+	impl<'de> Deserialize<'de> for Mode
+	{
 		fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 		where
 			D: Deserializer<'de>,
@@ -117,7 +134,8 @@ mod serde_impls {
 			#[derive(Deserialize)]
 			#[serde(untagged)]
 			#[allow(clippy::missing_docs_in_private_items)]
-			enum Helper {
+			enum Helper
+			{
 				U8(u8),
 				Str(String),
 			}
@@ -132,7 +150,8 @@ mod serde_impls {
 
 /// Method and Trait implementations when depending on [`sqlx`].
 #[cfg(feature = "sqlx")]
-mod sqlx_impls {
+mod sqlx_impls
+{
 	use sqlx::database::{HasArguments, HasValueRef};
 	use sqlx::encode::IsNull;
 	use sqlx::error::BoxDynError;
@@ -145,7 +164,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Type<DB>,
 	{
-		fn type_info() -> <DB as Database>::TypeInfo {
+		fn type_info() -> <DB as Database>::TypeInfo
+		{
 			<u8 as Type<DB>>::type_info()
 		}
 	}
@@ -155,7 +175,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Encode<'q, DB>,
 	{
-		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull {
+		fn encode_by_ref(&self, buf: &mut <DB as HasArguments<'q>>::ArgumentBuffer) -> IsNull
+		{
 			<u8 as Encode<'q, DB>>::encode_by_ref(&u8::from(*self), buf)
 		}
 	}
@@ -165,7 +186,8 @@ mod sqlx_impls {
 		DB: Database,
 		u8: Decode<'r, DB>,
 	{
-		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError> {
+		fn decode(value: <DB as HasValueRef<'r>>::ValueRef) -> Result<Self, BoxDynError>
+		{
 			<u8 as Decode<'r, DB>>::decode(value)
 				.map(Self::try_from)?
 				.map_err(Into::into)
@@ -175,7 +197,8 @@ mod sqlx_impls {
 
 /// Method and Trait implementations when depending on [`utoipa`].
 #[cfg(feature = "utoipa")]
-mod utoipa_impls {
+mod utoipa_impls
+{
 	use utoipa::openapi::path::{Parameter, ParameterBuilder, ParameterIn};
 	use utoipa::openapi::schema::OneOfBuilder;
 	use utoipa::openapi::{ObjectBuilder, RefOr, Schema, SchemaType};
@@ -183,8 +206,10 @@ mod utoipa_impls {
 
 	use crate::Mode;
 
-	impl<'s> ToSchema<'s> for Mode {
-		fn schema() -> (&'s str, RefOr<Schema>) {
+	impl<'s> ToSchema<'s> for Mode
+	{
+		fn schema() -> (&'s str, RefOr<Schema>)
+		{
 			(
 				"Mode",
 				Schema::OneOf(
@@ -214,8 +239,10 @@ mod utoipa_impls {
 		}
 	}
 
-	impl IntoParams for Mode {
-		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter> {
+	impl IntoParams for Mode
+	{
+		fn into_params(parameter_in_provider: impl Fn() -> Option<ParameterIn>) -> Vec<Parameter>
+		{
 			vec![
 				ParameterBuilder::new()
 					.name("mode")

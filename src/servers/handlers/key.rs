@@ -15,7 +15,8 @@ use crate::{authorization, Error, Result, State};
 
 /// Generate a temporary access token using a CS2 server's API key.
 ///
-/// This endpoint is for CS2 servers. They will generate a new access token every ~30min.
+/// This endpoint is for CS2 servers. They will generate a new access token
+/// every ~30min.
 #[tracing::instrument(skip(state))]
 #[utoipa::path(
   post,
@@ -30,11 +31,9 @@ use crate::{authorization, Error, Result, State};
 )]
 pub async fn generate_temp(
 	state: State,
-	Json(AccessKeyRequest {
-		refresh_key,
-		plugin_version,
-	}): Json<AccessKeyRequest>,
-) -> Result<Created<Json<AccessKeyResponse>>> {
+	Json(AccessKeyRequest { refresh_key, plugin_version }): Json<AccessKeyRequest>,
+) -> Result<Created<Json<AccessKeyResponse>>>
+{
 	let mut transaction = state.transaction().await?;
 
 	let server = sqlx::query! {
@@ -88,7 +87,8 @@ pub async fn put_perma(
 	state: State,
 	session: authentication::Session<authorization::IsServerAdminOrOwner>,
 	Path(server_id): Path<ServerID>,
-) -> Result<Created<Json<RefreshKey>>> {
+) -> Result<Created<Json<RefreshKey>>>
+{
 	let mut transaction = state.transaction().await?;
 	let refresh_key = Uuid::new_v4();
 	let query_result = sqlx::query! {
@@ -144,7 +144,8 @@ pub async fn delete_perma(
 		authorization::HasPermissions<{ Permissions::SERVERS.value() }>,
 	>,
 	Path(server_id): Path<ServerID>,
-) -> Result<NoContent> {
+) -> Result<NoContent>
+{
 	let mut transaction = state.transaction().await?;
 
 	let query_result = sqlx::query! {
@@ -174,7 +175,8 @@ pub async fn delete_perma(
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
 	use axum_extra::extract::cookie::Cookie;
 	use cs2kz::SteamID;
 	use reqwest::header;
@@ -185,7 +187,8 @@ mod tests {
 	use crate::servers::{AccessKeyRequest, AccessKeyResponse, RefreshKey, ServerID};
 
 	#[crate::integration_test]
-	async fn generate_temp(ctx: &Context) {
+	async fn generate_temp(ctx: &Context)
+	{
 		let server = sqlx::query! {
 			r#"
 			SELECT
@@ -227,7 +230,8 @@ mod tests {
 	}
 
 	#[crate::integration_test(fixtures = ["alphakeks-server-role"])]
-	async fn put_perma(ctx: &Context) {
+	async fn put_perma(ctx: &Context)
+	{
 		let server = sqlx::query! {
 			r#"
 			SELECT
@@ -283,7 +287,8 @@ mod tests {
 	}
 
 	#[crate::integration_test(fixtures = ["alphakeks-server-role"])]
-	async fn delete_perma(ctx: &Context) {
+	async fn delete_perma(ctx: &Context)
+	{
 		let server = sqlx::query! {
 			r#"
 			SELECT

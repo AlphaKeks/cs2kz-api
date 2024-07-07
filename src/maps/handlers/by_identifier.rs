@@ -12,7 +12,14 @@ use super::root::create_mappers;
 use crate::authorization::{self, Permissions};
 use crate::maps::handlers::root::insert_course_mappers;
 use crate::maps::{
-	queries, CourseID, CourseUpdate, FilterID, FilterUpdate, FullMap, MapID, MapUpdate,
+	queries,
+	CourseID,
+	CourseUpdate,
+	FilterID,
+	FilterUpdate,
+	FullMap,
+	MapID,
+	MapUpdate,
 };
 use crate::openapi::responses;
 use crate::openapi::responses::NoContent;
@@ -33,7 +40,8 @@ use crate::{authentication, Error, Result, State};
     responses::NotFound,
   ),
 )]
-pub async fn get(state: State, Path(map): Path<MapIdentifier>) -> Result<Json<FullMap>> {
+pub async fn get(state: State, Path(map): Path<MapIdentifier>) -> Result<Json<FullMap>>
+{
 	let mut query = QueryBuilder::new(queries::SELECT);
 
 	query.push(" WHERE ");
@@ -89,17 +97,11 @@ pub async fn patch(
 		removed_mappers,
 		course_updates,
 	}): Json<MapUpdate>,
-) -> Result<NoContent> {
+) -> Result<NoContent>
+{
 	let mut transaction = state.transaction().await?;
 
-	update_details(
-		map_id,
-		description,
-		workshop_id,
-		global_status,
-		&mut transaction,
-	)
-	.await?;
+	update_details(map_id, description, workshop_id, global_status, &mut transaction).await?;
 
 	if check_steam || workshop_id.is_some() {
 		update_name_and_checksum(
@@ -138,7 +140,8 @@ async fn update_details(
 	workshop_id: Option<WorkshopID>,
 	global_status: Option<GlobalStatus>,
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<()> {
+) -> Result<()>
+{
 	if description.is_none() && workshop_id.is_none() && global_status.is_none() {
 		return Ok(());
 	}
@@ -178,7 +181,8 @@ async fn update_name_and_checksum(
 	api_config: &crate::Config,
 	http_client: &reqwest::Client,
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<()> {
+) -> Result<()>
+{
 	let workshop_id = if let Some(workshop_id) = workshop_id {
 		workshop_id
 	} else {
@@ -238,7 +242,8 @@ async fn delete_mappers(
 	map_id: MapID,
 	mappers: &[SteamID],
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<()> {
+) -> Result<()>
+{
 	let mut query = QueryBuilder::new("DELETE FROM Mappers WHERE map_id = ");
 
 	query.push_bind(map_id).push(" AND player_id IN (");
@@ -275,8 +280,8 @@ async fn delete_mappers(
 	Ok(())
 }
 
-/// Updates courses by applying [`CourseUpdate`]s and returns a list of [`CourseID`]s of the
-/// courses that were actually updated.
+/// Updates courses by applying [`CourseUpdate`]s and returns a list of
+/// [`CourseID`]s of the courses that were actually updated.
 async fn update_courses<C>(
 	map_id: MapID,
 	courses: C,
@@ -332,7 +337,8 @@ where
 
 /// Updates an individual course by applying a [`CourseUpdate`].
 ///
-/// If the course was actually updated, `Some(course_id)` is returned, otherwise `None`.
+/// If the course was actually updated, `Some(course_id)` is returned, otherwise
+/// `None`.
 async fn update_course(
 	map_id: MapID,
 	course_id: CourseID,
@@ -344,7 +350,8 @@ async fn update_course(
 		filter_updates,
 	}: CourseUpdate,
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<Option<CourseID>> {
+) -> Result<Option<CourseID>>
+{
 	if name.is_none()
 		&& description.is_none()
 		&& added_mappers.is_none()
@@ -389,7 +396,8 @@ async fn delete_course_mappers(
 	course_id: CourseID,
 	mappers: &[SteamID],
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<()> {
+) -> Result<()>
+{
 	let mut query = QueryBuilder::new("DELETE FROM CourseMappers WHERE course_id = ");
 
 	query.push_bind(course_id).push(" AND player_id IN (");
@@ -431,8 +439,8 @@ async fn delete_course_mappers(
 	Ok(())
 }
 
-/// Updates filters by applying [`FilterUpdate`]s and returns a list of [`FilterID`]s of the
-/// filters that were actually updated.
+/// Updates filters by applying [`FilterUpdate`]s and returns a list of
+/// [`FilterID`]s of the filters that were actually updated.
 async fn update_filters<F>(
 	map_id: MapID,
 	course_id: CourseID,
@@ -490,16 +498,14 @@ where
 
 /// Updates an individual filter by applying a [`FilterUpdate`].
 ///
-/// If the filter was actually updated, `Some(filter_id)` is returned, otherwise `None`.
+/// If the filter was actually updated, `Some(filter_id)` is returned, otherwise
+/// `None`.
 async fn update_filter(
 	filter_id: FilterID,
-	FilterUpdate {
-		tier,
-		ranked_status,
-		notes,
-	}: FilterUpdate,
+	FilterUpdate { tier, ranked_status, notes }: FilterUpdate,
 	transaction: &mut sqlx::Transaction<'_, MySql>,
-) -> Result<Option<FilterID>> {
+) -> Result<Option<FilterID>>
+{
 	if tier.is_none() && ranked_status.is_none() && notes.is_none() {
 		return Ok(None);
 	}

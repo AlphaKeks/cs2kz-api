@@ -21,7 +21,8 @@ make_id!(FilterID as u16);
 
 /// A KZ map.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct FullMap {
+pub struct FullMap
+{
 	/// The map's ID.
 	pub id: MapID,
 
@@ -51,12 +52,15 @@ pub struct FullMap {
 	pub created_on: DateTime<Utc>,
 }
 
-impl FullMap {
-	/// Combines two maps by merging mappers and course information from `other` into `self`.
+impl FullMap
+{
+	/// Combines two maps by merging mappers and course information from `other`
+	/// into `self`.
 	///
-	/// This function is used for aggregating database results; see `FullMap`'s [`FromRow`]
-	/// implementation for more details.
-	pub fn reduce(mut self, other: Self) -> Self {
+	/// This function is used for aggregating database results; see `FullMap`'s
+	/// [`FromRow`] implementation for more details.
+	pub fn reduce(mut self, other: Self) -> Self
+	{
 		assert_eq!(self.id, other.id, "merging two unrelated maps");
 
 		for mapper in other.mappers {
@@ -87,8 +91,8 @@ impl FullMap {
 		self
 	}
 
-	/// Flatten database results by aggregating maps with equal IDs but different
-	/// mappers/courses into a list of maps with unique IDs.
+	/// Flatten database results by aggregating maps with equal IDs but
+	/// different mappers/courses into a list of maps with unique IDs.
 	pub fn flatten<I>(maps: I, limit: usize) -> Vec<Self>
 	where
 		I: IntoIterator<Item = Self>,
@@ -102,8 +106,10 @@ impl FullMap {
 	}
 }
 
-impl FromRow<'_, MySqlRow> for FullMap {
-	fn from_row(row: &MySqlRow) -> sqlx::Result<Self> {
+impl FromRow<'_, MySqlRow> for FullMap
+{
+	fn from_row(row: &MySqlRow) -> sqlx::Result<Self>
+	{
 		Ok(Self {
 			id: row.try_get("id")?,
 			name: row.try_get("name")?,
@@ -123,7 +129,8 @@ impl FromRow<'_, MySqlRow> for FullMap {
 
 /// A KZ map course.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct Course {
+pub struct Course
+{
 	/// The course's ID.
 	pub id: CourseID,
 
@@ -142,8 +149,10 @@ pub struct Course {
 	pub filters: Vec<Filter>,
 }
 
-impl FromRow<'_, MySqlRow> for Course {
-	fn from_row(row: &MySqlRow) -> sqlx::Result<Self> {
+impl FromRow<'_, MySqlRow> for Course
+{
+	fn from_row(row: &MySqlRow) -> sqlx::Result<Self>
+	{
 		Ok(Self {
 			id: row.try_get("course_id")?,
 			name: row.try_get("course_name")?,
@@ -166,7 +175,8 @@ impl FromRow<'_, MySqlRow> for Course {
 
 /// A course filter.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct Filter {
+pub struct Filter
+{
 	/// The filter's ID.
 	pub id: FilterID,
 
@@ -189,21 +199,20 @@ pub struct Filter {
 
 /// Request payload for creating a new map.
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct NewMap {
+pub struct NewMap
+{
 	/// The map's Steam Workshop ID.
 	pub workshop_id: WorkshopID,
 
 	/// Description of the map.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::string::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::string::deserialize_empty_as_none")]
 	pub description: Option<String>,
 
 	/// The map's global status.
 	pub global_status: GlobalStatus,
 
-	/// List of SteamIDs of the players who contributed to the creation of this map.
+	/// List of SteamIDs of the players who contributed to the creation of this
+	/// map.
 	#[serde(deserialize_with = "crate::serde::vec::deserialize_non_empty")]
 	pub mappers: Vec<SteamID>,
 
@@ -212,7 +221,8 @@ pub struct NewMap {
 	pub courses: Vec<NewCourse>,
 }
 
-impl NewMap {
+impl NewMap
+{
 	/// Deserializes courses and (partially) validates them.
 	///
 	/// This function ensures **logical invariants**, such as:
@@ -242,22 +252,18 @@ impl NewMap {
 
 /// Request payload for creating a new course.
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct NewCourse {
+pub struct NewCourse
+{
 	/// The course's name.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::string::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::string::deserialize_empty_as_none")]
 	pub name: Option<String>,
 
 	/// Description of the course.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::string::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::string::deserialize_empty_as_none")]
 	pub description: Option<String>,
 
-	/// List of SteamIDs of the players who contributed to the creation of this course.
+	/// List of SteamIDs of the players who contributed to the creation of this
+	/// course.
 	#[serde(deserialize_with = "crate::serde::vec::deserialize_non_empty")]
 	pub mappers: Vec<SteamID>,
 
@@ -266,11 +272,13 @@ pub struct NewCourse {
 	pub filters: [NewFilter; 4],
 }
 
-impl NewCourse {
+impl NewCourse
+{
 	/// Deserializes filters and (partially) validates them.
 	///
 	/// This function ensures **logical invariants**, such as:
-	///    1. each of the 4 filters covers one of the 4 (mode, runtype) combinations
+	///    1. each of the 4 filters covers one of the 4 (mode, runtype)
+	///       combinations
 	///    2. no filter has a tier above 8 and is marked as "ranked"
 	fn deserialize_filters<'de, D>(deserializer: D) -> Result<[NewFilter; 4], D::Error>
 	where
@@ -311,7 +319,8 @@ impl NewCourse {
 
 /// Request payload for creating a new course filter.
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct NewFilter {
+pub struct NewFilter
+{
 	/// The mode associated with this filter.
 	pub mode: Mode,
 
@@ -325,28 +334,24 @@ pub struct NewFilter {
 	pub ranked_status: RankedStatus,
 
 	/// Any additional notes.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::string::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::string::deserialize_empty_as_none")]
 	pub notes: Option<String>,
 }
 
 /// Response body for creating a new map.
 #[derive(Debug, Clone, Copy, Serialize, ToSchema)]
-pub struct CreatedMap {
+pub struct CreatedMap
+{
 	/// The map's ID.
 	pub map_id: MapID,
 }
 
 /// Request payload for updating an existing map.
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct MapUpdate {
+pub struct MapUpdate
+{
 	/// A new description.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::string::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::string::deserialize_empty_as_none")]
 	pub description: Option<String>,
 
 	/// A new Workshop ID.
@@ -360,24 +365,15 @@ pub struct MapUpdate {
 	pub check_steam: bool,
 
 	/// List of SteamIDs of players to add as mappers to this map.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::vec::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::vec::deserialize_empty_as_none")]
 	pub added_mappers: Option<Vec<SteamID>>,
 
 	/// List of SteamIDs of players to remove as mappers from this map.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::vec::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::vec::deserialize_empty_as_none")]
 	pub removed_mappers: Option<Vec<SteamID>>,
 
 	/// Updates to this map's courses.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::btree_map::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::btree_map::deserialize_empty_as_none")]
 	#[schema(example = json!({
 	  "1": {
 	    "name": "foobar"
@@ -391,40 +387,26 @@ pub struct MapUpdate {
 
 /// Request payload for updating a map course.
 #[derive(Debug, Default, Deserialize, ToSchema)]
-pub struct CourseUpdate {
+pub struct CourseUpdate
+{
 	/// A new name.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::string::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::string::deserialize_empty_as_none")]
 	pub name: Option<String>,
 
 	/// A new description.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::string::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::string::deserialize_empty_as_none")]
 	pub description: Option<String>,
 
 	/// List of SteamIDs of players to add as mappers to this course.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::vec::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::vec::deserialize_empty_as_none")]
 	pub added_mappers: Option<Vec<SteamID>>,
 
 	/// List of SteamIDs of players to remove as mappers from this course.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::vec::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::vec::deserialize_empty_as_none")]
 	pub removed_mappers: Option<Vec<SteamID>>,
 
 	/// Updates to this course's filters.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::btree_map::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::btree_map::deserialize_empty_as_none")]
 	#[schema(example = json!({
 	  "1": {
 	    "name": "foobar"
@@ -438,7 +420,8 @@ pub struct CourseUpdate {
 
 /// Request payload for updating a course filter.
 #[derive(Debug, Default, Deserialize, ToSchema)]
-pub struct FilterUpdate {
+pub struct FilterUpdate
+{
 	/// A new tier.
 	pub tier: Option<Tier>,
 
@@ -446,16 +429,14 @@ pub struct FilterUpdate {
 	pub ranked_status: Option<RankedStatus>,
 
 	/// New notes.
-	#[serde(
-		default,
-		deserialize_with = "crate::serde::string::deserialize_empty_as_none"
-	)]
+	#[serde(default, deserialize_with = "crate::serde::string::deserialize_empty_as_none")]
 	pub notes: Option<String>,
 }
 
 /// Information about a KZ map.
 #[derive(Debug, Serialize, FromRow, ToSchema)]
-pub struct MapInfo {
+pub struct MapInfo
+{
 	/// The map's ID.
 	#[sqlx(rename = "map_id")]
 	pub id: MapID,
@@ -467,7 +448,8 @@ pub struct MapInfo {
 
 /// Information about a KZ map course.
 #[derive(Debug, Serialize, FromRow, ToSchema)]
-pub struct CourseInfo {
+pub struct CourseInfo
+{
 	/// The course's ID.
 	#[sqlx(rename = "course_id")]
 	pub id: CourseID,

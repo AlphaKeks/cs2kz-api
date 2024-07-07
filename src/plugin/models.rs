@@ -13,7 +13,8 @@ make_id!(PluginVersionID as u16);
 
 /// A CS2KZ plugin version.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct PluginVersion {
+pub struct PluginVersion
+{
 	/// The version's ID.
 	pub id: PluginVersionID,
 
@@ -28,8 +29,10 @@ pub struct PluginVersion {
 	pub created_on: DateTime<Utc>,
 }
 
-impl FromRow<'_, MySqlRow> for PluginVersion {
-	fn from_row(row: &MySqlRow) -> sqlx::Result<Self> {
+impl FromRow<'_, MySqlRow> for PluginVersion
+{
+	fn from_row(row: &MySqlRow) -> sqlx::Result<Self>
+	{
 		Ok(Self {
 			id: row.try_get("id")?,
 			semver: row
@@ -47,7 +50,8 @@ impl FromRow<'_, MySqlRow> for PluginVersion {
 
 /// Request payload for submitting a new plugin version.
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct NewPluginVersion {
+pub struct NewPluginVersion
+{
 	/// The version as a string.
 	#[serde(deserialize_with = "crate::serde::semver::deserialize_plugin_version")]
 	#[schema(value_type = String)]
@@ -59,7 +63,8 @@ pub struct NewPluginVersion {
 
 /// Response body for submitting a new plugin version.
 #[derive(Debug, Clone, Copy, Serialize, ToSchema)]
-pub struct CreatedPluginVersion {
+pub struct CreatedPluginVersion
+{
 	/// The version's ID.
 	pub plugin_version_id: PluginVersionID,
 }

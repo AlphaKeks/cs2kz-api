@@ -10,18 +10,26 @@ use crate::{authorization, State};
 
 mod models;
 pub use models::{
-	Ban, BanID, BanReason, BanUpdate, CreatedBan, CreatedUnban, NewBan, NewUnban, Unban, UnbanID,
+	Ban,
+	BanID,
+	BanReason,
+	BanUpdate,
+	CreatedBan,
+	CreatedUnban,
+	NewBan,
+	NewUnban,
+	Unban,
+	UnbanID,
 };
 
 mod queries;
 pub mod handlers;
 
 /// Returns an [`axum::Router`] for the `/bans` routes.
-pub fn router(state: State) -> Router {
-	let auth = session_auth!(
-		authorization::HasPermissions<{ Permissions::BANS.value() }>,
-		state.clone(),
-	);
+pub fn router(state: State) -> Router
+{
+	let auth =
+		session_auth!(authorization::HasPermissions<{ Permissions::BANS.value() }>, state.clone(),);
 
 	let root = Router::new()
 		.route("/", routing::get(handlers::root::get))
@@ -33,14 +41,8 @@ pub fn router(state: State) -> Router {
 	let by_id = Router::new()
 		.route("/:id", routing::get(handlers::by_id::get))
 		.route_layer(cors::permissive())
-		.route(
-			"/:id",
-			routing::patch(handlers::by_id::patch).route_layer(auth()),
-		)
-		.route(
-			"/:id",
-			routing::delete(handlers::by_id::delete).route_layer(auth()),
-		)
+		.route("/:id", routing::patch(handlers::by_id::patch).route_layer(auth()))
+		.route("/:id", routing::delete(handlers::by_id::delete).route_layer(auth()))
 		.route_layer(cors::dashboard([Method::PATCH, Method::DELETE]))
 		.with_state(state.clone());
 

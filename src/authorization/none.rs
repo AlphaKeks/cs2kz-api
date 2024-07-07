@@ -12,12 +12,14 @@ use crate::{authentication, Result};
 #[derive(Debug, Clone, Copy)]
 pub struct None;
 
-impl AuthorizeSession for None {
+impl AuthorizeSession for None
+{
 	async fn authorize_session(
 		_user: &authentication::User,
 		_req: &mut request::Parts,
 		_transaction: &mut Transaction<'_, MySql>,
-	) -> Result<()> {
+	) -> Result<()>
+	{
 		Ok(())
 	}
 }

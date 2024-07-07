@@ -22,7 +22,8 @@ make_id!(ServerID as u16);
 
 /// A KZ server.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct Server {
+pub struct Server
+{
 	/// The server's ID.
 	pub id: ServerID,
 
@@ -44,8 +45,10 @@ pub struct Server {
 	pub created_on: DateTime<Utc>,
 }
 
-impl FromRow<'_, MySqlRow> for Server {
-	fn from_row(row: &MySqlRow) -> sqlx::Result<Self> {
+impl FromRow<'_, MySqlRow> for Server
+{
+	fn from_row(row: &MySqlRow) -> sqlx::Result<Self>
+	{
 		Ok(Self {
 			id: row.try_get("id")?,
 			name: row.try_get("name")?,
@@ -58,10 +61,7 @@ impl FromRow<'_, MySqlRow> for Server {
 				}
 			},
 			port: row.try_get("port")?,
-			owner: Player {
-				name: row.try_get("owner_name")?,
-				steam_id: row.try_get("owner_id")?,
-			},
+			owner: Player { name: row.try_get("owner_name")?, steam_id: row.try_get("owner_id")? },
 			created_on: row.try_get("created_on")?,
 		})
 	}
@@ -69,7 +69,8 @@ impl FromRow<'_, MySqlRow> for Server {
 
 /// Request payload for creating a new server.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct NewServer {
+pub struct NewServer
+{
 	/// The server's name.
 	pub name: String,
 
@@ -89,7 +90,8 @@ pub struct NewServer {
 
 /// Response body for creating a new server.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
-pub struct CreatedServer {
+pub struct CreatedServer
+{
 	/// The server's ID.
 	pub server_id: ServerID,
 
@@ -99,7 +101,8 @@ pub struct CreatedServer {
 
 /// Request payload for updating a server.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ServerUpdate {
+pub struct ServerUpdate
+{
 	/// A new name.
 	pub name: Option<String>,
 
@@ -116,7 +119,8 @@ pub struct ServerUpdate {
 
 /// Request payload for generating a temporary access key.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct AccessKeyRequest {
+pub struct AccessKeyRequest
+{
 	/// The server's API key.
 	pub refresh_key: Uuid,
 
@@ -128,21 +132,24 @@ pub struct AccessKeyRequest {
 
 /// Response body for generating a temporary access key.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct AccessKeyResponse {
+pub struct AccessKeyResponse
+{
 	/// The JWT.
 	pub access_key: String,
 }
 
 /// A server's API key.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
-pub struct RefreshKey {
+pub struct RefreshKey
+{
 	/// The key.
 	pub refresh_key: Uuid,
 }
 
 /// Information about a KZ server.
 #[derive(Debug, Serialize, FromRow, ToSchema)]
-pub struct ServerInfo {
+pub struct ServerInfo
+{
 	/// The server's ID.
 	#[sqlx(rename = "server_id")]
 	pub id: ServerID,

@@ -3,15 +3,17 @@
 //! CS2KZ API.
 //!
 //! This is free software: you can redistribute it and/or modify it under
-//! the terms of the GNU General Public License as published by the Free Software Foundation,
-//! either version 3 of the License, or (at your option) any later version.
+//! the terms of the GNU General Public License as published by the Free
+//! Software Foundation, either version 3 of the License, or (at your option)
+//! any later version.
 //!
-//! This is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
-//! without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-//! See the GNU General Public License for more details.
+//! This is distributed in the hope that it will be useful, but WITHOUT ANY
+//! WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+//! FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+//! details.
 //!
-//! You should have received a copy of the GNU General Public License along with this repository.
-//! If not, see <https://www.gnu.org/licenses/>.
+//! You should have received a copy of the GNU General Public License along with
+//! this repository. If not, see <https://www.gnu.org/licenses/>.
 
 use std::backtrace::Backtrace;
 use std::panic;
@@ -22,9 +24,10 @@ use tracing::Instrument;
 mod logging;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-	// `.env` files missing is not necessarily an issue (e.g. when running tests in CI), but we
-	// log it to stderr just in case.
+async fn main() -> anyhow::Result<()>
+{
+	// `.env` files missing is not necessarily an issue (e.g. when running tests
+	// in CI), but we log it to stderr just in case.
 	if dotenvy::dotenv().is_err() {
 		eprintln!("WARNING: no `.env` file found");
 	}

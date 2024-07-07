@@ -20,6 +20,7 @@ use crate::records::Record;
     responses::BadRequest,
   ),
 )]
-pub async fn get(Query(_params): Query<GetParams>) -> StatusCode {
+pub async fn get(Query(_params): Query<GetParams>) -> StatusCode
+{
 	StatusCode::SERVICE_UNAVAILABLE
 }

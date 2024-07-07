@@ -16,7 +16,8 @@ make_id!(JumpstatID as u64);
 
 /// A KZ jumpstat.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct Jumpstat {
+pub struct Jumpstat
+{
 	/// The jumpstat's ID.
 	pub id: JumpstatID,
 
@@ -78,8 +79,10 @@ pub struct Jumpstat {
 	pub created_on: DateTime<Utc>,
 }
 
-impl FromRow<'_, MySqlRow> for Jumpstat {
-	fn from_row(row: &MySqlRow) -> sqlx::Result<Self> {
+impl FromRow<'_, MySqlRow> for Jumpstat
+{
+	fn from_row(row: &MySqlRow) -> sqlx::Result<Self>
+	{
 		Ok(Self {
 			id: row.try_get("id")?,
 			jump_type: row.try_get("type")?,
@@ -106,7 +109,8 @@ impl FromRow<'_, MySqlRow> for Jumpstat {
 
 /// Request payload for creating a new jumpstat.
 #[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
-pub struct NewJumpstat {
+pub struct NewJumpstat
+{
 	/// The jump type.
 	#[serde(rename = "type")]
 	pub jump_type: JumpType,
@@ -161,7 +165,8 @@ pub struct NewJumpstat {
 
 /// Response body for creating a new jumpstat.
 #[derive(Debug, Clone, Copy, Serialize, ToSchema)]
-pub struct CreatedJumpstat {
+pub struct CreatedJumpstat
+{
 	/// The jumpstat's ID.
 	pub jumpstat_id: JumpstatID,
 }

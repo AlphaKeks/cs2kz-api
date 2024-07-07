@@ -19,7 +19,8 @@ make_id!(RecordID as u64);
 
 /// A KZ record.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct Record {
+pub struct Record
+{
 	/// The record's ID.
 	pub id: RecordID,
 
@@ -54,8 +55,10 @@ pub struct Record {
 	pub created_on: DateTime<Utc>,
 }
 
-impl FromRow<'_, MySqlRow> for Record {
-	fn from_row(row: &MySqlRow) -> sqlx::Result<Self> {
+impl FromRow<'_, MySqlRow> for Record
+{
+	fn from_row(row: &MySqlRow) -> sqlx::Result<Self>
+	{
 		Ok(Self {
 			id: row.try_get("id")?,
 			mode: row.try_get("mode")?,
@@ -85,7 +88,8 @@ impl FromRow<'_, MySqlRow> for Record {
 
 /// Bhop statistics.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, FromRow, ToSchema)]
-pub struct BhopStats {
+pub struct BhopStats
+{
 	/// The amount of bhops.
 	pub bhops: u16,
 
@@ -93,7 +97,8 @@ pub struct BhopStats {
 	pub perfs: u16,
 }
 
-impl BhopStats {
+impl BhopStats
+{
 	/// Deserializes [`BhopStats`] and checks that `perfs <= bhops`.
 	pub fn deserialize_checked<'de, D>(deserializer: D) -> Result<Self, D::Error>
 	where
@@ -102,9 +107,7 @@ impl BhopStats {
 		let bhop_stats = Self::deserialize(deserializer)?;
 
 		if bhop_stats.perfs > bhop_stats.bhops {
-			return Err(serde::de::Error::custom(
-				"bhop stats can't have more perfs than bhops",
-			));
+			return Err(serde::de::Error::custom("bhop stats can't have more perfs than bhops"));
 		}
 
 		Ok(bhop_stats)
@@ -113,7 +116,8 @@ impl BhopStats {
 
 /// Request payload for creating a new record.
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct NewRecord {
+pub struct NewRecord
+{
 	/// The SteamID of the player who performed the record.
 	pub player_id: SteamID,
 
@@ -139,7 +143,8 @@ pub struct NewRecord {
 
 /// Response body for creating a new record.
 #[derive(Debug, Clone, Copy, Serialize, ToSchema)]
-pub struct CreatedRecord {
+pub struct CreatedRecord
+{
 	/// The record's ID.
 	pub record_id: RecordID,
 }

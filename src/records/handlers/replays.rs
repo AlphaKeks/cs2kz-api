@@ -19,6 +19,7 @@ use crate::records::RecordID;
     responses::BadRequest,
   ),
 )]
-pub async fn get(Path(_record_id): Path<RecordID>) -> StatusCode {
+pub async fn get(Path(_record_id): Path<RecordID>) -> StatusCode
+{
 	StatusCode::SERVICE_UNAVAILABLE
 }

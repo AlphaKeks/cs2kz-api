@@ -16,7 +16,8 @@ use crate::{Error, Result, State};
 
 /// Query parameters for `/admins`.
 #[derive(Debug, Clone, Copy, Deserialize, IntoParams)]
-pub struct GetParams {
+pub struct GetParams
+{
 	/// Filter by permissions.
 	#[param(value_type = Vec<String>)]
 	#[serde(default)]
@@ -46,12 +47,9 @@ pub struct GetParams {
 )]
 pub async fn get(
 	state: State,
-	Query(GetParams {
-		permissions,
-		limit,
-		offset,
-	}): Query<GetParams>,
-) -> Result<Json<PaginationResponse<Admin>>> {
+	Query(GetParams { permissions, limit, offset }): Query<GetParams>,
+) -> Result<Json<PaginationResponse<Admin>>>
+{
 	let mut transaction = state.transaction().await?;
 
 	let admins = sqlx::query_as! {
@@ -85,8 +83,5 @@ pub async fn get(
 
 	transaction.commit().await?;
 
-	Ok(Json(PaginationResponse {
-		total,
-		results: admins,
-	}))
+	Ok(Json(PaginationResponse { total, results: admins }))
 }
