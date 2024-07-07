@@ -8,3 +8,8 @@ mod steam_id;
 
 #[doc(inline)]
 pub use steam_id::SteamID;
+
+mod mode;
+
+#[doc(inline)]
+pub use mode::Mode;
