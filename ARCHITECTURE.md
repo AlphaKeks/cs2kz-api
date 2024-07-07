@@ -16,7 +16,7 @@ with the root manifest at [./Cargo.toml](./Cargo.toml). Important files /
 directories include:
 
 * [`src`](./src) - the main API crate; this is where the bulk of the code is located
-* [`crates`](./crates) - any utility libraries or helper crates (part of the workspace)
+* [`lib`](./lib) - any utility libraries or helper crates (part of the workspace)
 * [`database`](./database) - migrations, test fixtures, and docker volumes
 * [`Justfile`](./Justfile) - command runner for developing
 * `.env.*` files - environment variables that are loaded at runtime
