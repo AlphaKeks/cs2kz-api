@@ -1,8 +1,0 @@
-max-fn-params-bools = 1
-check-private-items = true
-
-enforced-import-renames = [
-  { path = "std::error::Error", rename = "StdError" },
-  { path = "serde_json::Value", rename = "JsonValue" },
-  { path = "sqlx::types::Json", rename = "SqlJson" },
-]
