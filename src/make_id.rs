@@ -104,5 +104,13 @@ macro_rules! make_id {
 				&self.0
 			}
 		}
+
+		impl ::std::str::FromStr for $name {
+			type Err = <$repr as ::std::str::FromStr>::Err;
+
+			fn from_str(s: &str) -> Result<Self, <Self as ::std::str::FromStr>::Err> {
+				<$repr as ::std::str::FromStr>::from_str(s).map(Self)
+			}
+		}
 	};
 }

@@ -87,12 +87,13 @@ pub mod security;
       cs2kz::Style,
       cs2kz::Tier,
       cs2kz::JumpType,
-      cs2kz::PlayerIdentifier,
-      cs2kz::MapIdentifier,
-      cs2kz::CourseIdentifier,
-      cs2kz::ServerIdentifier,
       cs2kz::GlobalStatus,
       cs2kz::RankedStatus,
+
+      crate::kz::PlayerIdentifier,
+      crate::kz::MapIdentifier,
+      crate::kz::CourseIdentifier,
+      crate::kz::ServerIdentifier,
 
       crate::openapi::parameters::Offset,
       crate::openapi::parameters::Limit,

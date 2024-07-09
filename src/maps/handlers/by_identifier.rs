@@ -4,12 +4,13 @@ use std::collections::HashSet;
 
 use axum::extract::Path;
 use axum::Json;
-use cs2kz::{GlobalStatus, MapIdentifier, SteamID};
+use cs2kz::{GlobalStatus, SteamID};
 use futures::TryFutureExt;
 use sqlx::{MySql, QueryBuilder};
 
 use super::root::create_mappers;
 use crate::authorization::{self, Permissions};
+use crate::kz::MapIdentifier;
 use crate::maps::handlers::root::insert_course_mappers;
 use crate::maps::{
 	queries,

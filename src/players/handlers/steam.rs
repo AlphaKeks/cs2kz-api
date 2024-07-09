@@ -2,8 +2,8 @@
 
 use axum::extract::Path;
 use axum::Json;
-use cs2kz::PlayerIdentifier;
 
+use crate::kz::PlayerIdentifier;
 use crate::openapi::responses;
 use crate::sqlx::FetchID;
 use crate::{steam, Result, State};

@@ -3,12 +3,13 @@
 use axum::extract::Query;
 use axum::Json;
 use chrono::{DateTime, Utc};
-use cs2kz::{JumpType, Mode, PlayerIdentifier, ServerIdentifier};
+use cs2kz::{JumpType, Mode};
 use serde::Deserialize;
 use utoipa::IntoParams;
 
 use crate::authentication::{self, Jwt};
 use crate::jumpstats::{queries, CreatedJumpstat, Jumpstat, NewJumpstat};
+use crate::kz::{PlayerIdentifier, ServerIdentifier};
 use crate::openapi::parameters::{Limit, Offset};
 use crate::openapi::responses;
 use crate::openapi::responses::{Created, PaginationResponse};
