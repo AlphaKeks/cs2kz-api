@@ -3,12 +3,12 @@
 use axum::extract::Query;
 use axum::Json;
 use chrono::{DateTime, Utc};
-use cs2kz::Mode;
+use cs2kz::{Mode, Styles};
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::authentication::{self, Jwt};
-use crate::kz::{CourseIdentifier, MapIdentifier, PlayerIdentifier, ServerIdentifier, StyleFlags};
+use crate::kz::{CourseIdentifier, MapIdentifier, PlayerIdentifier, ServerIdentifier};
 use crate::maps::FilterID;
 use crate::openapi::parameters::{Limit, Offset, SortingOrder};
 use crate::openapi::responses;
@@ -25,9 +25,8 @@ pub struct GetParams
 	mode: Option<Mode>,
 
 	/// Filter by styles.
-	#[param(value_type = Vec<String>)]
 	#[serde(default)]
-	styles: StyleFlags,
+	styles: Styles,
 
 	/// Filter by whether teleports were used.
 	teleports: Option<bool>,
@@ -118,9 +117,9 @@ pub async fn get(
 		query.filter(" f.mode_id = ", mode);
 	}
 
-	if styles != StyleFlags::NONE {
+	if styles != Styles::NONE {
 		query
-			.filter(" ((r.style_flags & ", styles)
+			.filter(" ((r.styles & ", styles)
 			.push(") = ")
 			.push_bind(styles)
 			.push(")");
@@ -241,7 +240,7 @@ pub async fn post(
 		INSERT INTO
 		  Records (
 		    filter_id,
-		    style_flags,
+		    styles,
 		    teleports,
 		    time,
 		    player_id,
@@ -254,7 +253,7 @@ pub async fn post(
 		  (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		"#,
 		filter_id,
-		styles.iter().copied().collect::<StyleFlags>(),
+		styles,
 		teleports,
 		time.as_secs_f64(),
 		player_id,
