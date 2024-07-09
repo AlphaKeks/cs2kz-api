@@ -3,12 +3,12 @@
 use axum::extract::Query;
 use axum::Json;
 use chrono::{DateTime, Utc};
-use cs2kz::{CourseIdentifier, MapIdentifier, Mode, PlayerIdentifier, ServerIdentifier};
+use cs2kz::Mode;
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::authentication::{self, Jwt};
-use crate::kz::StyleFlags;
+use crate::kz::{CourseIdentifier, MapIdentifier, PlayerIdentifier, ServerIdentifier, StyleFlags};
 use crate::maps::FilterID;
 use crate::openapi::parameters::{Limit, Offset, SortingOrder};
 use crate::openapi::responses;

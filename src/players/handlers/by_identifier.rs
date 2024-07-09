@@ -5,7 +5,7 @@ use std::net::IpAddr;
 
 use axum::extract::Path;
 use axum::Json;
-use cs2kz::{Mode, PlayerIdentifier, SteamID};
+use cs2kz::{Mode, SteamID};
 use futures::TryFutureExt;
 use sqlx::types::Json as SqlJson;
 use sqlx::{MySql, QueryBuilder};
@@ -13,6 +13,7 @@ use sqlx::{MySql, QueryBuilder};
 use crate::authentication::Jwt;
 use crate::authorization::Permissions;
 use crate::game_sessions::{CourseSessionID, GameSessionID};
+use crate::kz::PlayerIdentifier;
 use crate::maps::CourseID;
 use crate::openapi::responses::{self, NoContent};
 use crate::players::{queries, CourseSession, FullPlayer, PlayerUpdate};
@@ -49,7 +50,7 @@ pub async fn get(
 	query.push(" WHERE ");
 
 	match player {
-		PlayerIdentifier::SteamID(steam_id) => {
+		PlayerIdentifier::ID(steam_id) => {
 			query.push(" p.id = ").push_bind(steam_id);
 		}
 		PlayerIdentifier::Name(name) => {

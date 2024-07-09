@@ -2,9 +2,9 @@
 
 use axum::extract::Path;
 use axum::Json;
-use cs2kz::ServerIdentifier;
 use sqlx::QueryBuilder;
 
+use crate::kz::ServerIdentifier;
 use crate::openapi::responses;
 use crate::openapi::responses::NoContent;
 use crate::servers::{queries, Server, ServerID, ServerUpdate};

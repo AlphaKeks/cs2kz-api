@@ -2,11 +2,11 @@
 
 use axum::extract::Path;
 use axum::Json;
-use cs2kz::PlayerIdentifier;
 use serde_json::Value as JsonValue;
 use sqlx::types::Json as SqlJson;
 use sqlx::QueryBuilder;
 
+use crate::kz::PlayerIdentifier;
 use crate::openapi::responses;
 use crate::{Error, Result, State};
 
@@ -28,7 +28,7 @@ pub async fn get(state: State, Path(player): Path<PlayerIdentifier>) -> Result<J
 	let mut query = QueryBuilder::new("SELECT preferences FROM Players WHERE");
 
 	match player {
-		PlayerIdentifier::SteamID(steam_id) => {
+		PlayerIdentifier::ID(steam_id) => {
 			query.push(" id = ").push_bind(steam_id);
 		}
 		PlayerIdentifier::Name(name) => {

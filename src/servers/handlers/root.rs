@@ -3,12 +3,12 @@
 use axum::extract::Query;
 use axum::Json;
 use chrono::{DateTime, Utc};
-use cs2kz::PlayerIdentifier;
 use serde::Deserialize;
 use utoipa::IntoParams;
 use uuid::Uuid;
 
 use crate::authorization::{self, Permissions};
+use crate::kz::PlayerIdentifier;
 use crate::make_id::IntoID;
 use crate::openapi::parameters::{Limit, Offset};
 use crate::openapi::responses;

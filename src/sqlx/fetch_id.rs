@@ -2,9 +2,10 @@
 
 use std::future::Future;
 
-use cs2kz::{CourseIdentifier, MapIdentifier, PlayerIdentifier, ServerIdentifier, SteamID};
+use cs2kz::SteamID;
 use sqlx::MySqlExecutor;
 
+use crate::kz::{CourseIdentifier, MapIdentifier, PlayerIdentifier, ServerIdentifier};
 use crate::maps::{CourseID, MapID};
 use crate::servers::ServerID;
 use crate::{Error, Result};
@@ -31,7 +32,7 @@ impl FetchID for PlayerIdentifier
 	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<SteamID>
 	{
 		match *self {
-			Self::SteamID(steam_id) => Ok(steam_id),
+			Self::ID(steam_id) => Ok(steam_id),
 			Self::Name(ref name) => sqlx::query_scalar! {
 				r#"
 				SELECT
@@ -57,7 +58,7 @@ impl FetchID for MapIdentifier
 	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<MapID>
 	{
 		match *self {
-			Self::ID(id) => Ok(MapID(id)),
+			Self::ID(id) => Ok(id),
 			Self::Name(ref name) => sqlx::query_scalar! {
 				r#"
 				SELECT
@@ -83,7 +84,7 @@ impl FetchID for CourseIdentifier
 	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<CourseID>
 	{
 		match *self {
-			CourseIdentifier::ID(course_id) => Ok(CourseID(course_id)),
+			CourseIdentifier::ID(course_id) => Ok(course_id),
 			CourseIdentifier::Name(ref name) => sqlx::query_scalar! {
 				r#"
 				SELECT
@@ -109,7 +110,7 @@ impl FetchID for ServerIdentifier
 	async fn fetch_id(&self, executor: impl MySqlExecutor<'_>) -> Result<ServerID>
 	{
 		match *self {
-			Self::ID(id) => Ok(ServerID(id)),
+			Self::ID(id) => Ok(id),
 			Self::Name(ref name) => sqlx::query_scalar! {
 				r#"
 				SELECT
