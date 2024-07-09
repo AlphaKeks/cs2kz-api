@@ -1,14 +1,12 @@
 //! Types for modeling KZ records.
 
 use chrono::{DateTime, Utc};
-use cs2kz::{Mode, SteamID, Style};
-use itertools::Itertools;
+use cs2kz::{Mode, SteamID, Styles};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::mysql::MySqlRow;
 use sqlx::{FromRow, Row};
 use utoipa::ToSchema;
 
-use crate::kz::StyleFlags;
 use crate::make_id;
 use crate::maps::{CourseID, CourseInfo, MapInfo};
 use crate::players::Player;
@@ -28,7 +26,8 @@ pub struct Record
 	pub mode: Mode,
 
 	/// The styles that were used.
-	pub styles: Vec<Style>,
+	#[schema(value_type = Vec<String>)]
+	pub styles: Styles,
 
 	/// The amount of teleports used.
 	pub teleports: u16,
@@ -62,18 +61,7 @@ impl FromRow<'_, MySqlRow> for Record
 		Ok(Self {
 			id: row.try_get("id")?,
 			mode: row.try_get("mode")?,
-			styles: row
-				.try_get("style_flags")
-				.map(StyleFlags::new)?
-				.into_iter()
-				.map(str::parse::<Style>)
-				.map(|flags| {
-					flags.map_err(|err| sqlx::Error::ColumnDecode {
-						index: String::from("style_flags"),
-						source: Box::new(err),
-					})
-				})
-				.try_collect()?,
+			styles: row.try_get("styles")?,
 			teleports: row.try_get("teleports")?,
 			time: row.try_get("time")?,
 			player: Player::from_row(row)?,
@@ -125,7 +113,9 @@ pub struct NewRecord
 	pub mode: Mode,
 
 	/// The styles that were used.
-	pub styles: Vec<Style>,
+	#[serde(default)]
+	#[schema(value_type = Vec<String>)]
+	pub styles: Styles,
 
 	/// ID of the course the record was performed on.
 	pub course_id: CourseID,

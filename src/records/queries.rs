@@ -5,7 +5,7 @@ pub static SELECT: &str = r#"
 	SELECT SQL_CALC_FOUND_ROWS
 	  r.id,
 	  f.mode_id mode,
-	  r.style_flags,
+	  r.styles,
 	  r.teleports,
 	  r.time,
 	  p.name player_name,

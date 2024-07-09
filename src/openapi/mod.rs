@@ -84,7 +84,7 @@ pub mod security;
     schemas(
       cs2kz::SteamID,
       cs2kz::Mode,
-      cs2kz::Style,
+      cs2kz::Styles,
       cs2kz::Tier,
       cs2kz::JumpType,
       cs2kz::GlobalStatus,

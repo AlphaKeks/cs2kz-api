@@ -14,10 +14,10 @@ pub mod mode;
 #[doc(inline)]
 pub use mode::Mode;
 
-pub mod style;
+pub mod styles;
 
 #[doc(inline)]
-pub use style::Style;
+pub use styles::Styles;
 
 pub mod tier;
 
