@@ -1,0 +1,47 @@
+{
+  "db_name": "MySQL",
+  "query": "\n\t\t\tSELECT SQL_CALC_FOUND_ROWS\n\t\t\t  id `steam_id: SteamID`,\n\t\t\t  name,\n\t\t\t  permissions `permissions: Permissions`\n\t\t\tFROM\n\t\t\t  Players\n\t\t\tWHERE\n\t\t\t  permissions > 0\n\t\t\t  AND (permissions & ?) = ?\n\t\t\tLIMIT\n\t\t\t  ? OFFSET ?\n\t\t\t",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "steam_id: SteamID",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "char_set": 63,
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "permissions: Permissions",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | UNSIGNED",
+          "char_set": 63,
+          "max_size": 20
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "55ea85756034298969d5a64ca72b2d1b6c22d2d5a30a789f648d846e964ecdff"
+}

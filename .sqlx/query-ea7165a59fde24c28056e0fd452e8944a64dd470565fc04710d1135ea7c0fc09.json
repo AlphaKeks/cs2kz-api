@@ -1,0 +1,47 @@
+{
+  "db_name": "MySQL",
+  "query": "\n\t\t\tSELECT\n\t\t\t  id `id: SteamID`,\n\t\t\t  name,\n\t\t\t  permissions `permissions: Permissions`\n\t\t\tFROM\n\t\t\t  Players\n\t\t\tWHERE\n\t\t\t  id = ?\n\t\t\t",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: SteamID",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "char_set": 63,
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "permissions: Permissions",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | UNSIGNED",
+          "char_set": 63,
+          "max_size": 20
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ea7165a59fde24c28056e0fd452e8944a64dd470565fc04710d1135ea7c0fc09"
+}

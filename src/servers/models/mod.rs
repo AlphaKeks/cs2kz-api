@@ -9,10 +9,12 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use sqlx::mysql::MySqlRow;
 use sqlx::{FromRow, Row};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
+use crate::kz::PlayerIdentifier;
 use crate::make_id;
+use crate::openapi::parameters::{Limit, Offset};
 use crate::players::Player;
 
 mod host;
@@ -67,6 +69,37 @@ impl FromRow<'_, MySqlRow> for Server
 	}
 }
 
+/// Query parameters for fetching servers.
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct FetchServersRequest
+{
+	/// Filter by name.
+	pub name: Option<String>,
+
+	/// Filter by host.
+	///
+	/// This can either be a domain name, or an IP address.
+	#[param(value_type = Option<String>)]
+	pub host: Option<url::Host>,
+
+	/// Filter by server owner.
+	pub owned_by: Option<PlayerIdentifier>,
+
+	/// Only include servers approved after this date.
+	pub created_after: Option<DateTime<Utc>>,
+
+	/// Only include servers approved before this date.
+	pub created_before: Option<DateTime<Utc>>,
+
+	/// Maximum number of results to return.
+	#[serde(default)]
+	pub limit: Limit,
+
+	/// Pagination offset.
+	#[serde(default)]
+	pub offset: Offset,
+}
+
 /// Request payload for creating a new server.
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct NewServer
@@ -115,6 +148,15 @@ pub struct ServerUpdate
 
 	/// SteamID of a new owner.
 	pub owned_by: Option<SteamID>,
+}
+
+impl ServerUpdate
+{
+	/// Checks if this update contains no changes.
+	pub const fn is_empty(&self) -> bool
+	{
+		self.name.is_none() && self.host.is_none() && self.port.is_none() && self.owned_by.is_none()
+	}
 }
 
 /// Request payload for generating a temporary access key.

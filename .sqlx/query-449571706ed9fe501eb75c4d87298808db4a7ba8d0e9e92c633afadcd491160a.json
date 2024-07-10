@@ -1,0 +1,58 @@
+{
+  "db_name": "MySQL",
+  "query": "\n\t\tSELECT\n\t\t  s.id `id: ServerID`,\n\t\t  s.refresh_key `refresh_key!: uuid::fmt::Hyphenated`,\n\t\t  v.id `plugin_version_id: PluginVersionID`,\n\t\t  v.semver\n\t\tFROM\n\t\t  Servers s\n\t\t  JOIN PluginVersions v\n\t\tWHERE\n\t\t  s.id = 1\n\t\tLIMIT\n\t\t  1\n\t\t",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: ServerID",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "char_set": 63,
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "refresh_key!: uuid::fmt::Hyphenated",
+        "type_info": {
+          "type": "String",
+          "flags": "UNIQUE_KEY | UNSIGNED | BINARY",
+          "char_set": 224,
+          "max_size": 144
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "plugin_version_id: PluginVersionID",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "char_set": 63,
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "semver",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | UNIQUE_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 56
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "449571706ed9fe501eb75c4d87298808db4a7ba8d0e9e92c633afadcd491160a"
+}

@@ -5,9 +5,10 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use sqlx::mysql::MySqlRow;
 use sqlx::{FromRow, Row};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::make_id;
+use crate::openapi::parameters::{Limit, Offset};
 
 make_id!(PluginVersionID as u16);
 
@@ -46,6 +47,19 @@ impl FromRow<'_, MySqlRow> for PluginVersion
 			created_on: row.try_get("created_on")?,
 		})
 	}
+}
+
+/// Query parameters for fetching plugin versions.
+#[derive(Debug, Clone, Copy, Deserialize, IntoParams)]
+pub struct FetchVersionsRequest
+{
+	/// Maximum number of results to return.
+	#[serde(default)]
+	pub limit: Limit,
+
+	/// Pagination offset.
+	#[serde(default)]
+	pub offset: Offset,
 }
 
 /// Request payload for submitting a new plugin version.

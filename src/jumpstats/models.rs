@@ -5,9 +5,11 @@ use cs2kz::{JumpType, Mode, SteamID};
 use serde::{Deserialize, Serialize};
 use sqlx::mysql::MySqlRow;
 use sqlx::{FromRow, Row};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
+use crate::kz::{PlayerIdentifier, ServerIdentifier};
 use crate::make_id;
+use crate::openapi::parameters::{Limit, Offset};
 use crate::players::Player;
 use crate::servers::ServerInfo;
 use crate::time::Seconds;
@@ -105,6 +107,41 @@ impl FromRow<'_, MySqlRow> for Jumpstat
 			created_on: row.try_get("created_on")?,
 		})
 	}
+}
+
+/// Query parameters for fetching jumpstats.
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct FetchJumpstatsRequest
+{
+	/// Filter by jump type.
+	#[serde(rename = "type")]
+	pub jump_type: Option<JumpType>,
+
+	/// Filter by mode.
+	pub mode: Option<Mode>,
+
+	/// Filter by required minimum distance.
+	pub minimum_distance: Option<f32>,
+
+	/// Filter by player.
+	pub player: Option<PlayerIdentifier>,
+
+	/// Filter by server.
+	pub server: Option<ServerIdentifier>,
+
+	/// Only include jumpstats submitted after this date.
+	pub created_after: Option<DateTime<Utc>>,
+
+	/// Only include jumpstats submitted before this date.
+	pub created_before: Option<DateTime<Utc>>,
+
+	/// Maximum number of results to return.
+	#[serde(default)]
+	pub limit: Limit,
+
+	/// Pagination offset.
+	#[serde(default)]
+	pub offset: Offset,
 }
 
 /// Request payload for creating a new jumpstat.

@@ -9,9 +9,10 @@ use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::mysql::MySqlRow;
 use sqlx::{FromRow, Row};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::make_id;
+use crate::openapi::parameters::{Limit, Offset};
 use crate::players::Player;
 use crate::steam::workshop::WorkshopID;
 
@@ -195,6 +196,34 @@ pub struct Filter
 	/// Any additional notes.
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub notes: Option<String>,
+}
+
+/// Query parameters for fetching maps.
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct FetchMapsRequest
+{
+	/// Filter by name.
+	pub name: Option<String>,
+
+	/// Filter by workshop ID.
+	pub workshop_id: Option<WorkshopID>,
+
+	/// Filter by global status.
+	pub global_status: Option<GlobalStatus>,
+
+	/// Only include maps approved after this date.
+	pub created_after: Option<DateTime<Utc>>,
+
+	/// Only include maps approved before this date.
+	pub created_before: Option<DateTime<Utc>>,
+
+	/// Maximum number of results to return.
+	#[serde(default)]
+	pub limit: Limit,
+
+	/// Pagination offset.
+	#[serde(default)]
+	pub offset: Offset,
 }
 
 /// Request payload for creating a new map.

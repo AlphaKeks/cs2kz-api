@@ -3,14 +3,20 @@
 //! This module contains types, traits, and HTTP handlers related to
 //! authentication. This includes JWT, sessions, and opaque API keys.
 
-use axum::http::Method;
-use axum::{routing, Router};
+#![allow(clippy::clone_on_ref_ptr)] // TODO: remove when new axum version fixes
 
-use crate::middleware::cors;
-use crate::State;
+use std::net::IpAddr;
+use std::sync::Arc;
+
+use axum::extract::FromRef;
+use sqlx::{MySql, Pool};
+use url::Url;
+
+use crate::authorization::AuthorizeSession;
+use crate::Result;
 
 mod jwt;
-pub use jwt::Jwt;
+pub use jwt::{Jwt, JwtState};
 
 mod server;
 pub use server::Server;
@@ -26,20 +32,68 @@ pub use user::User;
 
 pub mod steam;
 
-pub mod handlers;
+mod models;
+pub use models::{LoginRequest, LogoutRequest};
 
-/// Returns a [Router] with all the `/auth` handlers.
-pub fn router(state: State) -> Router
+pub mod http;
+
+/// A service for dealing with authentication.
+#[derive(Clone, FromRef)]
+#[allow(missing_debug_implementations, clippy::missing_docs_in_private_items)]
+pub struct AuthService
 {
-	let logout = Router::new()
-		.route("/logout", routing::get(handlers::logout))
-		.route_layer(cors::dashboard([Method::GET]))
-		.with_state(state.clone());
+	database: Pool<MySql>,
+	api_config: Arc<crate::Config>,
+	http_client: reqwest::Client,
+}
 
-	Router::new()
-		.route("/login", routing::get(handlers::login))
-		.route("/callback", routing::get(handlers::callback))
-		.route_layer(cors::permissive())
-		.with_state(state.clone())
-		.merge(logout)
+impl AuthService
+{
+	/// Creates a new [`AuthService`] instance.
+	pub const fn new(
+		database: Pool<MySql>,
+		api_config: Arc<crate::Config>,
+		http_client: reqwest::Client,
+	) -> Self
+	{
+		Self { database, api_config, http_client }
+	}
+
+	/// Creates a Steam URL that a user can navigate to in order to login with
+	/// Steam.
+	pub async fn login(&self, login: LoginRequest) -> Url
+	{
+		steam::LoginForm::new(self.api_config.public_url.clone()).redirect_to(&login.redirect_to)
+	}
+
+	/// Invalidates one or more login session(s).
+	pub async fn logout<A>(&self, session: &mut Session<A>, logout: LogoutRequest) -> Result<()>
+	where
+		A: AuthorizeSession,
+	{
+		let mut transaction = self.database.begin().await?;
+
+		session
+			.invalidate(logout.invalidate_all_sessions, &mut transaction)
+			.await?;
+
+		transaction.commit().await?;
+
+		tracing::debug!("user logged out");
+
+		Ok(())
+	}
+
+	/// Creates a new user session.
+	pub async fn create_session(
+		&self,
+		user: &crate::steam::User,
+		user_ip: IpAddr,
+	) -> Result<Session>
+	{
+		let transaction = self.database.begin().await?;
+		let session = Session::create(user, user_ip, &self.api_config, transaction).await?;
+
+		Ok(session)
+	}
 }

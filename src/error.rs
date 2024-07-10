@@ -430,7 +430,7 @@ impl Error
 	///
 	/// Produces a `409 Conflict` status.
 	///
-	/// [unbanning]: crate::bans::handlers::by_id::delete
+	/// [unbanning]: crate::bans::BanService::submit_unban
 	#[track_caller]
 	pub(crate) fn ban_already_reverted(ban_id: BanID, unban_id: UnbanID) -> Self
 	{

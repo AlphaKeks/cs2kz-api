@@ -1,9 +1,8 @@
 //! Steam OpenID authentication.
 
 use axum::async_trait;
-use axum::extract::FromRequestParts;
+use axum::extract::{FromRef, FromRequestParts};
 use axum::http::request;
-use axum::response::Redirect;
 use axum_extra::extract::Query;
 use cs2kz::SteamID;
 use reqwest::Response;
@@ -11,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 use utoipa::IntoParams;
 
-use crate::{Error, Result, State};
+use crate::{Error, Result};
 
 /// Form parameters that will be sent to Steam when redirecting a user for
 /// login.
@@ -70,10 +69,9 @@ impl LoginForm
 		}
 	}
 
-	/// Creates a [`Redirect`] that will redirect a request to Steam so the user
-	/// can login.
+	/// Creates a URL that will redirect a user to Steam so they can login.
 	#[tracing::instrument(level = "debug", name = "auth::steam::redirect", skip(self))]
-	pub fn redirect_to(mut self, redirect_to: &Url) -> Redirect
+	pub fn redirect_to(mut self, redirect_to: &Url) -> Url
 	{
 		self.return_to
 			.query_pairs_mut()
@@ -83,10 +81,8 @@ impl LoginForm
 			serde_urlencoded::to_string(&self).expect("this is a valid query string");
 
 		let mut url = Url::parse(Self::LOGIN_URL).expect("this is a valid url");
-
 		url.set_query(Some(&query_string));
-
-		Redirect::to(url.as_str())
+		url
 	}
 }
 
@@ -183,7 +179,10 @@ impl LoginResponse
 }
 
 #[async_trait]
-impl FromRequestParts<State> for LoginResponse
+impl<S> FromRequestParts<S> for LoginResponse
+where
+	S: Send + Sync + 'static,
+	reqwest::Client: FromRef<S>,
 {
 	type Rejection = Error;
 
@@ -194,7 +193,7 @@ impl FromRequestParts<State> for LoginResponse
 		fields(steam_id = tracing::field::Empty),
 		err(level = "debug"),
 	)]
-	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self>
+	async fn from_request_parts(parts: &mut request::Parts, state: &S) -> Result<Self>
 	{
 		let Query(mut login) = Query::<Self>::from_request_parts(parts, &())
 			.await
@@ -204,7 +203,8 @@ impl FromRequestParts<State> for LoginResponse
 					.context(err)
 			})?;
 
-		let steam_id = login.verify(&state.http_client).await.map_err(|err| {
+		let http_client = reqwest::Client::from_ref(state);
+		let steam_id = login.verify(&http_client).await.map_err(|err| {
 			Error::unauthorized()
 				.context("login request did not come from steam")
 				.context(err)

@@ -1,16 +1,17 @@
 //! JWT authentication.
 //!
 //! This module contains the [`Jwt`] type, which is used by
-//! [`State::encode_jwt()`] / [`State::decode_jwt()`], and can be used as an
+//! [`JwtState::encode()`] / [`JwtState::decode()`], and can be used as an
 //! [extractor].
 //!
 //! [extractor]: axum::extract
 
 use std::panic::Location;
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::async_trait;
-use axum::extract::FromRequestParts;
+use axum::extract::{FromRef, FromRequestParts};
 use axum::http::request;
 use axum_extra::headers::authorization::Bearer;
 use axum_extra::headers::Authorization;
@@ -23,7 +24,55 @@ use utoipa::openapi::schema::Schema;
 use utoipa::openapi::{ObjectBuilder, RefOr, SchemaType};
 use utoipa::ToSchema;
 
-use crate::{Error, Result, State};
+use crate::{Error, Result};
+
+/// JWT state for encoding/decoding tokens.
+#[allow(missing_debug_implementations, clippy::missing_docs_in_private_items)]
+pub struct JwtState
+{
+	jwt_header: jwt::Header,
+	jwt_encoding_key: jwt::EncodingKey,
+	jwt_decoding_key: jwt::DecodingKey,
+	jwt_validation: jwt::Validation,
+}
+
+impl JwtState
+{
+	/// Creates a new [`JwtState`].
+	pub fn new(api_config: &crate::Config) -> Result<Self>
+	{
+		let jwt_header = jwt::Header::default();
+
+		let jwt_encoding_key = jwt::EncodingKey::from_base64_secret(&api_config.jwt_secret)
+			.map_err(|err| Error::encode_jwt(err))?;
+
+		let jwt_decoding_key = jwt::DecodingKey::from_base64_secret(&api_config.jwt_secret)
+			.map_err(|err| Error::encode_jwt(err))?;
+
+		let jwt_validation = jwt::Validation::default();
+
+		Ok(Self { jwt_header, jwt_encoding_key, jwt_decoding_key, jwt_validation })
+	}
+
+	/// Encodes a JWT.
+	pub fn encode<T>(&self, jwt: Jwt<T>) -> Result<String>
+	where
+		T: Serialize,
+	{
+		jwt::encode(&self.jwt_header, &jwt, &self.jwt_encoding_key)
+			.map_err(|err| Error::encode_jwt(err))
+	}
+
+	/// Decodes a JWT.
+	pub fn decode<T>(&self, jwt: &str) -> Result<Jwt<T>>
+	where
+		T: DeserializeOwned,
+	{
+		jwt::decode(jwt, &self.jwt_decoding_key, &self.jwt_validation)
+			.map(|jwt| jwt.claims)
+			.map_err(|err| Error::invalid("jwt").context(err))
+	}
+}
 
 /// An extractor for JWTs.
 #[derive(Debug, Deref, DerefMut, Serialize, Deserialize)]
@@ -79,9 +128,11 @@ impl<T> Jwt<T>
 }
 
 #[async_trait]
-impl<T> FromRequestParts<State> for Jwt<T>
+impl<S, T> FromRequestParts<S> for Jwt<T>
 where
+	S: Send + Sync + 'static,
 	T: DeserializeOwned,
+	Arc<JwtState>: FromRef<S>,
 {
 	type Rejection = Error;
 
@@ -92,11 +143,12 @@ where
 		fields(token = tracing::field::Empty),
 		err(level = "debug"),
 	)]
-	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self>
+	async fn from_request_parts(parts: &mut request::Parts, state: &S) -> Result<Self>
 	{
 		let header = TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state).await?;
+		let state = Arc::<JwtState>::from_ref(state);
 		let jwt = state
-			.decode_jwt::<T>(header.token())
+			.decode::<T>(header.token())
 			.map_err(|err| Error::invalid("token").context(err))?;
 
 		if jwt.has_expired() {

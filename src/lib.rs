@@ -1,11 +1,13 @@
 #![doc = include_str!("../README.md")]
-// TODO: remove once https://github.com/tokio-rs/tracing/issues/2912 lands
-#![allow(clippy::blocks_in_conditions)]
+#![allow(clippy::blocks_in_conditions)] // TODO: remove once tracing#2912 lands
 
 use std::fmt::Write;
 use std::future::Future;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
+use ::sqlx::migrate;
+use ::sqlx::pool::PoolOptions;
 use anyhow::Context;
 use axum::extract::connect_info::IntoMakeServiceWithConnectInfo;
 use axum::extract::ConnectInfo;
@@ -13,14 +15,22 @@ use axum::{routing, Router};
 use tokio::net::TcpListener;
 use tokio::signal;
 
+use self::admins::AdminService;
+use self::authentication::{AuthService, JwtState};
+use self::bans::BanService;
+use self::game_sessions::GameSessionService;
+use self::jumpstats::JumpstatService;
+use self::maps::MapService;
+use self::players::PlayerService;
+use self::plugin::PluginService;
+use self::records::RecordService;
+use self::servers::ServerService;
+
 mod error;
 pub use error::{Error, Result};
 
 mod config;
 pub use config::Config;
-
-mod state;
-pub(crate) use state::State;
 
 #[cfg(test)]
 mod test;
@@ -56,6 +66,19 @@ type Server = axum::serve::Serve<
 	axum::middleware::AddExtension<Router, ConnectInfo<SocketAddr>>,
 >;
 
+/// The minimum number of database pool connections.
+const MIN_DB_CONNECTIONS: u32 = match (cfg!(test), cfg!(feature = "production")) {
+	(true, _) => 1,
+	(false, false) => 20,
+	(false, true) => 200,
+};
+
+/// The maximum number of database pool connections.
+const MAX_DB_CONNECTIONS: u32 = match (cfg!(test), cfg!(feature = "production")) {
+	(true, _) => 10,
+	(false, false) => 50,
+	(false, true) => 256,
+};
 /// Run the API.
 ///
 /// This function will not exit until a SIGINT signal is received.
@@ -108,7 +131,51 @@ async fn server(config: Config) -> anyhow::Result<Server>
 	let addr = tcp_listener.local_addr().context("get tcp addr")?;
 	tracing::info!(%addr, prod = cfg!(feature = "production"), "listening for requests");
 
-	let state = State::new(config).await.context("initialize state")?;
+	tracing::debug! {
+		url = %config.database_url,
+		min_connections = MIN_DB_CONNECTIONS,
+		max_connections = MAX_DB_CONNECTIONS,
+		"establishing database connection",
+	};
+
+	let config = Arc::new(config);
+	let database = PoolOptions::new()
+		.min_connections(MIN_DB_CONNECTIONS)
+		.max_connections(MAX_DB_CONNECTIONS)
+		.connect(config.database_url.as_str())
+		.await?;
+
+	migrate!("./database/migrations")
+		.run(&database)
+		.await
+		.context("run migrations")?;
+
+	let http_client = reqwest::Client::new();
+	let jwt_state = JwtState::new(&config).map(Arc::new)?;
+
+	let player_service = PlayerService::new(
+		database.clone(),
+		Arc::clone(&jwt_state),
+		http_client.clone(),
+		Arc::clone(&config),
+	);
+
+	let map_service = MapService::new(
+		database.clone(),
+		Arc::clone(&jwt_state),
+		http_client.clone(),
+		Arc::clone(&config),
+	);
+
+	let server_service = ServerService::new(database.clone(), Arc::clone(&jwt_state));
+	let jumpstat_service = JumpstatService::new(database.clone(), Arc::clone(&jwt_state));
+	let record_service = RecordService::new(database.clone(), Arc::clone(&jwt_state));
+	let ban_service = BanService::new(database.clone(), Arc::clone(&jwt_state));
+	let game_session_service = GameSessionService::new(database.clone());
+	let auth_service = AuthService::new(database.clone(), Arc::clone(&config), http_client.clone());
+	let admin_service = AdminService::new(database.clone());
+	let plugin_service = PluginService::new(database.clone());
+
 	let spec = openapi::Spec::new();
 	let mut routes_message = String::from("registering routes:\n");
 
@@ -121,16 +188,16 @@ async fn server(config: Config) -> anyhow::Result<Server>
 
 	let api_service = Router::new()
 		.route("/", routing::get(|| async { "(͡ ͡° ͜ つ ͡͡°)" }))
-		.nest("/players", players::router(state.clone()))
-		.nest("/maps", maps::router(state.clone()))
-		.nest("/servers", servers::router(state.clone()))
-		.nest("/jumpstats", jumpstats::router(state.clone()))
-		.nest("/records", records::router(state.clone()))
-		.nest("/bans", bans::router(state.clone()))
-		.nest("/sessions", game_sessions::router(state.clone()))
-		.nest("/auth", authentication::router(state.clone()))
-		.nest("/admins", admins::router(state.clone()))
-		.nest("/plugin", plugin::router(state.clone()))
+		.nest("/players", player_service.into())
+		.nest("/maps", map_service.into())
+		.nest("/servers", server_service.into())
+		.nest("/jumpstats", jumpstat_service.into())
+		.nest("/records", record_service.into())
+		.nest("/bans", ban_service.into())
+		.nest("/sessions", game_session_service.into())
+		.nest("/auth", auth_service.into())
+		.nest("/admins", admin_service.into())
+		.nest("/plugin", plugin_service.into())
 		.layer(middleware::logging::layer!())
 		.merge(spec.swagger_ui())
 		.into_make_service_with_connect_info::<SocketAddr>();

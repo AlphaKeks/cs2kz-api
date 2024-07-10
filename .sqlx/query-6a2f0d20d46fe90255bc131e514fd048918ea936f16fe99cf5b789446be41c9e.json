@@ -1,0 +1,36 @@
+{
+  "db_name": "MySQL",
+  "query": "\n\t\t\tSELECT\n\t\t\t  s.id `server_id: ServerID`,\n\t\t\t  v.id `plugin_version_id: PluginVersionID`\n\t\t\tFROM\n\t\t\t  Servers s\n\t\t\t  JOIN PluginVersions v ON v.semver = ?\n\t\t\t  AND s.refresh_key = ?\n\t\t\t",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "server_id: ServerID",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "char_set": 63,
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "plugin_version_id: PluginVersionID",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "char_set": 63,
+          "max_size": 5
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "6a2f0d20d46fe90255bc131e514fd048918ea936f16fe99cf5b789446be41c9e"
+}

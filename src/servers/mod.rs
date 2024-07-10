@@ -1,18 +1,31 @@
 //! Everything related to KZ servers.
 
-use axum::http::Method;
-use axum::{routing, Router};
+#![allow(clippy::clone_on_ref_ptr)] // TODO: remove when new axum version fixes
 
-use crate::authorization::Permissions;
-use crate::middleware::auth::session_auth;
-use crate::middleware::cors;
-use crate::{authorization, State};
+use std::sync::Arc;
+use std::time::Duration;
+
+use axum::extract::FromRef;
+use sqlx::{MySql, Pool, QueryBuilder};
+use uuid::Uuid;
+
+use crate::authentication::{Jwt, JwtState};
+use crate::kz::ServerIdentifier;
+use crate::make_id::IntoID;
+use crate::plugin::PluginVersionID;
+use crate::sqlx::query::{FilteredQuery, QueryBuilderExt, UpdateQuery};
+use crate::sqlx::{query, FetchID, SqlErrorExt};
+use crate::{authentication, Error, Result};
+
+#[cfg(test)]
+mod tests;
 
 mod models;
 pub use models::{
 	AccessKeyRequest,
 	AccessKeyResponse,
 	CreatedServer,
+	FetchServersRequest,
 	Host,
 	NewServer,
 	RefreshKey,
@@ -23,49 +36,292 @@ pub use models::{
 };
 
 mod queries;
-pub mod handlers;
+pub mod http;
 
-/// Returns an [`axum::Router`] for the `/servers` routes.
-pub fn router(state: State) -> Router
+/// A service for dealing with KZ servers as a resource.
+#[derive(Clone, FromRef)]
+#[allow(missing_debug_implementations, clippy::missing_docs_in_private_items)]
+pub struct ServerService
 {
-	let is_admin = session_auth!(
-		authorization::HasPermissions<{ Permissions::SERVERS.value() }>,
-		state.clone(),
-	);
+	database: Pool<MySql>,
+	jwt_state: Arc<JwtState>,
+}
 
-	let is_admin_or_owner = session_auth!(authorization::IsServerAdminOrOwner, state.clone());
+impl ServerService
+{
+	/// Creates a new [`ServerService`] instance.
+	pub const fn new(database: Pool<MySql>, jwt_state: Arc<JwtState>) -> Self
+	{
+		Self { database, jwt_state }
+	}
 
-	let root = Router::new()
-		.route("/", routing::get(handlers::root::get))
-		.route_layer(cors::permissive())
-		.route("/", routing::post(handlers::root::post).route_layer(is_admin()))
-		.route_layer(cors::dashboard([Method::POST]))
-		.with_state(state.clone());
+	/// Fetches a single server.
+	pub async fn fetch_server(&self, server: ServerIdentifier) -> Result<Server>
+	{
+		let mut query = QueryBuilder::new(queries::SELECT);
 
-	let key = Router::new()
-		.route("/key", routing::post(handlers::key::generate_temp))
-		.with_state(state.clone());
+		query.push(" WHERE ");
 
-	let by_identifier = Router::new()
-		.route("/:server", routing::get(handlers::by_identifier::get))
-		.route_layer(cors::permissive())
-		.route(
-			"/:server",
-			routing::patch(handlers::by_identifier::patch).route_layer(is_admin_or_owner()),
-		)
-		.route_layer(cors::dashboard([Method::PATCH]))
-		.with_state(state.clone());
+		match server {
+			ServerIdentifier::ID(id) => {
+				query.push(" s.id = ").push_bind(id);
+			}
+			ServerIdentifier::Name(name) => {
+				query.push(" s.name LIKE ").push_bind(format!("%{name}%"));
+			}
+		}
 
-	let by_identifier_key = Router::new()
-		.route(
-			"/:server/key",
-			routing::put(handlers::key::put_perma).route_layer(is_admin_or_owner()),
-		)
-		.route("/:server/key", routing::delete(handlers::key::delete_perma).route_layer(is_admin()))
-		.route_layer(cors::dashboard([Method::PUT, Method::DELETE]))
-		.with_state(state.clone());
+		let server = query
+			.build_query_as::<Server>()
+			.fetch_optional(&self.database)
+			.await?
+			.ok_or_else(|| Error::not_found("server"))?;
 
-	root.merge(key)
-		.merge(by_identifier)
-		.merge(by_identifier_key)
+		Ok(server)
+	}
+
+	/// Fetches many servers.
+	///
+	/// The `limit` and `offset` fields in [`FetchServersRequest`] can be used
+	/// for pagination. The `u64` part of the returned tuple indicates how many
+	/// servers _could_ be fetched; also useful for pagination.
+	pub async fn fetch_servers(&self, request: FetchServersRequest) -> Result<(Vec<Server>, u64)>
+	{
+		let mut transaction = self.database.begin().await?;
+		let mut query = FilteredQuery::new(queries::SELECT);
+
+		if let Some(name) = request.name {
+			query.filter(" s.name LIKE ", format!("%{name}%"));
+		}
+
+		if let Some(host) = request.host {
+			query.filter(" s.host = ", host.to_string());
+		}
+
+		if let Some(player) = request.owned_by {
+			let steam_id = player.fetch_id(transaction.as_mut()).await?;
+
+			query.filter(" s.owner_id = ", steam_id);
+		}
+
+		if let Some(created_after) = request.created_after {
+			query.filter(" s.created_on > ", created_after);
+		}
+
+		if let Some(created_before) = request.created_before {
+			query.filter(" s.created_on < ", created_before);
+		}
+
+		query.push_limits(request.limit, request.offset);
+
+		let servers = query
+			.build_query_as::<Server>()
+			.fetch_all(transaction.as_mut())
+			.await?;
+
+		if servers.is_empty() {
+			return Err(Error::no_content());
+		}
+
+		let total = query::total_rows(&mut transaction).await?;
+
+		transaction.commit().await?;
+
+		Ok((servers, total))
+	}
+
+	/// Registers a new global server.
+	pub async fn register_server(&self, server: NewServer) -> Result<CreatedServer>
+	{
+		let mut transaction = self.database.begin().await?;
+		let refresh_key = Uuid::new_v4();
+		let server_id = sqlx::query! {
+			r#"
+			INSERT INTO
+			  Servers (name, host, port, owner_id, refresh_key)
+			VALUES
+			  (?, ?, ?, ?, ?)
+			"#,
+			server.name,
+			server.host,
+			server.port,
+			server.owned_by,
+			refresh_key,
+		}
+		.execute(transaction.as_mut())
+		.await
+		.map_err(|err| {
+			if err.is_fk_violation_of("owner_id") {
+				Error::not_found("server owner").context(err)
+			} else {
+				Error::from(err)
+			}
+		})?
+		.last_insert_id()
+		.into_id::<ServerID>()?;
+
+		transaction.commit().await?;
+
+		tracing::debug! {
+			target: "cs2kz_api::audit_log",
+			id = %server_id,
+			%refresh_key,
+			"created new server",
+		};
+
+		Ok(CreatedServer { server_id, refresh_key })
+	}
+
+	/// Update an existing server.
+	pub async fn update_server(&self, server_id: ServerID, update: ServerUpdate) -> Result<()>
+	{
+		let mut transaction = self.database.begin().await?;
+		let mut query = UpdateQuery::new("Servers");
+
+		if let Some(name) = update.name {
+			query.set("name", name);
+		}
+
+		if let Some(host) = update.host {
+			query.set("host", host);
+		}
+
+		if let Some(port) = update.port {
+			query.set("port", port);
+		}
+
+		if let Some(steam_id) = update.owned_by {
+			query.set("owner_id", steam_id);
+		}
+
+		query.push(" WHERE id = ").push_bind(server_id);
+
+		let query_result = query.build().execute(transaction.as_mut()).await?;
+
+		match query_result.rows_affected() {
+			0 => return Err(Error::not_found("server")),
+			n => assert_eq!(n, 1, "updated more than 1 server"),
+		}
+
+		transaction.commit().await?;
+
+		tracing::info! {
+			target: "cs2kz_api::audit_log",
+			%server_id,
+			"updated server",
+		};
+
+		Ok(())
+	}
+
+	/// Generates a temporary access token for a server.
+	pub async fn generate_access_token(
+		&self,
+		request: AccessKeyRequest,
+	) -> Result<AccessKeyResponse>
+	{
+		let mut transaction = self.database.begin().await?;
+
+		let server = sqlx::query! {
+			r#"
+			SELECT
+			  s.id `server_id: ServerID`,
+			  v.id `plugin_version_id: PluginVersionID`
+			FROM
+			  Servers s
+			  JOIN PluginVersions v ON v.semver = ?
+			  AND s.refresh_key = ?
+			"#,
+			request.plugin_version.to_string(),
+			request.refresh_key,
+		}
+		.fetch_optional(transaction.as_mut())
+		.await?
+		.map(|row| authentication::Server::new(row.server_id, row.plugin_version_id))
+		.ok_or_else(|| Error::unauthorized())?;
+
+		let jwt = Jwt::new(&server, Duration::from_secs(60 * 15));
+		let access_key = self.jwt_state.encode(jwt)?;
+
+		transaction.commit().await?;
+
+		tracing::debug! {
+			server_id = %server.id(),
+			%access_key,
+			"generated access key for server",
+		};
+
+		Ok(AccessKeyResponse { access_key })
+	}
+
+	/// Replaces a server's API key with a new randomly generated one.
+	///
+	/// The new key will be returned by this function and cannot be accessed
+	/// again later.
+	pub async fn replace_api_key(&self, server_id: ServerID) -> Result<RefreshKey>
+	{
+		let mut transaction = self.database.begin().await?;
+		let refresh_key = Uuid::new_v4();
+		let query_result = sqlx::query! {
+			r#"
+			UPDATE
+			  Servers
+			SET
+			  refresh_key = ?
+			WHERE
+			  id = ?
+			"#,
+			refresh_key,
+			server_id
+		}
+		.execute(transaction.as_mut())
+		.await?;
+
+		match query_result.rows_affected() {
+			0 => return Err(Error::not_found("server")),
+			n => assert_eq!(n, 1, "updated more than 1 server"),
+		}
+
+		transaction.commit().await?;
+
+		tracing::info! {
+			target: "cs2kz_api::audit_log",
+			%server_id,
+			%refresh_key,
+			"generated new API key for server",
+		};
+
+		Ok(RefreshKey { refresh_key })
+	}
+
+	/// Deletes a server's API key.
+	pub async fn delete_api_key(&self, server_id: ServerID) -> Result<()>
+	{
+		let mut transaction = self.database.begin().await?;
+
+		let query_result = sqlx::query! {
+			r#"
+			UPDATE
+			  Servers
+			SET
+			  refresh_key = NULL
+			WHERE
+			  id = ?
+			"#,
+			server_id,
+		}
+		.execute(transaction.as_mut())
+		.await?;
+
+		match query_result.rows_affected() {
+			0 => return Err(Error::not_found("server")),
+			n => assert_eq!(n, 1, "updated more than 1 server"),
+		}
+
+		transaction.commit().await?;
+
+		tracing::info!(target: "cs2kz_api::audit_log", %server_id, "deleted API key for server");
+
+		Ok(())
+	}
 }

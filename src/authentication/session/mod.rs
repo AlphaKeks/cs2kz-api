@@ -32,26 +32,26 @@
 //! [session ID]: SessionID
 //! [cookie]: COOKIE_NAME
 //! [user]: User
-//! [logout]: crate::authentication::handlers::logout
+//! [logout]: crate::authentication::AuthService::logout
 
 use std::marker::PhantomData;
 use std::net::IpAddr;
 
-use axum::extract::FromRequestParts;
+use axum::extract::{FromRef, FromRequestParts};
 use axum::http::{header, request};
 use axum::response::{IntoResponseParts, ResponseParts};
 use axum::{async_trait, http};
 use axum_extra::extract::cookie::Cookie;
 use cs2kz::SteamID;
 use derive_more::{Debug, From, Into};
-use sqlx::{MySql, Transaction};
+use sqlx::{MySql, Pool, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::authentication::User;
 use crate::authorization::{self, AuthorizeSession, Permissions};
 use crate::sqlx::SqlErrorExt;
-use crate::{steam, Error, Result, State};
+use crate::{steam, Error, Result};
 
 mod id;
 pub use id::SessionID;
@@ -290,9 +290,11 @@ where
 }
 
 #[async_trait]
-impl<A> FromRequestParts<State> for Session<A>
+impl<S, A> FromRequestParts<S> for Session<A>
 where
+	S: Send + Sync + 'static,
 	A: AuthorizeSession,
+	Pool<MySql>: FromRef<S>,
 {
 	type Rejection = Error;
 
@@ -303,7 +305,7 @@ where
 		fields(session.id = tracing::field::Empty, session.user.id = tracing::field::Empty),
 		err(level = "debug"),
 	)]
-	async fn from_request_parts(request: &mut request::Parts, state: &State) -> Result<Self>
+	async fn from_request_parts(request: &mut request::Parts, state: &S) -> Result<Self>
 	{
 		if let Some(session) = request.extensions.remove::<Self>() {
 			tracing::debug!(%session.id, "extracting cached session");
@@ -344,7 +346,8 @@ where
 
 		current_span.record("session.id", format_args!("{session_id}"));
 
-		let mut transaction = state.transaction().await?;
+		let pool = Pool::<MySql>::from_ref(state);
+		let mut transaction = pool.begin().await?;
 
 		tracing::debug!("fetching session from database");
 

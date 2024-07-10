@@ -10,9 +10,11 @@ use sqlx::mysql::MySqlRow;
 use sqlx::{database, FromRow, MySql, Row};
 use thiserror::Error;
 use time::Duration;
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
+use crate::kz::{PlayerIdentifier, ServerIdentifier};
 use crate::make_id;
+use crate::openapi::parameters::{Limit, Offset};
 use crate::players::Player;
 use crate::servers::ServerInfo;
 
@@ -157,6 +159,43 @@ impl<'q> sqlx::Decode<'q, MySql> for BanReason
 	}
 }
 
+/// Query parameters for fetching bans.
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct FetchBansRequest
+{
+	/// Filter by player.
+	pub player: Option<PlayerIdentifier>,
+
+	/// Filter by server.
+	pub server: Option<ServerIdentifier>,
+
+	/// Filter by ban reason.
+	pub reason: Option<BanReason>,
+
+	/// Filter by bans that have already been reverted.
+	pub unbanned: Option<bool>,
+
+	/// Filter by admins who issued bans.
+	pub banned_by: Option<PlayerIdentifier>,
+
+	/// Filter by admins who reverted bans.
+	pub unbanned_by: Option<PlayerIdentifier>,
+
+	/// Only include bans submitted after this date.
+	pub created_after: Option<DateTime<Utc>>,
+
+	/// Only include bans submitted before this date.
+	pub created_before: Option<DateTime<Utc>>,
+
+	/// Maximum number of results to return.
+	#[serde(default)]
+	pub limit: Limit,
+
+	/// Pagination offset.
+	#[serde(default)]
+	pub offset: Offset,
+}
+
 /// Reversion of a `Ban`.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct Unban
@@ -228,6 +267,15 @@ pub struct BanUpdate
 	/// If it is explicitly set to `null`, the expiration date will be set to
 	/// `NULL` (permanent).
 	pub expires_on: Option<Option<DateTime<Utc>>>,
+}
+
+impl BanUpdate
+{
+	/// Checks if this update contains no changes.
+	pub const fn is_empty(&self) -> bool
+	{
+		self.reason.is_none() && self.expires_on.is_none()
+	}
 }
 
 /// Request payload for submitting an unban.

@@ -1,0 +1,25 @@
+{
+  "db_name": "MySQL",
+  "query": "\n\t\tSELECT\n\t\t  refresh_key `refresh_key!: uuid::fmt::Hyphenated`\n\t\tFROM\n\t\t  Servers\n\t\tWHERE\n\t\t  id = 1\n\t\t",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "refresh_key!: uuid::fmt::Hyphenated",
+        "type_info": {
+          "type": "String",
+          "flags": "UNIQUE_KEY | UNSIGNED | BINARY",
+          "char_set": 224,
+          "max_size": 144
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "51e2e9a6599ea65ca8b53d2c4634d362b3bbdf31610d76a8c4e090c6e072d843"
+}

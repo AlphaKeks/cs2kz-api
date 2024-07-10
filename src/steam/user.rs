@@ -1,7 +1,9 @@
 //! Steam user information.
 
+use std::sync::Arc;
+
 use axum::async_trait;
-use axum::extract::FromRequestParts;
+use axum::extract::{FromRef, FromRequestParts};
 use axum::http::request;
 use axum_extra::extract::cookie::Cookie;
 use cs2kz::SteamID;
@@ -10,7 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use url::Url;
 use utoipa::ToSchema;
 
-use crate::{Error, Result, State};
+use crate::{Error, Result};
 
 /// Steam Web API URL for fetching user information.
 const API_URL: &str = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002";
@@ -155,7 +157,11 @@ impl<'de> Deserialize<'de> for User
 }
 
 #[async_trait]
-impl FromRequestParts<State> for User
+impl<S> FromRequestParts<S> for User
+where
+	S: Send + Sync + 'static,
+	reqwest::Client: FromRef<S>,
+	Arc<crate::Config>: FromRef<S>,
 {
 	type Rejection = Error;
 
@@ -166,7 +172,7 @@ impl FromRequestParts<State> for User
 		fields(steam_id = tracing::field::Empty),
 		err(level = "debug"),
 	)]
-	async fn from_request_parts(parts: &mut request::Parts, state: &State) -> Result<Self>
+	async fn from_request_parts(parts: &mut request::Parts, state: &S) -> Result<Self>
 	{
 		let steam_id = parts
 			.extensions
@@ -177,6 +183,9 @@ impl FromRequestParts<State> for User
 		tracing::Span::current().record("steam_id", format_args!("{steam_id}"));
 		tracing::debug!("fetching user from steam");
 
-		Self::fetch(steam_id, &state.http_client, &state.config).await
+		let http_client = reqwest::Client::from_ref(state);
+		let api_config = Arc::<crate::Config>::from_ref(state);
+
+		Self::fetch(steam_id, &http_client, &api_config).await
 	}
 }

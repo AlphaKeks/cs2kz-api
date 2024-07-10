@@ -7,10 +7,11 @@ use cs2kz::{Mode, SteamID};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value as JsonValue;
 use sqlx::FromRow;
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::game_sessions::TimeSpent;
 use crate::maps::CourseID;
+use crate::openapi::parameters::{Limit, Offset};
 use crate::records::BhopStats;
 use crate::time::Seconds;
 
@@ -86,6 +87,19 @@ impl FullPlayer
 			})
 		})
 	}
+}
+
+/// Query parameters for fetching players.
+#[derive(Debug, Clone, Copy, Deserialize, IntoParams)]
+pub struct FetchPlayersRequest
+{
+	/// Maximum number of results to return.
+	#[serde(default)]
+	pub limit: Limit,
+
+	/// Pagination offset.
+	#[serde(default)]
+	pub offset: Offset,
 }
 
 /// Request payload for creating a new player.

@@ -1,0 +1,36 @@
+{
+  "db_name": "MySQL",
+  "query": "\n\t\t\tSELECT\n\t\t\t  COUNT(b1.id) > 0 `already_banned: bool`,\n\t\t\t  COUNT(b2.id) `previous_bans: u8`\n\t\t\tFROM\n\t\t\t  Players p\n\t\t\t  LEFT JOIN Bans b1 ON b1.player_id = p.id\n\t\t\t  AND b1.expires_on > NOW()\n\t\t\t  LEFT JOIN Bans b2 ON b2.player_id = p.id\n\t\t\t  AND b2.expires_on < NOW()\n\t\t\tWHERE\n\t\t\t  p.id = ?\n\t\t\t",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "already_banned: bool",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | BINARY",
+          "char_set": 63,
+          "max_size": 1
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "previous_bans: u8",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | BINARY",
+          "char_set": 63,
+          "max_size": 21
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "407968a200fe9993886f6fffa2e6a30791b63477cd1b734229e1b38f2f4d2118"
+}

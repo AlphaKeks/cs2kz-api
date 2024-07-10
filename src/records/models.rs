@@ -5,10 +5,12 @@ use cs2kz::{Mode, SteamID, Styles};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::mysql::MySqlRow;
 use sqlx::{FromRow, Row};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
+use crate::kz::{CourseIdentifier, MapIdentifier, PlayerIdentifier, ServerIdentifier};
 use crate::make_id;
 use crate::maps::{CourseID, CourseInfo, MapInfo};
+use crate::openapi::parameters::{Limit, Offset, SortingOrder};
 use crate::players::Player;
 use crate::servers::ServerInfo;
 use crate::time::Seconds;
@@ -72,6 +74,68 @@ impl FromRow<'_, MySqlRow> for Record
 			created_on: row.try_get("created_on")?,
 		})
 	}
+}
+
+/// Query parameters for fetching records.
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct FetchRecordsRequest
+{
+	/// Filter by mode.
+	pub mode: Option<Mode>,
+
+	/// Filter by styles.
+	#[serde(default)]
+	pub styles: Styles,
+
+	/// Filter by whether teleports were used.
+	pub teleports: Option<bool>,
+
+	/// Filter by player.
+	pub player: Option<PlayerIdentifier>,
+
+	/// Filter by map.
+	pub map: Option<MapIdentifier>,
+
+	/// Filter by course.
+	pub course: Option<CourseIdentifier>,
+
+	/// Filter by server.
+	pub server: Option<ServerIdentifier>,
+
+	/// Only include records submitted after this date.
+	pub created_after: Option<DateTime<Utc>>,
+
+	/// Only include records submitted before this date.
+	pub created_before: Option<DateTime<Utc>>,
+
+	/// Which field to sort the results by.
+	#[serde(default)]
+	pub sort_by: SortRecordsBy,
+
+	/// Which order to sort the results in.
+	#[serde(default)]
+	pub sort_order: SortingOrder,
+
+	/// Maximum number of results to return.
+	#[serde(default)]
+	pub limit: Limit,
+
+	/// Pagination offset.
+	#[serde(default)]
+	pub offset: Offset,
+}
+
+/// Fields to sort records by.
+#[derive(Debug, Default, Clone, Copy, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum SortRecordsBy
+{
+	/// Sort by time.
+	Time,
+
+	/// Sort by date.
+	#[default]
+	Date,
 }
 
 /// Bhop statistics.
