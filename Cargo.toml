@@ -35,7 +35,7 @@ workspace = true
 workspace = true
 
 [dependencies.tokio]
-version = "1.38.0"
+version = "1.38.1"
 features = ["macros", "rt-multi-thread", "signal", "process"]
 
 [dependencies.futures]
