@@ -42,10 +42,13 @@ impl Styles
 
 	/// Create new bitflags from a raw integer value.
 	///
-	/// NOTE: any unknown bits will be dropped.
+	/// # Panics
+	///
+	/// This function will panic if `value` contains any unknown bits.
 	pub const fn new(value: u32) -> Self
 	{
-		Self(value & Self::ALL.0)
+		assert!(value & Self::ALL.0 == value, "invalid style bits");
+		Self(value)
 	}
 
 	/// Returns the underlying integer value.

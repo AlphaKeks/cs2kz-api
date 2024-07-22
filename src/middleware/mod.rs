@@ -1,5 +1,7 @@
 //! Various middlewares.
 
 pub mod logging;
-pub mod cors;
-pub mod auth;
+pub mod panic_handler;
+
+mod infallible;
+pub use infallible::InfallibleLayer;

@@ -105,7 +105,7 @@ impl From<Mode> for u8
 }
 
 /// An error that can occur when converting from a `u8` to a [`Mode`].
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Error)]
 #[error("`{0}` is not a known mode ID")]
 pub struct UnknownModeID(pub u8);
 

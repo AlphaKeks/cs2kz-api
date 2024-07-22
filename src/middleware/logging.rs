@@ -1,21 +1,18 @@
-//! Logging middleware.
-//!
-//! Every incoming request and outgoing response is logged using a
-//! [`tower_http::trace::TraceLayer`].
+//! A middleware for logging incoming requests.
 
+use std::net::SocketAddr;
 use std::time::Duration;
 
-use axum::extract::Request;
+use axum::extract::{ConnectInfo, Request};
 use axum::response::Response;
 use tower_http::classify::ServerErrorsFailureClass;
 use uuid::Uuid;
 
-/// Creates a logging middleware.
-// NOTE: this is a macro because this type cannot be spelled out in code
+/// Creates a tower service that will log incoming HTTP requests.
 macro_rules! layer {
 	() => {
 		tower_http::trace::TraceLayer::new_for_http()
-			.make_span_with($crate::middleware::logging::make_span_with)
+			.make_span_with($crate::middleware::logging::make_span)
 			.on_response($crate::middleware::logging::on_response)
 			.on_failure($crate::middleware::logging::on_failure)
 	};
@@ -24,14 +21,20 @@ macro_rules! layer {
 pub(crate) use layer;
 
 #[doc(hidden)]
-pub(crate) fn make_span_with(request: &Request) -> tracing::Span
+pub(crate) fn make_span(request: &Request) -> tracing::Span
 {
+	let ip = match request.extensions().get::<ConnectInfo<SocketAddr>>() {
+		None => String::from("N/A"),
+		Some(ConnectInfo(addr)) => addr.to_string(),
+	};
+
 	tracing::info_span! {
-		target: "cs2kz_api::requests",
+		target: "cs2kz_api::http",
 		"request",
 		request.id = %Uuid::now_v7(),
+		request.ip = %ip,
 		request.method = %request.method(),
-		request.path = %request.uri(),
+		request.uri = %request.uri(),
 		request.version = ?request.version(),
 		request.headers = ?request.headers(),
 		response.status = tracing::field::Empty,

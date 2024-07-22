@@ -7,11 +7,13 @@ pkgs.mkShell {
   ] ++ (with pkgs; [
     just
     cargo-nextest
+    cargo-expand
     docker-client
     mariadb_110
     sqlx-cli
     tokio-console
     depotdownloader
+    oha
   ]);
 
   shellHook = ''

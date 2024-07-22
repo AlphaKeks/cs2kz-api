@@ -462,7 +462,7 @@ impl From<NonZero<u64>> for SteamID
 }
 
 /// An error that can occur when converting from a `u64` to a [`SteamID`].
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Error)]
 #[error("`{0}` is out of range for a valid SteamID64")]
 pub struct OutOfRangeSteamID64(pub u64);
 
@@ -477,7 +477,7 @@ impl TryFrom<u64> for SteamID
 }
 
 /// An error that can occur when converting from a `u32` to a [`SteamID`].
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Error)]
 #[error("`{0}` is out of range for a valid SteamID32")]
 pub struct OutOfRangeSteamID32(pub u32);
 
@@ -502,7 +502,7 @@ impl TryFrom<NonZero<u32>> for SteamID
 }
 
 /// Parsing a [`SteamID`] from a string failed.
-#[derive(Debug, Clone, PartialEq, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Error)]
 pub enum InvalidSteamID
 {
 	/// String could be parsed into an integer, but the integer was invalid.

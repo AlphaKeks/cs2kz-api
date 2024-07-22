@@ -6,7 +6,7 @@ edition = "2021"
 readme = "../../README.md"
 homepage = "https://cs2kz.org"
 repository = "https://github.com/KZGlobalTeam/cs2kz-api"
-license-file = "../../LICENSE"
+license = "GPL-3.0"
 publish = false
 
 [lib]

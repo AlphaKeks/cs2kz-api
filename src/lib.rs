@@ -1,152 +1,109 @@
 #![doc = include_str!("../README.md")]
-// TODO: remove once https://github.com/tokio-rs/tracing/issues/2912 lands
-#![allow(clippy::blocks_in_conditions)]
+#![allow(warnings)] // FIXME
 
-use std::fmt::Write;
-use std::future::Future;
+/*
+ * CS2KZ API - the core infrastructure for CS2KZ.
+ * Copyright (C) 2024  AlphaKeks <alphakeks@dawn>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see https://www.gnu.org/licenses.
+ */
+
 use std::net::SocketAddr;
 
-use anyhow::Context;
-use axum::extract::connect_info::IntoMakeServiceWithConnectInfo;
-use axum::extract::ConnectInfo;
-use axum::{routing, Router};
-use tokio::net::TcpListener;
-use tokio::signal;
+use sqlx::pool::PoolOptions;
 
-mod error;
-pub use error::{Error, Result};
+#[macro_use]
+extern crate pin_project;
 
-mod config;
-pub use config::Config;
+// https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
+#[macro_use]
+extern crate sealed;
 
-mod state;
-pub(crate) use state::State;
+/// The server type that wraps the API.
+pub type Server =
+	axum::extract::connect_info::IntoMakeServiceWithConnectInfo<axum::Router, SocketAddr>;
 
-#[cfg(test)]
-mod test;
+pub mod setup;
+pub mod runtime;
 
-#[cfg(test)]
-pub(crate) use cs2kz_api_macros::integration_test;
+pub mod services;
 
-pub mod openapi;
-pub mod middleware;
-pub mod authentication;
-pub mod authorization;
-pub mod sqlx;
-pub mod steam;
-pub mod serde;
-pub mod time;
-pub mod make_id;
-pub mod bitflags;
-pub mod kz;
+mod middleware;
+mod util;
+mod database;
+mod http;
 
-pub mod players;
-pub mod maps;
-pub mod servers;
-pub mod jumpstats;
-pub mod records;
-pub mod bans;
-pub mod game_sessions;
-pub mod admins;
-pub mod plugin;
-
-#[allow(clippy::missing_docs_in_private_items)]
-type Server = axum::serve::Serve<
-	IntoMakeServiceWithConnectInfo<Router, SocketAddr>,
-	axum::middleware::AddExtension<Router, ConnectInfo<SocketAddr>>,
->;
-
-/// Run the API.
-///
-/// This function will not exit until a SIGINT signal is received.
-/// If you want to supply a custom signal for graceful shutdown, use
-/// [`run_until()`] instead.
-pub async fn run(config: Config) -> anyhow::Result<()>
+/// Create a server that will run the API.
+pub async fn server(config: runtime::Config) -> Result<Server, setup::Error>
 {
-	server(config)
-		.await
-		.context("build http server")?
-		.with_graceful_shutdown(sigint())
-		.await
-		.context("run http server")
-}
+	use self::services::{
+		AdminService,
+		AuthService,
+		BanService,
+		HealthService,
+		JumpstatService,
+		MapService,
+		PlayerService,
+		PluginService,
+		RecordService,
+		ServerService,
+		SteamService,
+	};
 
-/// Run the API until a given future completes.
-///
-/// This function is the same as [`run()`], except that it also waits for the
-/// provided `until` future, and shuts down the server when that future
-/// resolves.
-pub async fn run_until<Until>(config: Config, until: Until) -> anyhow::Result<()>
-where
-	Until: Future<Output = ()> + Send + 'static,
-{
-	server(config)
-		.await
-		.context("build http server")?
-		.with_graceful_shutdown(async move {
-			tokio::select! {
-				() = until => {}
-				() = sigint() => {}
-			}
-		})
-		.await
-		.context("run http server")
-}
+	let database = PoolOptions::new()
+		.min_connections(database::MIN_CONNECTIONS)
+		.max_connections(database::MAX_CONNECTIONS)
+		.connect(config.database_url().as_str())
+		.await?;
 
-/// Runs the necessary setup for the API and returns a future that will run the
-/// server when polled.
-///
-/// See [`run()`] and [`run_until()`].
-async fn server(config: Config) -> anyhow::Result<Server>
-{
-	tracing::debug!(addr = %config.addr, "establishing TCP connection");
+	sqlx::migrate!("./database/migrations")
+		.run(&database)
+		.await?;
 
-	let tcp_listener = TcpListener::bind(config.addr)
-		.await
-		.context("bind tcp socket")?;
+	let http_client = reqwest::Client::new();
 
-	let addr = tcp_listener.local_addr().context("get tcp addr")?;
-	tracing::info!(%addr, prod = cfg!(feature = "production"), "listening for requests");
+	let steam_svc = SteamService::new(config.clone(), http_client.clone());
+	let auth_svc =
+		AuthService::new(config.clone(), database.clone(), http_client.clone(), steam_svc.clone())?;
 
-	let state = State::new(config).await.context("initialize state")?;
-	let spec = openapi::Spec::new();
-	let mut routes_message = String::from("registering routes:\n");
+	let health_svc = HealthService::new();
+	let player_svc = PlayerService::new();
+	let map_svc = MapService::new(database.clone(), steam_svc.clone());
+	let server_svc = ServerService::new(database.clone());
+	let record_svc = RecordService::new();
+	let jumpstat_svc = JumpstatService::new(database.clone(), auth_svc.clone());
+	let ban_svc = BanService::new(database.clone(), auth_svc.clone());
+	let admin_svc = AdminService::new(database.clone(), auth_svc.clone());
+	let plugin_svc = PluginService::new();
 
-	for (path, methods) in spec.routes() {
-		writeln!(&mut routes_message, "    • {path} => [{methods}]")?;
-	}
+	let logging = middleware::logging::layer!();
+	let panic_handler = middleware::panic_handler::layer();
 
-	tracing::info!("{routes_message}");
-	tracing::debug!("initializing API service");
-
-	let api_service = Router::new()
-		.route("/", routing::get(|| async { "(͡ ͡° ͜ つ ͡͡°)" }))
-		.nest("/players", players::router(state.clone()))
-		.nest("/maps", maps::router(state.clone()))
-		.nest("/servers", servers::router(state.clone()))
-		.nest("/jumpstats", jumpstats::router(state.clone()))
-		.nest("/records", records::router(state.clone()))
-		.nest("/bans", bans::router(state.clone()))
-		.nest("/sessions", game_sessions::router(state.clone()))
-		.nest("/auth", authentication::router(state.clone()))
-		.nest("/admins", admins::router(state.clone()))
-		.nest("/plugin", plugin::router(state.clone()))
-		.layer(middleware::logging::layer!())
-		.merge(spec.swagger_ui())
+	let server = axum::Router::new()
+		.merge(health_svc)
+		.merge(player_svc)
+		.merge(map_svc)
+		.merge(server_svc)
+		.merge(record_svc)
+		.merge(jumpstat_svc)
+		.merge(ban_svc)
+		.merge(auth_svc)
+		.merge(admin_svc)
+		.merge(plugin_svc)
+		.layer(logging)
+		.layer(panic_handler)
 		.into_make_service_with_connect_info::<SocketAddr>();
 
-	Ok(axum::serve(tcp_listener, api_service))
-}
-
-/// Waits for a SIGINT signal from the operating system.
-#[tracing::instrument(name = "runtime::signals")]
-async fn sigint()
-{
-	let signal_result = signal::ctrl_c().await;
-
-	if let Err(err) = signal_result {
-		tracing::error!(target: "cs2kz_api::audit_log", "failed to receive SIGINT: {err}");
-	} else {
-		tracing::warn!(target: "cs2kz_api::audit_log", "received SIGINT; shutting down...");
-	}
+	Ok(server)
 }

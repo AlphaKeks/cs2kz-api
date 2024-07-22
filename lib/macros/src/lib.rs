@@ -8,7 +8,7 @@ mod integration_test;
 
 macro_rules! error {
 	($span:expr, $($message:tt)*) => {
-		return Err(syn::Error::new($span.span(), format_args!($($message)*)));
+		return Err(syn::Error::new($span.span(), format_args!($($message)*)))
 	};
 }
 
