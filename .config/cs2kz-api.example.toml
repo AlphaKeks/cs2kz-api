@@ -1,6 +1,10 @@
-### Copy this file to `cs2kz-api.toml` (which is `.gitignore`'d).
+### This is a template for the API's configuration.
 ###
-### Or run the API with `--config=.config/cs2kz-api.example.toml`.
+### Anything that is commented out is optional.
+### Most options have sensible defaults already, but anything with "…" is a placeholder you should change.
+###
+### Copy this file to `cs2kz-api.toml` and make changes as you see fit.
+### You can also put it somewhere else and then specify `--config` when running the API binary.
 
 [http]
 ## The address that the HTTP server should listen on.
@@ -10,11 +14,122 @@
 ## If you want the OS to choose a port, use `0`.
 listen-on = "[::1]:42069"
 
+## The URL other services are supposed to use to reach the API.
+##
+## During local development this is probably the same as `listen-on`, with an `http://` prefix.
+## In production this is `https://api.cs2kz.org`.
+public-url = "http://[::1]:42069"
+
+## The value to use for the `Domain` field in HTTP cookies.
+##
+## During local development this is the same as `listen-on`, but without a port.
+## In production this is `.cs2kz.org`.
+cookie-domain = "[::1]"
+
 [database]
+## The minimum number of pool connections to open.
+##
+## Note that the database will spawn a dedicated thread for each connection, so you should keep this number low.
+##
+## If you do not specify this value, it will be set to `0`.
+# min-connections = 0
+
+## The maximum number of pool connections to open.
+##
+## Note that the database will spawn a dedicated thread for each connection, so you should keep this number low.
+##
+## If you do not specify this value, or set it to `0`, sqlx will choose a default value.
+# max-connections = 0
 
 [steam]
+## Steam WebAPI key.
+##
+## Get yours here: https://steamcommunity.com/dev/apikey
+api-key = "…"
+
+## Directory to use for storing downloaded workshop assets (e.g. map files).
+##
+## This should ideally be an absolute path, but can also be relative.
+##
+## This should point to an existing directory that your user has write access to, otherwise it will fail at runtime.
+workshop-asset-dir = "./workshop"
+
+## Path to a DepotDownloader executable.
+##
+## This should ideally be an absolute path, but can also be relative.
+##
+## You can download DepotDownloader here: https://github.com/SteamRE/DepotDownloader
+depot-downloader = "DepotDownloader"
 
 [tracing]
+## Whether to enable tracing at all.
+##
+## This option defaults to `false` if unspecified.
+enable = true
+
+## Global filters that apply to all layers.
+##
+## Syntax reference: https://docs.rs/tracing-subscriber/0.3.18/tracing_subscriber/filter/struct.EnvFilter.html
+filters = ["cs2kz_api=trace", "sqlx=debug", "warn"]
+
+[tracing.stderr]
+## Whether to emit traces to stderr.
+##
+## This option defaults to `false` if unspecified.
+enable = true
+
+## Whether to emit ANSI escape codes for formatting.
+##
+## This option defaults to `false` if unspecified.
+ansi = true
+
+## Filters that apply just to this layer.
+##
+## Note: these filters are not additive with respect to the global `filters`!
+## If you specify this field, the global filter will be ignored by this layer.
+# filters = []
+
+[tracing.files]
+## Whether to emit traces to log files.
+##
+## This option defaults to `false` if unspecified.
+enable = true
+
+## Directory to store log files in.
+##
+## This should point to an existing directory that your user has write access to, otherwise it will fail at runtime.
+directory = "./logs"
+
+## Filters that apply just to this layer.
+##
+## Note: these filters are not additive with respect to the global `filters`!
+## If you specify this field, the global filter will be ignored by this layer.
+# filters = []
+
+[tracing.console]
+## Whether to emit traces to tokio-console.
+##
+## This option defaults to `false` if unspecified.
+# enable = true
+
+## Server address that the gRPC server should listen on.
+##
+## This can either be a TCP socket address, or a UDS path.
+# server-addr = "…"
+
+[tracing.journald]
+## Whether to emit traces to journald.
+##
+## Note that this option only has effect on Linux!
+##
+## This option defaults to `false` if unspecified.
+# enable = true
+
+## Filters that apply just to this layer.
+##
+## Note: these filters are not additive with respect to the global `filters`!
+## If you specify this field, the global filter will be ignored by this layer.
+# filters = []
 
 [runtime]
 ## The maximum number of threads to spawn in the blocking thread pool.

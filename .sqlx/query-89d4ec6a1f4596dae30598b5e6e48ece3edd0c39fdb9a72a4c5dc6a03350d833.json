@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id AS `id: SteamID`\n\t\t\t FROM Players\n\t\t\t WHERE name LIKE ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: SteamID",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "89d4ec6a1f4596dae30598b5e6e48ece3edd0c39fdb9a72a4c5dc6a03350d833"
+}

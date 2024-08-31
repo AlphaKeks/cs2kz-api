@@ -73,7 +73,6 @@
 
         # Force using the query cache instead of a live database.
         SQLX_OFFLINE = "1";
-        DATABASE_URL = null;
       });
 
       cli = craneLib.buildPackage (mkCrate "cs2kz-api-cli");

@@ -11,8 +11,94 @@ homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 
+[features]
+production = []
+
 [lints]
 workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+dotenvy.workspace = true
+serde.workspace = true
+
+[dependencies.cs2kz]
+path = "../cs2kz"
+features = ["rand", "serde", "sqlx"]
+
+[dependencies.problem-details]
+path = "../problem-details"
+features = ["axum"]
+
+[dependencies.tokio]
+version = "1.39"
+features = ["macros", "rt-multi-thread", "tracing", "net", "signal", "process"]
+
+[dependencies.tower]
+version = "0.5"
+features = ["util"]
+
+[dependencies.tower-http]
+version = "0.5"
+features = [
+  "catch-panic",
+  "cors",
+  "request-id",
+  "set-status",
+  "trace",
+  "validate-request",
+]
+
+[dependencies.http]
+version = "1.0"
+
+[dependencies.sqlx]
+version = "0.8.1"
+default-features = false
+features = ["macros", "runtime-tokio", "tls-rustls", "mysql", "time", "uuid"]
+
+[dependencies.axum]
+version = "0.7"
+default-features = false
+features = ["macros", "http1", "http2", "json", "ws", "tokio"]
+
+[dependencies.axum-extra]
+version = "0.9"
+default-features = false
+features = ["cookie", "query"]
+
+[dependencies.tracing-appender]
+version = "0.2"
+
+[dependencies.console-subscriber]
+version = "0.4"
+
+[dependencies.tracing-journald]
+version = "0.3"
+
+[dependencies.serde_json]
+version = "1.0"
+
+[dependencies.toml]
+version = "0.8"
+
+[dependencies.time]
+version = "0.3"
+features = ["serde-human-readable"]
+
+[dependencies.uuid]
+version = "1.0"
+features = ["v4", "v7", "serde"]
+
+[dependencies.url]
+version = "2.5"
+features = ["serde"]
+
+[dependencies.pin-project]
+version = "1.0"
 
 [dev-dependencies.ctor]
 version = "0.2"

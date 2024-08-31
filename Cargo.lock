@@ -216,6 +216,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum-extra"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0be6ea09c9b96cb5076af0de2e383bd2bc0c18f827cf1967bdd353e0b910d733"
+dependencies = [
+ "axum",
+ "axum-core",
+ "bytes",
+ "cookie",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "serde",
+ "serde_html_form",
+ "tower 0.4.13",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
 name = "axum-macros"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -413,6 +436,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
+name = "cookie"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ddef33a339a91ea89fb53151bd0a4689cfce27055c291dfa69945475d22c747"
+dependencies = [
+ "percent-encoding",
+ "time",
+ "version_check",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -495,16 +529,20 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "axum",
+ "axum-extra",
  "clap",
  "console-subscriber",
  "cs2kz",
  "ctor",
  "dotenvy",
  "http",
+ "pin-project",
  "problem-details",
  "serde",
+ "serde_json",
  "sqlx",
  "thiserror",
+ "time",
  "tokio",
  "toml",
  "tower 0.5.0",
@@ -559,6 +597,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b42b6fa04a440b495c8b04d0e71b707c585f83cb9cb28cf8cd0d976c315e31b4"
 dependencies = [
  "powerfmt",
+ "serde",
 ]
 
 [[package]]
@@ -1379,7 +1418,7 @@ dependencies = [
 
 [[package]]
 name = "problem-details"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
  "axum-core",
  "http",
@@ -1661,6 +1700,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "serde_html_form"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8de514ef58196f1fc96dcaef80fe6170a1ce6215df9687a93fe8300e773fefc5"
+dependencies = [
+ "form_urlencoded",
+ "indexmap 2.5.0",
+ "itoa",
+ "ryu",
+ "serde",
 ]
 
 [[package]]
@@ -2025,6 +2077,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "steam-openid"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "serde",
+ "serde_urlencoded",
+ "thiserror",
+ "tower-service",
+ "url",
+]
+
+[[package]]
 name = "stringprep"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2344,6 +2408,7 @@ dependencies = [
  "http",
  "http-body",
  "http-body-util",
+ "mime",
  "pin-project-lite",
  "tower-layer",
  "tower-service",
@@ -2362,6 +2427,18 @@ name = "tower-service"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
+
+[[package]]
+name = "tower-sessions"
+version = "0.1.0"
+dependencies = [
+ "cookie",
+ "http",
+ "thiserror",
+ "time",
+ "tower-layer",
+ "tower-service",
+]
 
 [[package]]
 name = "tracing"
