@@ -1,0 +1,119 @@
+# CS2KZ API
+#
+# Copyright (C) 2024  AlphaKeks <alphakeks@dawn>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see https://www.gnu.org/licenses.
+
+[workspace]
+resolver = "2"
+default-members = ["crates/cs2kz-api"]
+members = [
+  "crates/cs2kz",
+  "crates/cs2kz-api",
+  "crates/cs2kz-api-macros",
+  "crates/cs2kz-api-cli",
+  "crates/problem-details",
+]
+
+[workspace.package]
+authors = ["AlphaKeks <alphakeks@dawn.sh>"]
+edition = "2021"
+rust-version = "1.80.0"
+documentation = "https://docs.cs2kz.org"
+homepage = "https://cs2kz.org"
+repository = "https://github.com/KZGlobalTeam/cs2kz-api"
+license = "GPL-3.0"
+
+[workspace.dependencies.thiserror]
+version = "1.0"
+
+[workspace.dependencies.tracing]
+version = "0.1"
+
+[workspace.dependencies.tracing-subscriber]
+version = "0.3"
+default-features = false
+features = ["std", "env-filter", "ansi", "registry", "smallvec", "json"]
+
+[workspace.dependencies.clap]
+version = "4.5"
+features = ["derive", "wrap_help"]
+
+[workspace.dependencies.dotenvy]
+version = "0.15"
+
+[workspace.dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[workspace.lints.rust]
+deprecated_safe = "deny"                # in particular `std::env::set_var()`
+elided_lifetimes_in_paths = "warn"
+explicit_outlives_requirements = "warn"
+keyword_idents_2024 = "warn"
+let_underscore_drop = "warn"
+missing_debug_implementations = "warn"
+non_ascii_idents = "deny"
+redundant_lifetimes = "warn"
+unit_bindings = "warn"
+unsafe_code = "deny"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_macro_rules = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+
+[workspace.lints.clippy]
+assigning_clones = "warn"
+bool_to_int_with_if = "warn"
+builtin_type_shadow = "deny"
+cloned_instead_of_copied = "warn"
+dbg_macro = "warn"
+enum_glob_use = "deny"
+filter_map_next = "warn"
+flat_map_option = "warn"
+fn_params_excessive_bools = "warn"
+future_not_send = "warn"
+if_not_else = "warn"
+ignored_unit_patterns = "warn"
+inconsistent_struct_constructor = "deny"
+manual_assert = "warn"
+manual_instant_elapsed = "warn"
+manual_is_variant_and = "warn"
+manual_let_else = "warn"
+manual_ok_or = "warn"
+manual_string_new = "deny"
+many_single_char_names = "deny"
+map_unwrap_or = "warn"
+missing_assert_message = "deny"
+missing_safety_doc = "deny"
+needless_collect = "warn"
+needless_continue = "warn"
+needless_for_each = "warn"
+new_without_default = "allow"
+redundant_closure = "allow"
+redundant_else = "warn"
+same_name_method = "warn"
+todo = "warn"
+unimplemented = "deny"
+unnecessary_safety_comment = "warn"
+unnecessary_safety_doc = "warn"
+upper_case_acronyms = "allow"
+wildcard_imports = "deny"
+
+[profile.release]
+debug = true           # emit debug info (used by taskdump)
+overflow-checks = true # panicking is better than silently doing the wrong thing

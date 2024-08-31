@@ -1,0 +1,43 @@
+### Copy this file to `cs2kz-api.toml` (which is `.gitignore`'d).
+###
+### Or run the API with `--config=.config/cs2kz-api.example.toml`.
+
+[http]
+## The address that the HTTP server should listen on.
+##
+## This can be IPv4 or IPv6 but must include a port.
+##
+## If you want the OS to choose a port, use `0`.
+listen-on = "[::1]:42069"
+
+[database]
+
+[steam]
+
+[tracing]
+
+[runtime]
+## The maximum number of threads to spawn in the blocking thread pool.
+##
+## The blocking thread pool is dedicated to running blocking tasks, so it isn't used very frequently.
+##
+## If you do not specify this value, or set it to `0`, Tokio will choose a default value.
+# max-blocking-threads = 0
+
+## The name to use for worker threads.
+##
+## If you do not specify this value, or set it to an empty string, Tokio will choose a default.
+# worker-thread-name = "herbert"
+
+## The stack size (in bytes) to use for worker threads.
+##
+## Note that if your operating system has a minimum stack size, and you specify a value lower than that, the OS minimum
+## will be used instead.
+##
+## If you do not specify this value, or set it to `0`, the OS default will be used.
+# worker-thread-stack-size = 0
+
+## The amount of worker threads to spawn.
+##
+## If you do not specify this value, or set it to `0`, Tokio will choose a default value.
+# worker-thread-count = 0

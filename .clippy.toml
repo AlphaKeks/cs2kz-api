@@ -1,0 +1,17 @@
+max-fn-params-bools = 1
+check-private-items = true
+
+await-holding-invalid-types = [
+  { path = "tracing::span::Entered", reason = "see https://docs.rs/tracing/0.1.40/tracing/struct.Span.html#in-asynchronous-code" },
+  { path = "tracing::span::EnteredSpan", reason = "see https://docs.rs/tracing/0.1.40/tracing/struct.Span.html#in-asynchronous-code" },
+]
+
+disallowed-types = [
+  { path = "std::net::IpAddr", reason = "use `crate::net::IpAddr` instead" },
+  { path = "std::net::Ipv4Addr", reason = "use `crate::net::IpAddr` instead" },
+  { path = "std::net::Ipv6Addr", reason = "use `crate::net::IpAddr` instead" },
+  { path = "axum::Json", reason = "use `crate::extract::Json` instead" },
+  { path = "axum::Extension", reason = "use `crate::extract::Extension` instead" },
+  { path = "axum::extract::Path", reason = "use `crate::extract::Path` instead" },
+  { path = "axum::extract::Query", reason = "use `crate::extract::Query` instead" },
+]

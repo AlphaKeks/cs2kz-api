@@ -1,0 +1,17 @@
+# See https://rust-lang.github.io/rustfmt/?version=v1.7.1
+
+unstable_features = true
+
+newline_style = "Unix"
+
+hard_tabs = true
+brace_style = "AlwaysNextLine"
+
+group_imports = "StdExternalCrate"
+imports_granularity = "Module"
+imports_layout = "HorizontalVertical"
+reorder_modules = false
+
+condense_wildcard_suffixes = true
+overflow_delimited_expr = true
+single_line_let_else_max_width = 0

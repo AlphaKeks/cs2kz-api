@@ -1,0 +1,103 @@
+# Copyright (C) 2024  AlphaKeks <alphakeks@dawn>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see https://www.gnu.org/licenses.
+
+[package]
+name = "problem-details"
+version = "1.0.0"
+readme = "./README.md"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+axum = ["dep:axum-core"]
+
+[dependencies.thiserror]
+version = "1.0"
+
+[dependencies.http]
+version = "1.0"
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1.0"
+
+[dependencies.axum-core]
+version = "0.4"
+optional = true
+
+[lints.rust]
+elided_lifetimes_in_paths = "warn"
+keyword_idents_2024 = "warn"
+let_underscore_drop = "warn"
+missing_copy_implementations = "deny"
+missing_debug_implementations = "warn"
+missing_docs = "deny"
+non_ascii_idents = "deny"
+unit_bindings = "warn"
+unreachable_pub = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_macro_rules = "warn"
+unused_qualifications = "warn"
+
+[lints.rustdoc]
+broken_intra_doc_links = "deny"
+
+[lints.clippy]
+assigning_clones = "warn"
+bool_to_int_with_if = "warn"
+builtin_type_shadow = "deny"
+cloned_instead_of_copied = "warn"
+dbg_macro = "warn"
+enum_glob_use = "deny"
+filter_map_next = "warn"
+flat_map_option = "warn"
+fn_params_excessive_bools = "warn"
+future_not_send = "warn"
+if_not_else = "warn"
+ignored_unit_patterns = "warn"
+inconsistent_struct_constructor = "deny"
+manual_assert = "warn"
+manual_instant_elapsed = "warn"
+manual_is_variant_and = "warn"
+manual_let_else = "warn"
+manual_ok_or = "warn"
+manual_string_new = "deny"
+many_single_char_names = "deny"
+map_unwrap_or = "warn"
+missing_assert_message = "deny"
+missing_safety_doc = "deny"
+needless_collect = "warn"
+needless_continue = "warn"
+needless_for_each = "warn"
+new_without_default = "allow"
+redundant_closure = "allow"
+redundant_else = "warn"
+same_name_method = "warn"
+todo = "warn"
+unimplemented = "deny"
+unnecessary_safety_comment = "warn"
+unnecessary_safety_doc = "warn"
+upper_case_acronyms = "allow"
+wildcard_imports = "deny"
