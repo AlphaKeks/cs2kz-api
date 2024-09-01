@@ -253,11 +253,15 @@ impl fmt::Debug for SteamID
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
 	{
-		f.debug_struct("SteamID")
-			.field("X", &self.x())
-			.field("Y", &self.y())
-			.field("Z", &self.z())
-			.finish()
+		if f.alternate() {
+			f.debug_struct("SteamID")
+				.field("X", &self.x())
+				.field("Y", &self.y())
+				.field("Z", &self.z())
+				.finish()
+		} else {
+			fmt::Display::fmt(self, f)
+		}
 	}
 }
 
