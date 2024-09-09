@@ -1,3 +1,8 @@
+//! [`tracing`] related configuration.
+//!
+//! The API supports multiple outputs for tracing that can individually be enabled and configured,
+//! all of which are located in submodules of this module.
+
 use serde::{de, Deserialize, Deserializer};
 use tracing_subscriber::EnvFilter;
 
@@ -8,6 +13,7 @@ pub mod console;
 #[cfg(target_os = "linux")]
 pub mod journald;
 
+/// Tracing configuration.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config
@@ -36,22 +42,21 @@ pub struct Config
 
 impl Config
 {
+	/// Constructs an [`EnvFilter`] from the filter directives specified in the config.
 	pub fn env_filter(&self) -> Option<EnvFilter>
 	{
 		(!self.filters.is_empty()).then(|| {
 			self.filters
 				.iter()
-				.map(|filter| filter.directive.clone())
+				.map(|Filter(filter)| filter.clone())
 				.fold(EnvFilter::from_default_env(), EnvFilter::add_directive)
 		})
 	}
 }
 
+/// A filter directive.
 #[derive(Debug)]
-pub struct Filter
-{
-	pub directive: tracing_subscriber::filter::Directive,
-}
+pub struct Filter(pub tracing_subscriber::filter::Directive);
 
 impl<'de> Deserialize<'de> for Filter
 {
@@ -61,7 +66,7 @@ impl<'de> Deserialize<'de> for Filter
 	{
 		String::deserialize(deserializer)?
 			.parse()
-			.map(|directive| Self { directive })
+			.map(Self)
 			.map_err(de::Error::custom)
 	}
 }

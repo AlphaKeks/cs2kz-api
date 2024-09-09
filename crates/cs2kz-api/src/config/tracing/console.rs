@@ -1,7 +1,10 @@
+//! Tracing configuration for emitting traces to tokio-console.
+
 use std::net::SocketAddr;
 
 use serde::{Deserialize, Deserializer};
 
+/// Tracing configuration for emitting traces to tokio-console.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config

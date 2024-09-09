@@ -26,6 +26,9 @@ public-url = "http://[::1]:42069"
 ## In production this is `.cs2kz.org`.
 cookie-domain = "[::1]"
 
+## Interval in seconds at which CS2 servers should send heartbeats.
+websocket-heartbeat-interval = 30
+
 [database]
 ## The minimum number of pool connections to open.
 ##

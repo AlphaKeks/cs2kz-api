@@ -5,6 +5,8 @@
 //! services. [`InfallibleLayer`] allows configuring a service stack that will
 //! always produce a response and can integrate with axum.
 
+#![allow(unused)]
+
 mod layer;
 pub use layer::InfallibleLayer;
 
@@ -20,7 +22,6 @@ mod tests
 	use anyhow::Context;
 	use axum::response::{IntoResponse, Response};
 	use problem_details::AsProblemDetails;
-	use thiserror::Error;
 	use tower::{service_fn, Layer, ServiceExt};
 
 	use super::*;

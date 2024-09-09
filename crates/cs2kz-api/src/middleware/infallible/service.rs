@@ -1,24 +1,17 @@
 use std::task::Poll;
 use std::{convert, task};
 
+use derive_more::{Constructor, Debug};
 use problem_details::AsProblemDetails;
 
 use super::ResponseFuture;
 
 /// A middleware that converts another service's `Error` to a [`Response`].
-#[derive(Clone)]
+#[derive(Debug, Constructor, Clone)]
 pub struct Infallible<S>
 {
 	/// The inner service.
 	inner: S,
-}
-
-impl<S> Infallible<S>
-{
-	pub fn new(inner: S) -> Self
-	{
-		Self { inner }
-	}
 }
 
 impl<S> tower::Service<crate::http::Request> for Infallible<S>

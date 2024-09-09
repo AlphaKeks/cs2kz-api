@@ -1,7 +1,10 @@
+//! Database configuration.
+
 use std::num::NonZero;
 
 use serde::Deserialize;
 
+/// Database configuration.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config

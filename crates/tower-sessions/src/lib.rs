@@ -1,7 +1,5 @@
 //! Session authentication with [`tower`].
 
-#![allow(warnings)]
-
 mod errors;
 pub use errors::SessionManagerError;
 

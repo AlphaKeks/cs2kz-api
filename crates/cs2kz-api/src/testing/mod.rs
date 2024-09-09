@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 mod macros;
 
-#[allow(unused_imports)] // these may be used later
+#[expect(unused_imports, reason = "these may be used later")]
 pub(crate) use macros::*;
 
 pub type Error = anyhow::Error;

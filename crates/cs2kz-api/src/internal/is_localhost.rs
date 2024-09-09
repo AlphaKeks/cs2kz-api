@@ -1,4 +1,3 @@
-#[allow(clippy::disallowed_types)]
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
 use axum::extract::ConnectInfo;
@@ -11,7 +10,6 @@ impl ValidateRequest<crate::http::Body> for IsLocalhost
 {
 	type ResponseBody = crate::http::Body;
 
-	#[allow(clippy::disallowed_types)]
 	fn validate(
 		&mut self,
 		request: &mut crate::http::Request,

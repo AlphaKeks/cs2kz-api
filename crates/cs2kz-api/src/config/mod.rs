@@ -1,3 +1,10 @@
+//! This module holds configuration for the API.
+//!
+//! This configuration is passed to [`run()`], which acts as the main entry point for the API.
+//! The [`Config`] can be read from a file, or constructed in any other way you'd like.
+//!
+//! [`run()`]: crate::run
+
 use serde::Deserialize;
 
 pub mod http;
@@ -12,6 +19,7 @@ pub mod runtime;
 /// documentation and example values for all of the options.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[expect(missing_docs)]
 pub struct Config
 {
 	pub http: http::Config,

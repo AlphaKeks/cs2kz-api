@@ -39,7 +39,7 @@ pub trait SessionStore: Send + Sync + 'static
 	/// The returned [`Expiration`] will determine when the returned HTTP cookie will expire.
 	fn save_session(
 		&mut self,
-		session: Session<Self::ID, Self::Data>,
+		session: Session<Self>,
 	) -> impl Future<Output = Result<Expiration, Self::Error>> + Send;
 
 	/// Invalidates a session in the store.
@@ -49,6 +49,6 @@ pub trait SessionStore: Send + Sync + 'static
 	/// The returned HTTP cookie will be invalidated by the middleware.
 	fn invalidate_session(
 		&mut self,
-		session: Session<Self::ID, Self::Data>,
+		session: Session<Self>,
 	) -> impl Future<Output = Result<(), Self::Error>> + Send;
 }

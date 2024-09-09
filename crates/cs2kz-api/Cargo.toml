@@ -33,9 +33,21 @@ features = ["rand", "serde", "sqlx"]
 path = "../problem-details"
 features = ["axum"]
 
+[dependencies.steam-openid]
+path = "../steam-openid"
+
 [dependencies.tokio]
 version = "1.39"
 features = ["macros", "rt-multi-thread", "tracing", "net", "signal", "process"]
+
+[dependencies.tokio-util]
+version = "0.7"
+features = ["rt"]
+
+[dependencies.futures]
+version = "0.3"
+default-features = false
+features = ["std"]
 
 [dependencies.tower]
 version = "0.5"
@@ -44,6 +56,7 @@ features = ["util"]
 [dependencies.tower-http]
 version = "0.5"
 features = [
+  "add-extension",
   "catch-panic",
   "cors",
   "request-id",
@@ -52,13 +65,30 @@ features = [
   "validate-request",
 ]
 
+[dependencies.tower-sessions]
+path = "../tower-sessions"
+
 [dependencies.http]
 version = "1.0"
+
+[dependencies.http-body-util]
+version = "0.1"
+
+[dependencies.headers]
+version = "0.4"
 
 [dependencies.sqlx]
 version = "0.8.1"
 default-features = false
-features = ["macros", "runtime-tokio", "tls-rustls", "mysql", "time", "uuid"]
+features = [
+  "macros",
+  "runtime-tokio",
+  "tls-rustls",
+  "mysql",
+  "time",
+  "uuid",
+  "json",
+]
 
 [dependencies.axum]
 version = "0.7"
@@ -68,7 +98,12 @@ features = ["macros", "http1", "http2", "json", "ws", "tokio"]
 [dependencies.axum-extra]
 version = "0.9"
 default-features = false
-features = ["cookie", "query"]
+features = ["cookie", "query", "typed-header"]
+
+[dependencies.reqwest]
+version = "0.12"
+default-features = false
+features = ["http2", "rustls-tls", "json"]
 
 [dependencies.tracing-appender]
 version = "0.2"
@@ -93,12 +128,33 @@ features = ["serde-human-readable"]
 version = "1.0"
 features = ["v4", "v7", "serde"]
 
+[dependencies.md5]
+version = "0.7"
+
+[dependencies.hex]
+version = "0.4"
+features = ["serde"]
+
 [dependencies.url]
 version = "2.5"
 features = ["serde"]
 
+[dependencies.semver]
+version = "1.0"
+features = ["serde"]
+
+[dependencies.cookie]
+version = "0.18"
+
+[dependencies.mime]
+version = "0.3"
+
 [dependencies.pin-project]
 version = "1.0"
+
+[dependencies.derive_more]
+version = "1.0"
+features = ["constructor", "debug"]
 
 [dev-dependencies.ctor]
 version = "0.2"

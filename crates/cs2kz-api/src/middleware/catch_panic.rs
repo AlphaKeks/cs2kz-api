@@ -3,7 +3,6 @@ use std::borrow::Cow;
 
 use axum::response::IntoResponse;
 use problem_details::AsProblemDetails;
-use thiserror::Error;
 use tower_http::catch_panic::{CatchPanicLayer, ResponseForPanic};
 
 pub fn layer() -> CatchPanicLayer<PanicHandler>
@@ -33,6 +32,8 @@ impl AsProblemDetails for PanicRejection
 	}
 }
 
+impl_into_response!(PanicRejection);
+
 impl ResponseForPanic for PanicHandler
 {
 	type ResponseBody = crate::http::Body;
@@ -49,6 +50,6 @@ impl ResponseForPanic for PanicHandler
 
 		error!(?error, "http handler panicked");
 
-		PanicRejection.as_problem_details().into_response()
+		PanicRejection.into_response()
 	}
 }

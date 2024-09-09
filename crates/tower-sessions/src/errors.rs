@@ -45,3 +45,25 @@ where
 	#[error("{0}")]
 	Service(#[source] Inner::Error),
 }
+
+impl<Store, Auth, ReqBody, Inner> fmt::Debug for SessionManagerError<Store, Auth, ReqBody, Inner>
+where
+	Store: SessionStore,
+	<Store::ID as SessionID>::Error: std::error::Error,
+	Auth: AuthorizeSession<ReqBody = ReqBody, Store = Store>,
+	Inner: Service<http::Request<ReqBody>>,
+	Inner::Error: std::error::Error + 'static,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+	{
+		match self {
+			Self::MissingSessionID => f.pad("MissingSessionID"),
+			Self::DecodeSessionID(source) => fmt::Debug::fmt(source, f),
+			Self::AuthenticateSession(source) => fmt::Debug::fmt(source, f),
+			Self::AuthorizeSession(source) => fmt::Debug::fmt(source, f),
+			Self::SaveSession(source) => fmt::Debug::fmt(source, f),
+			Self::InvalidateSession(source) => fmt::Debug::fmt(source, f),
+			Self::Service(source) => fmt::Debug::fmt(source, f),
+		}
+	}
+}

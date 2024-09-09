@@ -1,7 +1,10 @@
+//! Steam-related configuration.
+
 use std::path::Path;
 
 use serde::Deserialize;
 
+/// Steam-related configuration.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config

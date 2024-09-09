@@ -1,82 +1,182 @@
-use serde::{de, ser, Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::{BTreeMap, BTreeSet};
+use std::{fmt, ops};
 
-#[allow(private_bounds)]
-pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
+use serde::{de, Deserialize, Deserializer, Serialize};
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
+pub struct NonEmpty<T>(T);
+
+#[expect(private_bounds, reason = "`Length` is an implementation detail")]
+impl<T> NonEmpty<T>
 where
-	T: IsEmpty + Serialize,
-	S: Serializer,
+	T: Length,
 {
-	if value.is_empty() {
-		return Err(ser::Error::custom(
-			"value was not supposed to be empty but is empty",
-		));
-	}
-
-	value.serialize(serializer)
-}
-
-#[allow(private_bounds)]
-pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-where
-	T: IsEmpty + Deserialize<'de>,
-	D: Deserializer<'de>,
-{
-	let value = T::deserialize(deserializer)?;
-
-	if value.is_empty() {
-		return Err(de::Error::invalid_length(0, &"1 or more"));
-	}
-
-	Ok(value)
-}
-
-pub mod option
-{
-	#[allow(clippy::wildcard_imports)]
-	use super::*;
-
-	#[allow(private_bounds)]
-	pub fn serialize<T, S>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		T: IsEmpty + Serialize,
-		S: Serializer,
+	pub fn new(value: T) -> Option<Self>
 	{
-		if value.as_ref().is_some_and(IsEmpty::is_empty) {
-			return Err(ser::Error::custom(
-				"value was not supposed to be empty but is empty",
-			));
+		if value.is_empty() {
+			None
+		} else {
+			Some(Self(value))
 		}
+	}
+}
 
-		value.serialize(serializer)
+impl<T> NonEmpty<T>
+{
+	pub fn as_ref(&self) -> NonEmpty<&T>
+	{
+		NonEmpty(&self.0)
 	}
 
-	#[allow(private_bounds)]
-	pub fn deserialize<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+	pub fn as_deref(&self) -> NonEmpty<&<T as ops::Deref>::Target>
 	where
-		T: IsEmpty + Deserialize<'de>,
+		T: ops::Deref,
+	{
+		NonEmpty(self.0.deref())
+	}
+
+	pub fn into_inner(this: Self) -> T
+	{
+		this.0
+	}
+}
+
+impl<T> fmt::Debug for NonEmpty<T>
+where
+	T: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+	{
+		fmt::Debug::fmt(&self.0, f)
+	}
+}
+
+impl<T> fmt::Display for NonEmpty<T>
+where
+	T: fmt::Display,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+	{
+		fmt::Display::fmt(&self.0, f)
+	}
+}
+
+impl<T> ops::Deref for NonEmpty<T>
+{
+	type Target = T;
+
+	fn deref(&self) -> &Self::Target
+	{
+		&self.0
+	}
+}
+
+impl<T> IntoIterator for NonEmpty<T>
+where
+	T: IntoIterator,
+{
+	type Item = T::Item;
+	type IntoIter = T::IntoIter;
+
+	fn into_iter(self) -> Self::IntoIter
+	{
+		self.0.into_iter()
+	}
+}
+
+impl<'a, T> IntoIterator for &'a NonEmpty<T>
+where
+	&'a T: IntoIterator,
+{
+	type Item = <&'a T as IntoIterator>::Item;
+	type IntoIter = <&'a T as IntoIterator>::IntoIter;
+
+	fn into_iter(self) -> Self::IntoIter
+	{
+		(&self.0).into_iter()
+	}
+}
+
+impl<'de, T> Deserialize<'de> for NonEmpty<T>
+where
+	T: Deserialize<'de> + Length,
+{
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
 		D: Deserializer<'de>,
 	{
-		let value = Option::<T>::deserialize(deserializer)?;
-
-		if value.as_ref().is_some_and(IsEmpty::is_empty) {
-			return Err(de::Error::invalid_length(0, &"1 or more"));
-		}
-
-		Ok(value)
+		T::deserialize(deserializer)
+			.map(Self::new)
+			.transpose()
+			.ok_or_else(|| de::Error::invalid_length(0, &"1 or more"))?
 	}
 }
 
-trait IsEmpty
+pub(super) trait Length
 {
-	fn is_empty(&self) -> bool;
-}
+	fn length(&self) -> usize;
 
-impl<T> IsEmpty for T
-where
-	T: AsRef<str>,
-{
 	fn is_empty(&self) -> bool
 	{
-		<str>::is_empty(self.as_ref())
+		self.length() == 0
+	}
+}
+
+impl<T> Length for Box<T>
+where
+	T: Length + ?Sized,
+{
+	fn length(&self) -> usize
+	{
+		<T>::length(&**self)
+	}
+}
+
+impl<T> Length for [T]
+{
+	fn length(&self) -> usize
+	{
+		<[T]>::len(self)
+	}
+}
+
+impl<T> Length for Vec<T>
+{
+	fn length(&self) -> usize
+	{
+		<[T]>::len(self)
+	}
+}
+
+impl<K, V> Length for BTreeMap<K, V>
+{
+	fn length(&self) -> usize
+	{
+		<BTreeMap<K, V>>::len(self)
+	}
+}
+
+impl<T> Length for BTreeSet<T>
+{
+	fn length(&self) -> usize
+	{
+		<BTreeSet<T>>::len(self)
+	}
+}
+
+impl Length for str
+{
+	fn length(&self) -> usize
+	{
+		<str>::len(self)
+	}
+}
+
+impl Length for String
+{
+	fn length(&self) -> usize
+	{
+		<str>::len(self)
 	}
 }

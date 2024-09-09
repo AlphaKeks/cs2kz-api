@@ -1,48 +1,67 @@
+use std::net::SocketAddr;
 use std::time::Duration;
 
+use axum::response::Redirect;
 use axum::{routing, Router};
+use axum_extra::middleware::option_layer;
 use serde::Serialize;
+use tokio::runtime;
 use tokio::time::timeout;
-use tokio::{runtime, task};
+use tower_http::add_extension::AddExtensionLayer;
 use tower_http::set_status::SetStatusLayer;
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 
 use self::is_localhost::IsLocalhost;
 use self::taskdump::Taskdump;
+use crate::extract::Extension;
 
 mod is_localhost;
 mod taskdump;
 
-pub fn router() -> Router
+#[derive(Debug, Clone, Copy)]
+struct ConsoleAddr(SocketAddr);
+
+pub fn router(console_addr: Option<SocketAddr>) -> Router
 {
 	let auth = (
 		SetStatusLayer::new(http::StatusCode::NOT_FOUND),
 		ValidateRequestHeaderLayer::custom(IsLocalhost),
 	);
 
-	let router = Router::new().route("/taskdump", routing::get(taskdump));
+	let console_addr = console_addr.map(ConsoleAddr).map(AddExtensionLayer::new);
 
-	router.layer(auth)
+	Router::new()
+		.route(
+			"/console",
+			routing::get(console).route_layer(option_layer(console_addr)),
+		)
+		.route("/taskdump", routing::get(taskdump).route_layer(auth))
+}
+
+async fn console(console_addr: Option<Extension<ConsoleAddr>>)
+	-> Result<Redirect, http::StatusCode>
+{
+	match console_addr {
+		Some(Extension(ConsoleAddr(addr))) => Ok(Redirect::to(&format!("http://{addr}"))),
+		None => Err(http::StatusCode::NOT_FOUND),
+	}
 }
 
 async fn taskdump() -> Result<Vec<u8>, taskdump::Error>
 {
 	let runtime = runtime::Handle::current();
-	let dumps = timeout(Duration::from_secs(3), runtime.dump()).await?;
-	let mut tasks = dumps.tasks().iter();
+	let dump = timeout(Duration::from_secs(3), runtime.dump()).await?;
+	let mut response = vec![b'['];
 
-	tasks
-		.try_fold(vec![b'['], |mut bytes, dump| {
-			if !matches!(bytes.last(), Some(b'[')) {
-				bytes.push(b',');
-			}
+	for task in dump.tasks().iter() {
+		if !matches!(response.last(), Some(b'[')) {
+			response.push(b',');
+		}
 
-			Taskdump::new(dump).serialize(&mut serde_json::Serializer::new(&mut bytes))?;
+		Taskdump::new(task).serialize(&mut serde_json::Serializer::new(&mut response))?;
+	}
 
-			Ok(bytes)
-		})
-		.map(|mut bytes| {
-			bytes.push(b']');
-			bytes
-		})
+	response.push(b']');
+
+	Ok(response)
 }

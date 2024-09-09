@@ -1,6 +1,5 @@
 use problem_details::AsProblemDetails;
 use serde::{Serialize, Serializer};
-use thiserror::Error;
 use tokio::{runtime, task};
 
 #[derive(Debug)]

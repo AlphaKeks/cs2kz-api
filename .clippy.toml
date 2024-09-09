@@ -7,11 +7,10 @@ await-holding-invalid-types = [
 ]
 
 disallowed-types = [
-  { path = "std::net::IpAddr", reason = "use `crate::util::net::IpAddr` instead" },
-  { path = "std::net::Ipv4Addr", reason = "use `crate::util::net::IpAddr` instead" },
-  { path = "std::net::Ipv6Addr", reason = "use `crate::util::net::IpAddr` instead" },
   { path = "axum::Json", reason = "use `crate::extract::Json` instead" },
   { path = "axum::Extension", reason = "use `crate::extract::Extension` instead" },
   { path = "axum::extract::Path", reason = "use `crate::extract::Path` instead" },
   { path = "axum::extract::Query", reason = "use `crate::extract::Query` instead" },
+  { path = "axum_extra::extract::Query", reason = "use `crate::extract::Query` instead" },
+  { path = "axum_extra::TypedHeader", reason = "use `crate::extract::Header` instead" },
 ]

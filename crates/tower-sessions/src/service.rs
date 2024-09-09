@@ -19,7 +19,6 @@ use crate::{
 };
 
 /// A middleware for performing session authentication & authorization on HTTP requests.
-#[derive(Debug, Clone)]
 pub struct SessionManager<Inner, Store, ReqBody, Auth = authorization::None<ReqBody, Store>>
 where
 	Inner: Service<http::Request<ReqBody>>,
@@ -110,12 +109,15 @@ where
 
 impl<Inner, Store, Auth, ReqBody, ResBody> SessionManager<Inner, Store, ReqBody, Auth>
 where
-	Inner: Service<http::Request<ReqBody>, Response = http::Response<ResBody>>,
+	Inner: Service<http::Request<ReqBody>, Response = http::Response<ResBody>> + Send,
 	Inner::Error: std::error::Error + 'static,
+	Inner::Future: Send,
 	Store: SessionStore,
 	Store::ID: Clone,
 	Store::Data: Clone,
 	Auth: AuthorizeSession<ReqBody = ReqBody, Store = Store>,
+	ReqBody: Send,
+	ResBody: Send,
 {
 	async fn call_impl(
 		mut self,
@@ -216,17 +218,33 @@ where
 	Inner: Service<http::Request<ReqBody>>,
 	Inner::Error: std::error::Error,
 {
-	todo!()
+	let cookie_name = <Store::ID as SessionID>::cookie_name();
+	headers
+		.get_all(http::header::COOKIE)
+		.into_iter()
+		.flat_map(|v| v.to_str())
+		.flat_map(|v| Cookie::split_parse_encoded(v.trim().to_owned()))
+		.flatten()
+		.find(|cookie| cookie.name() == cookie_name)
+		.map(|cookie| <Store::ID as SessionID>::decode(cookie.value()))
+		.ok_or(SessionManagerError::MissingSessionID)?
+		.map_err(SessionManagerError::DecodeSessionID)
 }
 
-fn make_cookie<Store>(
-	session: &Session<Store::ID, Store::Data>,
-	options: &CookieOptions,
-) -> Cookie<'static>
+fn make_cookie<Store>(session: &Session<Store>, options: &CookieOptions) -> Cookie<'static>
 where
 	Store: SessionStore,
 {
-	todo!()
+	Cookie::build((
+		<Store::ID as SessionID>::cookie_name(),
+		<Store::ID as SessionID>::encode(session.id()),
+	))
+	.domain(options.domain.clone())
+	.path(options.path.clone())
+	.secure(options.secure)
+	.http_only(options.http_only)
+	.same_site(options.same_site)
+	.build()
 }
 
 impl<Inner, Store, Auth, ReqBody, ResBody> Service<http::Request<ReqBody>>
@@ -242,7 +260,7 @@ where
 	Store::ID: Clone,
 	Store::Data: Clone,
 	Auth: AuthorizeSession<ReqBody = ReqBody, Store = Store> + Clone,
-	ReqBody: Clone + Send + 'static,
+	ReqBody: Send + 'static,
 	ResBody: Send + 'static,
 {
 	type Response = http::Response<ResBody>;
@@ -255,8 +273,53 @@ where
 		self.inner.poll_ready(cx).map_err(<Self::Error>::Service)
 	}
 
-	fn call(&mut self, mut request: http::Request<ReqBody>) -> Self::Future
+	fn call(&mut self, request: http::Request<ReqBody>) -> Self::Future
 	{
 		Box::pin(self.clone().call_impl(request))
+	}
+}
+
+impl<Inner, Store, Auth, ReqBody> fmt::Debug for SessionManager<Inner, Store, ReqBody, Auth>
+where
+	Inner: Service<http::Request<ReqBody>> + fmt::Debug,
+	Store: SessionStore + fmt::Debug,
+	Auth: AuthorizeSession<ReqBody = ReqBody, Store = Store> + fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+	{
+		f.debug_struct("SessionManager")
+			.field("strict", &self.strict)
+			.field("cookie_options", &*self.cookie_options)
+			.field("authorization", &self.authorization)
+			.field("store", &self.store)
+			.field("inner", &self.inner)
+			.finish()
+	}
+}
+
+impl<Inner, Store, Auth, ReqBody> Clone for SessionManager<Inner, Store, ReqBody, Auth>
+where
+	Inner: Service<http::Request<ReqBody>> + Clone,
+	Store: SessionStore + Clone,
+	Auth: AuthorizeSession<ReqBody = ReqBody, Store = Store> + Clone,
+{
+	fn clone(&self) -> Self
+	{
+		Self {
+			strict: self.strict,
+			cookie_options: Arc::clone(&self.cookie_options),
+			authorization: self.authorization.clone(),
+			store: self.store.clone(),
+			inner: self.inner.clone(),
+		}
+	}
+
+	fn clone_from(&mut self, source: &Self)
+	{
+		self.strict = source.strict;
+		self.cookie_options.clone_from(&source.cookie_options);
+		self.authorization.clone_from(&source.authorization);
+		self.store.clone_from(&source.store);
+		self.inner.clone_from(&source.inner);
 	}
 }

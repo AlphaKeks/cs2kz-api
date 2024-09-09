@@ -1,3 +1,5 @@
+//! The binary entrypoint for the API.
+
 use std::net::SocketAddr;
 use std::path::Path;
 use std::process::ExitCode;
@@ -71,7 +73,7 @@ fn initialize_runtime(
 	}
 
 	if let Some(name) = config.worker_thread_name.as_deref() {
-		runtime.thread_name(name);
+		runtime.thread_name(&**name);
 	}
 
 	if let Some(size) = config.worker_thread_stack_size {

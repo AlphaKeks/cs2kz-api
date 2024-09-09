@@ -1,3 +1,5 @@
+use derive_more::{Constructor, Debug};
+
 use super::Infallible;
 
 /// A layer producing the [`Infallible`] service.
@@ -22,18 +24,8 @@ use super::Infallible;
 ///         .route_layer(stack) // still works!
 /// }
 /// ```
-#[non_exhaustive]
-#[derive(Clone)]
+#[derive(Debug, Constructor, Clone)]
 pub struct InfallibleLayer {}
-
-impl InfallibleLayer
-{
-	/// Creates a new [`InfallibleLayer`].
-	pub fn new() -> Self
-	{
-		Self {}
-	}
-}
 
 impl<S> tower::Layer<S> for InfallibleLayer
 {

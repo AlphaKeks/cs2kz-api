@@ -1,3 +1,10 @@
+/// Expands to an assertion with optional message.
+macro_rules! sanity_check {
+	($e:expr $(, $msg:literal $(,)?)?) => {
+		assert!($e, concat!("sanity check failed", $(": ", $msg)?))
+	};
+}
+
 /// Generates a transparent integer wrapper, useful for ID types.
 ///
 /// # Example
@@ -29,10 +36,12 @@ macro_rules! make_id {
 			::sqlx::Type,
 		)]
 		#[serde(transparent)]
+		#[sqlx(transparent)]
 		$vis struct $name(pub ::std::num::NonZero<$inner>);
 
 		impl $name
 		{
+			/// Returns the inner value.
 			pub const fn value(&self) -> $inner
 			{
 				self.0.get()
@@ -68,6 +77,16 @@ macro_rules! make_id {
 			fn from(id: $name) -> Self
 			{
 				id.value()
+			}
+		}
+
+		impl ::std::str::FromStr for $name
+		{
+			type Err = ::std::num::ParseIntError;
+
+			fn from_str(value: &::std::primitive::str) -> ::std::result::Result<Self, <Self as ::std::str::FromStr>::Err>
+			{
+				<::std::num::NonZero<$inner> as ::std::str::FromStr>::from_str(value).map(Self)
 			}
 		}
 	};
@@ -238,6 +257,14 @@ macro_rules! problem_type {
 
 /// Implements [`axum::response::IntoResponse`] for a type that already implements
 /// [`problem_details::AsProblemDetails`].
+///
+/// # Example
+///
+/// ```ignore
+/// struct MyResponse { ... }
+///
+/// impl_into_response!(MyResponse);
+/// ```
 macro_rules! impl_into_response {
 	($type:ty) => {
 		impl ::axum::response::IntoResponse for $type
@@ -249,5 +276,26 @@ macro_rules! impl_into_response {
 				)
 			}
 		}
+	};
+}
+
+/// Creates a [`Location`] value from a formatted string.
+///
+/// # Example
+///
+/// ```ignore
+/// let foobar = "foobar";
+/// let location = location!("/some/uri/{foobar}");
+///
+/// assert_eq!(&*location, "/some/uri/foobar");
+/// ```
+///
+/// [`Location`]: crate::http::Location
+macro_rules! location {
+	($fmt:literal $(, $($fmt_args:tt)*)?) => {
+		format!($fmt $(, $($fmt_args)*)?)
+			.parse::<::http::HeaderValue>()
+			.map($crate::http::Location::from)
+			.expect("valid header value")
 	};
 }

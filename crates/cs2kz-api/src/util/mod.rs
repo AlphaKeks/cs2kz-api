@@ -1,8 +1,12 @@
 //! Internal utilities.
 
 pub mod net;
-pub mod non_empty;
 pub mod num;
+pub mod serde;
+pub mod time;
 
-mod either;
-pub use either::Either;
+mod git_revision;
+pub use git_revision::GitRevision;
+
+mod non_empty;
+pub use non_empty::NonEmpty;

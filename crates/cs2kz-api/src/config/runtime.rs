@@ -1,7 +1,14 @@
+//! Runtime ([`tokio`]) configuration.
+
 use std::num::NonZero;
 
 use serde::Deserialize;
 
+use crate::util::NonEmpty;
+
+/// Tokio configuration.
+///
+/// This can be used to configure the runtime.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config
@@ -18,8 +25,7 @@ pub struct Config
 	/// Name to use for worker threads.
 	///
 	/// See [`tokio::runtime::Builder::thread_name()`].
-	#[serde(default, with = "crate::util::non_empty::option")]
-	pub worker_thread_name: Option<Box<str>>,
+	pub worker_thread_name: Option<NonEmpty<Box<str>>>,
 
 	/// Stack size (in bytes) for worker threads.
 	///

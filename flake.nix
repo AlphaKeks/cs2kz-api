@@ -22,7 +22,7 @@
 
       rust =
         {
-          stable = pkgs.rust-bin.stable."1.80.0";
+          stable = pkgs.rust-bin.stable."1.81.0";
           nightly = pkgs.rust-bin.nightly."2024-08-24";
         };
 

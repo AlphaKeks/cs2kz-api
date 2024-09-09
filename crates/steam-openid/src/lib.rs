@@ -28,7 +28,7 @@ pub const LOGIN_URL: &str = "https://steamcommunity.com/openid/login";
 
 /// Query parameters that will be included in the initial redirect to Steam.
 #[derive(Debug, Clone, Serialize)]
-#[allow(missing_docs)]
+#[expect(missing_docs, reason = "these should be self-explanatory")]
 pub struct LoginForm
 {
 	#[serde(rename = "openid.ns")]
@@ -105,53 +105,58 @@ impl LoginForm
 /// Payload included as query parameters when Steam redirects the user back to your callback
 /// endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(missing_docs)]
+#[expect(missing_docs, reason = "these should be self-explanatory")]
 pub struct CallbackPayload
 {
 	#[serde(rename = "openid.ns")]
-	pub namespace: Box<str>,
+	pub namespace: String,
 
 	#[serde(rename = "openid.identity")]
-	pub identity: Option<Box<str>>,
+	pub identity: Option<String>,
 
 	#[serde(rename = "openid.claimed_id")]
 	pub claimed_id: Url,
 
 	#[serde(rename = "openid.mode")]
-	pub mode: Box<str>,
+	pub mode: String,
 
 	#[serde(rename = "openid.return_to")]
 	pub return_to: Url,
 
 	#[serde(rename = "openid.op_endpoint")]
-	pub op_endpoint: Box<str>,
+	pub op_endpoint: String,
 
 	#[serde(rename = "openid.response_nonce")]
-	pub response_nonce: Box<str>,
+	pub response_nonce: String,
 
 	#[serde(rename = "openid.invalidate_handle")]
-	pub invalidate_handle: Option<Box<str>>,
+	pub invalidate_handle: Option<String>,
 
 	#[serde(rename = "openid.assoc_handle")]
-	pub assoc_handle: Box<str>,
+	pub assoc_handle: String,
 
 	#[serde(rename = "openid.signed")]
-	pub signed: Box<str>,
+	pub signed: String,
 
 	#[serde(rename = "openid.sig")]
-	pub sig: Box<str>,
+	pub sig: String,
 
 	/// The injected userdata that was passed as an argument to
 	/// [`LoginForm::redirect_url()`].
 	#[serde(skip_serializing)]
-	pub userdata: Box<str>,
+	pub userdata: String,
 }
 
 impl CallbackPayload
 {
 	/// Verifies the payload by sending it back to Steam.
+	///
+	/// The `expected_realm` parameter is used to verify that the request Steam is making was
+	/// actually initiated by you, so it should have the same value as the `realm` parameter
+	/// you passed to [`LoginForm::new()`].
 	pub async fn verify<S, ReqBody, ResBody>(
 		&mut self,
+		expected_realm: &Url,
 		mut http_client: S,
 	) -> Result<(), VerifyCallbackPayloadError<S, http::Request<ReqBody>>>
 	where
@@ -163,7 +168,12 @@ impl CallbackPayload
 	{
 		const CONTENT_TYPE: &str = "application/x-www-form-urlencoded";
 
-		self.mode = Box::from("check_authentication");
+		if self.return_to.host() != expected_realm.host() {
+			return Err(VerifyCallbackPayloadError::InvalidPayload);
+		}
+
+		self.mode.clear();
+		self.mode.push_str("check_authentication");
 
 		let body = serde_urlencoded::to_string(self)
 			.map(ReqBody::from)

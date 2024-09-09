@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::num::NonZero;
 use std::thread;
 
@@ -9,6 +11,7 @@ pub use error_ext::ErrorExt;
 
 pub type DB = sqlx::MySql;
 
+pub type Row = <DB as sqlx::Database>::Row;
 pub type Connection = <DB as sqlx::Database>::Connection;
 pub type ConnectOptions = <<DB as sqlx::Database>::Connection as sqlx::Connection>::Options;
 
@@ -21,6 +24,7 @@ pub type DatabaseError = sqlx::mysql::MySqlDatabaseError;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub use sqlx::mysql::MySqlExecutor as Executor;
+pub use sqlx::types::Json;
 
 #[instrument(fields(database_url = %database_url))]
 pub async fn connect(
@@ -52,26 +56,4 @@ fn get_core_count() -> u32
 		.get()
 		.try_into()
 		.expect("too many cpu cores")
-}
-
-impl crate::util::Either<SteamID, String>
-{
-	/// Returns the [`SteamID`] stored in `self` if any, or tries to find the player in the
-	/// database by name, and then returns their SteamID.
-	pub async fn resolve_id(&self, conn: impl Executor<'_>) -> sqlx::Result<Option<SteamID>>
-	{
-		let name = match self {
-			Self::A(steam_id) => return Ok(Some(*steam_id)),
-			Self::B(name) => format!("%{name}%"),
-		};
-
-		sqlx::query_scalar! {
-			"SELECT id AS `id: SteamID`
-			 FROM Users
-			 WHERE name LIKE ?",
-			name,
-		}
-		.fetch_optional(conn)
-		.await
-	}
 }

@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::Arc;
 
 use tower_layer::Layer;
@@ -6,7 +7,6 @@ use tower_service::Service;
 use crate::{authorization, AuthorizeSession, CookieOptions, SessionManager, SessionStore, Strict};
 
 /// A [`Layer`] producing [`SessionManager`]s.
-#[derive(Debug, Clone)]
 pub struct SessionManagerLayer<Store, ReqBody, Auth = authorization::None<ReqBody, Store>>
 where
 	Store: SessionStore,
@@ -83,5 +83,45 @@ where
 			inner,
 		)
 		.with_authorization(self.authorization.clone())
+	}
+}
+
+impl<Store, ReqBody, Auth> fmt::Debug for SessionManagerLayer<Store, ReqBody, Auth>
+where
+	Store: SessionStore + fmt::Debug,
+	Auth: AuthorizeSession<ReqBody = ReqBody, Store = Store> + fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+	{
+		f.debug_struct("SessionManagerLayer")
+			.field("strict", &self.strict)
+			.field("cookie_options", &*self.cookie_options)
+			.field("authorization", &self.authorization)
+			.field("store", &self.store)
+			.finish()
+	}
+}
+
+impl<Store, ReqBody, Auth> Clone for SessionManagerLayer<Store, ReqBody, Auth>
+where
+	Store: SessionStore + Clone,
+	Auth: AuthorizeSession<ReqBody = ReqBody, Store = Store> + Clone,
+{
+	fn clone(&self) -> Self
+	{
+		Self {
+			strict: self.strict,
+			cookie_options: Arc::clone(&self.cookie_options),
+			authorization: self.authorization.clone(),
+			store: self.store.clone(),
+		}
+	}
+
+	fn clone_from(&mut self, source: &Self)
+	{
+		self.strict = source.strict;
+		self.cookie_options.clone_from(&source.cookie_options);
+		self.authorization.clone_from(&source.authorization);
+		self.store.clone_from(&source.store);
 	}
 }

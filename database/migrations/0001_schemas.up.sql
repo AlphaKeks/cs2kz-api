@@ -7,13 +7,14 @@ CREATE TABLE PluginVersions (
   revision VARCHAR(40) NOT NULL UNIQUE,
   created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT valid_name CHECK(name != ''),
-  CONSTRAINT valid_revision CHECK(revision != '')
+  CONSTRAINT valid_revision CHECK(LENGTH(revision) = 40)
 );
 
 -- Opaque API keys for internal use
 CREATE TABLE Credentials (
   name VARCHAR(255) NOT NULL,
-  value UUID NOT NULL PRIMARY KEY,
+  -- UUID
+  value BINARY(16) NOT NULL PRIMARY KEY,
   created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_on TIMESTAMP NOT NULL DEFAULT '2038-01-19 03:14:07',
   CONSTRAINT valid_name CHECK(name != '')
@@ -36,7 +37,8 @@ CREATE TABLE Users (
 );
 
 CREATE TABLE UserSessions (
-  id UUID NOT NULL PRIMARY KEY,
+  -- UUID
+  id BINARY(16) NOT NULL PRIMARY KEY,
   user_id INT8 UNSIGNED NOT NULL REFERENCES Users(id),
   created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_on TIMESTAMP NOT NULL DEFAULT '2038-01-19 03:14:07'
@@ -49,13 +51,13 @@ CREATE TABLE Servers (
   host VARCHAR(255) NOT NULL,
   port INT2 UNSIGNED NOT NULL,
   owner_id INT8 UNSIGNED NOT NULL REFERENCES Users(id),
-  -- all zeroes -> unauthorized
-  access_key UUID NOT NULL,
+  -- UUID; all zeroes -> unauthorized
+  access_key BINARY(16) NOT NULL,
   created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_seen_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT valid_name CHECK(name != ''),
   CONSTRAINT valid_host CHECK(host != ''),
-  UNIQUE (host, port)
+  CONSTRAINT unique_host_port UNIQUE (host, port)
 );
 
 CREATE TABLE Maps (
@@ -125,15 +127,15 @@ CREATE TABLE Records (
   filter_id INT2 UNSIGNED NOT NULL REFERENCES CourseFilters(id),
   -- bitflags, see `Styles` type in Rust
   styles INT4 UNSIGNED NOT NULL,
-  teleports INT2 UNSIGNED NOT NULL,
+  teleports INT4 UNSIGNED NOT NULL,
   -- seconds
   time FLOAT8 NOT NULL,
   -- total bhop count
-  bhops INT2 UNSIGNED NOT NULL,
+  bhops INT4 UNSIGNED NOT NULL,
   -- "perf" count (according to the mode)
-  perfs INT2 UNSIGNED NOT NULL,
+  perfs INT4 UNSIGNED NOT NULL,
   -- tick-perfect bhop count
-  perfect_perfs INT2 UNSIGNED NOT NULL,
+  perfect_perfs INT4 UNSIGNED NOT NULL,
   plugin_version_id INT2 UNSIGNED NOT NULL REFERENCES PluginVersions(id),
   created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -209,9 +211,9 @@ CREATE TABLE GameSessions (
   -- seconds
   time_afk INT2 UNSIGNED NOT NULL,
   -- total bhop count
-  bhops INT2 UNSIGNED NOT NULL,
+  bhops INT4 UNSIGNED NOT NULL,
   -- "perf" count (according to the mode)
-  perfs INT2 UNSIGNED NOT NULL,
+  perfs INT4 UNSIGNED NOT NULL,
   created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -224,9 +226,9 @@ CREATE TABLE CourseSessions (
   -- seconds
   playtime INT2 UNSIGNED NOT NULL,
   -- total bhop count
-  bhops INT2 UNSIGNED NOT NULL,
+  bhops INT4 UNSIGNED NOT NULL,
   -- "perf" count (according to the mode)
-  perfs INT2 UNSIGNED NOT NULL,
+  perfs INT4 UNSIGNED NOT NULL,
   started_runs INT2 UNSIGNED NOT NULL,
   finished_runs INT2 UNSIGNED NOT NULL,
   created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

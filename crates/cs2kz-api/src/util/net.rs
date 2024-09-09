@@ -1,6 +1,6 @@
-#![allow(clippy::disallowed_types)] // "use `crate::util::net::IpAddr` instead" :)
-
 use std::fmt;
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IpAddr(std::net::Ipv6Addr);
@@ -74,6 +74,26 @@ impl fmt::Display for IpAddr
 			None => fmt::Display::fmt(&self.as_ipv6(), f),
 			Some(ipv4) => fmt::Display::fmt(&ipv4, f),
 		}
+	}
+}
+
+impl Serialize for IpAddr
+{
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		std::net::IpAddr::from(*self).serialize(serializer)
+	}
+}
+
+impl<'de> Deserialize<'de> for IpAddr
+{
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		std::net::IpAddr::deserialize(deserializer).map(Self::from)
 	}
 }
 

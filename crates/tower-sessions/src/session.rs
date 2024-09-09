@@ -1,21 +1,50 @@
 use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 
+use crate::SessionStore;
+
 /// A session.
-#[derive(Clone)]
-pub struct Session<ID, Data>
+#[derive(Debug)]
+pub struct Session<S>
+where
+	S: SessionStore + ?Sized,
 {
 	/// The session ID.
-	id: ID,
+	id: S::ID,
 
 	/// The session data.
-	data: Data,
+	data: S::Data,
 
 	/// The state of the session.
 	state: State,
 
 	/// Whether the session was invalidated.
 	invalidated: Arc<AtomicBool>,
+}
+
+impl<S> Clone for Session<S>
+where
+	S: SessionStore + ?Sized,
+	S::ID: Clone,
+	S::Data: Clone,
+{
+	fn clone(&self) -> Self
+	{
+		Self {
+			id: self.id.clone(),
+			data: self.data.clone(),
+			state: self.state,
+			invalidated: Arc::clone(&self.invalidated),
+		}
+	}
+
+	fn clone_from(&mut self, source: &Self)
+	{
+		self.id.clone_from(&source.id);
+		self.data.clone_from(&source.data);
+		self.state = source.state;
+		self.invalidated.clone_from(&source.invalidated);
+	}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
@@ -26,10 +55,12 @@ enum State
 	Authorized,
 }
 
-impl<ID, Data> Session<ID, Data>
+impl<S> Session<S>
+where
+	S: SessionStore + ?Sized,
 {
 	/// Creates a new [`Session`].
-	pub(crate) fn new(id: ID, data: Data) -> Self
+	pub(crate) fn new(id: S::ID, data: S::Data) -> Self
 	{
 		Self {
 			id,
@@ -40,13 +71,13 @@ impl<ID, Data> Session<ID, Data>
 	}
 
 	/// Returns the session ID.
-	pub fn id(&self) -> &ID
+	pub fn id(&self) -> &S::ID
 	{
 		&self.id
 	}
 
 	/// Returns the session data.
-	pub fn data(&self) -> &Data
+	pub fn data(&self) -> &S::Data
 	{
 		&self.data
 	}
