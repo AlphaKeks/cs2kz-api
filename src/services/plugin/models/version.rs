@@ -9,13 +9,27 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// A CS2KZ plugin version.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, utoipa::ToSchema)]
 #[schema(value_type = str, example = "0.0.1")]
-pub struct PluginVersion(pub semver::Version);
+pub struct PluginVersion(Repr);
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum Repr
+{
+	SemVer(semver::Version),
+
+	#[cfg(not(feature = "production"))]
+	Dev,
+}
 
 impl fmt::Display for PluginVersion
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
 	{
-		fmt::Display::fmt(&self.0, f)
+		match &self.0 {
+			Repr::SemVer(version) => fmt::Display::fmt(version, f),
+
+			#[cfg(not(feature = "production"))]
+			Repr::Dev => f.pad("dev"),
+		}
 	}
 }
 
@@ -25,7 +39,14 @@ impl FromStr for PluginVersion
 
 	fn from_str(s: &str) -> Result<Self, Self::Err>
 	{
-		s.parse().map(Self)
+		#[cfg(not(feature = "production"))]
+		{
+			if s == "dev" {
+				return Ok(Self(Repr::Dev));
+			}
+		}
+
+		s.parse().map(Repr::SemVer).map(Self)
 	}
 }
 
@@ -35,7 +56,12 @@ impl Serialize for PluginVersion
 	where
 		S: Serializer,
 	{
-		self.0.serialize(serializer)
+		match &self.0 {
+			Repr::SemVer(version) => version.serialize(serializer),
+
+			#[cfg(not(feature = "production"))]
+			Repr::Dev => "dev".serialize(serializer),
+		}
 	}
 }
 
@@ -47,11 +73,19 @@ impl<'de> Deserialize<'de> for PluginVersion
 	{
 		let mut s = &*String::deserialize(deserializer)?;
 
+		#[cfg(not(feature = "production"))]
+		{
+			if s == "dev" {
+				return Ok(Self(Repr::Dev));
+			}
+		}
+
 		if s.starts_with('v') {
 			s = &s[1..];
 		}
 
 		s.parse::<semver::Version>()
+			.map(Repr::SemVer)
 			.map(Self)
 			.map_err(serde::de::Error::custom)
 	}
@@ -59,5 +93,14 @@ impl<'de> Deserialize<'de> for PluginVersion
 
 crate::macros::sqlx_scalar_forward!(PluginVersion as String => {
 	encode: |self| { self.to_string() },
-	decode: |value| { value.parse::<semver::Version>().map(Self)? },
+	decode: |value| {
+		#[cfg(not(feature = "production"))]
+		{
+			if value == "dev" {
+				return Ok(Self(Repr::Dev));
+			}
+		}
+
+		value.parse::<semver::Version>().map(Repr::SemVer).map(Self)?
+	},
 });

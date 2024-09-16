@@ -42,6 +42,10 @@ workspace = true
 version = "1.38"
 features = ["macros", "rt-multi-thread", "signal", "process"]
 
+[dependencies.tokio-util]
+version = "0.7"
+features = ["rt"]
+
 [dependencies.futures]
 version = "0.3"
 default-features = false
@@ -67,7 +71,7 @@ optional = true
 [dependencies.axum]
 version = "0.7"
 default-features = false
-features = ["macros", "http1", "http2", "tokio", "json"]
+features = ["macros", "http1", "http2", "tokio", "json", "ws"]
 
 [dependencies.axum-extra]
 version = "0.9"

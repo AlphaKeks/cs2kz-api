@@ -123,7 +123,7 @@ pub struct FetchPlayerPreferencesRequest
 pub struct FetchPlayerPreferencesResponse
 {
 	/// The player's preferences.
-	pub preferences: serde_json::Value,
+	pub preferences: serde_json::Map<String, serde_json::Value>,
 }
 
 impl IntoResponse for FetchPlayerPreferencesResponse

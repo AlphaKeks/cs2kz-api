@@ -1,5 +1,4 @@
 #![doc = include_str!("../README.md")]
-#![expect(clippy::blocks_in_conditions, reason = "`#[tracing::instrument] bug, see #2912")]
 
 /*
  * CS2KZ API - the core infrastructure for CS2KZ.
@@ -63,7 +62,10 @@ pub async fn server(
 	http_config: runtime::config::HttpConfig,
 	secrets: runtime::config::Secrets,
 	steam_config: runtime::config::SteamConfig,
-) -> Result<Server, setup::Error>
+) -> Result<
+	(Server, tokio_util::sync::CancellationToken, tokio_util::task::TaskTracker),
+	setup::Error,
+>
 {
 	use self::services::{
 		AdminService,
@@ -83,6 +85,8 @@ pub async fn server(
 
 	let http_client = reqwest::Client::new();
 	let database = database::create_pool(&database_config).await?;
+	let cancellation_token = tokio_util::sync::CancellationToken::new();
+	let task_tracker = tokio_util::task::TaskTracker::new();
 
 	let steam_svc = SteamService::new(
 		http_config.public_url,
@@ -103,7 +107,14 @@ pub async fn server(
 	let health_svc = HealthService::new();
 	let player_svc = PlayerService::new(database.clone(), auth_svc.clone(), steam_svc.clone());
 	let map_svc = MapService::new(database.clone(), auth_svc.clone(), steam_svc.clone());
-	let server_svc = ServerService::new(database.clone(), auth_svc.clone());
+	let server_svc = ServerService::new(
+		database.clone(),
+		auth_svc.clone(),
+		map_svc.clone(),
+		player_svc.clone(),
+		cancellation_token.child_token(),
+		task_tracker.clone(),
+	);
 	let record_svc = RecordService::new(database.clone(), auth_svc.clone());
 	let jumpstat_svc = JumpstatService::new(database.clone(), auth_svc.clone());
 	let ban_svc = BanService::new(database.clone(), auth_svc.clone());
@@ -131,5 +142,5 @@ pub async fn server(
 		.merge(docs)
 		.into_make_service_with_connect_info::<std::net::SocketAddr>();
 
-	Ok(server)
+	Ok((server, cancellation_token, task_tracker))
 }

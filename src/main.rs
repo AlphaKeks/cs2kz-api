@@ -94,7 +94,7 @@ async fn serve(config: cs2kz_api::runtime::Config) -> color_eyre::Result<()>
 		.await
 		.context("bind tcp listener")?;
 
-	let server = cs2kz_api::server(
+	let (server, cancellation_token, task_tracker) = cs2kz_api::server(
 		config.runtime,
 		config.database,
 		config.http,
@@ -109,7 +109,13 @@ async fn serve(config: cs2kz_api::runtime::Config) -> color_eyre::Result<()>
 	axum::serve(tcp_listener, server)
 		.with_graceful_shutdown(cs2kz_api::runtime::signals::sigint())
 		.await
-		.context("run axum")
+		.context("run axum")?;
+
+	cancellation_token.cancel();
+	task_tracker.close();
+	task_tracker.wait().await;
+
+	Ok(())
 }
 
 /// Generates the API's OpenAPI schema and either writes it to stdout, or diffs

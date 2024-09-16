@@ -153,7 +153,12 @@ impl PlayerService
 		.bind(req.identifier.as_name().map(|name| format!("%{name}%")))
 		.fetch_optional(&self.database)
 		.await?
-		.map(|preferences| FetchPlayerPreferencesResponse { preferences });
+		.map(|json| match json {
+			serde_json::Value::Object(preferences) => {
+				FetchPlayerPreferencesResponse { preferences }
+			}
+			_ => unreachable!("we only store objects"),
+		});
 
 		Ok(res)
 	}

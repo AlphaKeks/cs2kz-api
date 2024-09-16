@@ -6,14 +6,17 @@ use std::time::Duration;
 use axum::extract::FromRef;
 use sqlx::{MySql, Pool, Row};
 use tap::Pipe;
+use tokio_util::sync::CancellationToken;
+use tokio_util::task::task_tracker::TaskTracker;
 
 use crate::database::{SqlErrorExt, TransactionExt};
 use crate::services::auth::{jwt, Jwt};
 use crate::services::plugin::PluginVersionID;
-use crate::services::AuthService;
+use crate::services::{AuthService, MapService, PlayerService};
 use crate::time::DurationExt;
 
 pub(crate) mod http;
+mod websocket;
 mod queries;
 
 mod error;
@@ -49,6 +52,10 @@ pub struct ServerService
 {
 	database: Pool<MySql>,
 	auth_svc: AuthService,
+	map_svc: MapService,
+	player_svc: PlayerService,
+	websocket_cancellation_token: CancellationToken,
+	websocket_task_tracker: TaskTracker,
 }
 
 impl fmt::Debug for ServerService
@@ -63,9 +70,23 @@ impl ServerService
 {
 	/// Create a new [`ServerService`].
 	#[tracing::instrument]
-	pub fn new(database: Pool<MySql>, auth_svc: AuthService) -> Self
+	pub fn new(
+		database: Pool<MySql>,
+		auth_svc: AuthService,
+		map_svc: MapService,
+		player_svc: PlayerService,
+		websocket_cancellation_token: CancellationToken,
+		websocket_task_tracker: TaskTracker,
+	) -> Self
 	{
-		Self { database, auth_svc }
+		Self {
+			database,
+			auth_svc,
+			map_svc,
+			player_svc,
+			websocket_cancellation_token,
+			websocket_task_tracker,
+		}
 	}
 
 	/// Fetch information about a server.

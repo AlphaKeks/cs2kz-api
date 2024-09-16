@@ -1,10 +1,14 @@
 //! API keys for CS2 servers.
 
 use std::fmt;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use uuid::fmt::Hyphenated;
 use uuid::Uuid;
+
+use crate::http::problem_details::{IntoProblemDetails, ProblemType};
 
 /// An API key for CS2 servers.
 #[derive(PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
@@ -33,6 +37,28 @@ impl fmt::Display for ApiKey
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
 	{
 		write!(f, "{}", self.0.as_hyphenated())
+	}
+}
+
+impl FromStr for ApiKey
+{
+	type Err = ParseApiKeyError;
+
+	fn from_str(value: &str) -> Result<Self, Self::Err>
+	{
+		value.parse::<Uuid>().map(Self).map_err(ParseApiKeyError)
+	}
+}
+
+#[derive(Debug, Error)]
+#[error("failed to parse api key: {0}")]
+pub struct ParseApiKeyError(#[from] uuid::Error);
+
+impl IntoProblemDetails for ParseApiKeyError
+{
+	fn problem_type(&self) -> ProblemType
+	{
+		ProblemType::Unauthorized
 	}
 }
 
