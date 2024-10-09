@@ -1,0 +1,44 @@
+# This crate is part of the cs2kz-api project.
+#
+# Copyright (C) 2024  AlphaKeks <alphakeks@dawn>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see https://www.gnu.org/licenses.
+
+[package]
+name = "problem-details"
+version = "0.0.0"
+readme = "./README.md"
+authors = ["AlphaKeks <alphakeks@dawn.sh>"]
+edition = "2021"
+documentation = "https://docs.cs2kz.org/cs2kz-rs"
+homepage = "https://cs2kz.org"
+repository = "https://github.com/KZGlobalTeam/cs2kz-api"
+license = "GPL-3.0"
+
+[features]
+axum = ["dep:axum-core"]
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1.0"
+
+[dependencies.http]
+version = "1.0"
+
+[dependencies.axum-core]
+version = "0.5.0-alpha.1"
+optional = true

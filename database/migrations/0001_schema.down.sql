@@ -1,41 +1,23 @@
-DROP TABLE IF EXISTS `LoginSessions`;
-
-DROP TABLE IF EXISTS `CourseSessions`;
-
-DROP TABLE IF EXISTS `GameSessions`;
-
-DROP TABLE IF EXISTS `Unbans`;
-
-DROP TABLE IF EXISTS `Bans`;
-
-DROP TABLE IF EXISTS `WipedRecords`;
-
-DROP TABLE IF EXISTS `CheatedRecords`;
-
-DROP TABLE IF EXISTS `SuspiciousRecords`;
-
-DROP TABLE IF EXISTS `Records`;
-
-DROP TABLE IF EXISTS `CheatedJumpstats`;
-
-DROP TABLE IF EXISTS `SuspiciousJumpstats`;
-
-DROP TABLE IF EXISTS `Jumpstats`;
-
-DROP TABLE IF EXISTS `Servers`;
-
-DROP TABLE IF EXISTS `CourseFilters`;
-
-DROP TABLE IF EXISTS `CourseMappers`;
-
-DROP TABLE IF EXISTS `Courses`;
-
-DROP TABLE IF EXISTS `Mappers`;
-
-DROP TABLE IF EXISTS `Maps`;
-
-DROP TABLE IF EXISTS `Players`;
-
-DROP TABLE IF EXISTS `Credentials`;
-
-DROP TABLE IF EXISTS `PluginVersions`;
+DROP TABLE CourseSessions;
+DROP TABLE GameSessions;
+DROP TABLE Jumpstats_Hidden;
+DROP TABLE Jumpstats_Cheated;
+DROP TABLE Jumpstats_Suspicious;
+DROP TABLE Jumpstats;
+DROP TABLE Records_Hidden;
+DROP TABLE Records_Cheated;
+DROP TABLE Records_Suspicious;
+DROP TABLE Records;
+DROP TABLE CourseFilters;
+DROP TABLE CourseMappers;
+DROP TABLE Courses;
+DROP TABLE Mappers;
+DROP TABLE Maps;
+DROP TABLE Unbans;
+DROP TABLE Bans;
+DROP TABLE Servers;
+DROP TABLE Players;
+DROP TABLE PluginVersions;
+DROP TABLE Credentials;
+DROP TABLE UserSessions;
+DROP TABLE Users;
