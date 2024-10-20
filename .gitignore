@@ -1,15 +1,14 @@
-# build artifacts
-target
-
-# persistent data
-docker
-logs
-workshop
-
 # environment variables
 .env
-.env.docker
+.env.*
+!.env.example
 
-# nix
+# cargo artifacts
+target
+
+# nix artifacts
 .direnv
 result
+
+# config files
+cs2kz-api.toml

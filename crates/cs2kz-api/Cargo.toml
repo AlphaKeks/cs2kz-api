@@ -1,0 +1,157 @@
+# This crate is part of the cs2kz-api project.
+#
+# Copyright (C) 2024  AlphaKeks <alphakeks@dawn>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see https://www.gnu.org/licenses.
+
+[package]
+name = "cs2kz-api"
+version = "0.0.0"
+readme = "./README.md"
+authors = ["AlphaKeks <alphakeks@dawn.sh>"]
+edition = "2021"
+documentation = "https://docs.cs2kz.org/cs2kz-rs"
+homepage = "https://cs2kz.org"
+repository = "https://github.com/KZGlobalTeam/cs2kz-api"
+license = "GPL-3.0"
+
+[features]
+production = []
+
+[dependencies.thiserror]
+workspace = true
+
+[dependencies.cs2kz]
+workspace = true
+
+[dependencies.tokio]
+workspace = true
+
+[dependencies.futures]
+workspace = true
+
+[dependencies.tracing]
+workspace = true
+
+[dependencies.time]
+workspace = true
+
+[dependencies.serde]
+workspace = true
+
+[dependencies.serde_json]
+workspace = true
+
+[dependencies.toml]
+version = "0.8"
+default-features = false
+features = ["parse"]
+
+[dependencies.uuid]
+workspace = true
+
+[dependencies.semver]
+workspace = true
+
+[dependencies.derive_more]
+workspace = true
+
+[dependencies.bytes]
+version = "1.0"
+
+[dependencies.http]
+version = "1.0"
+
+[dependencies.mime]
+version = "0.3"
+
+[dependencies.cookie]
+version = "0.18"
+
+[dependencies.problem-details]
+path = "../problem-details"
+features = ["axum"]
+
+[dependencies.url]
+version = "2.5"
+features = ["serde"]
+
+[dependencies.email_address]
+version = "0.2.9"
+features = ["serde"]
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+default-features = false
+features = ["ansi", "env-filter"]
+
+[dependencies.sqlx]
+version = "0.8.2"
+default-features = false
+features = [
+  "macros",
+  "migrate",
+  "runtime-tokio",
+  "tls-rustls",
+  "mysql",
+  "time",
+  "uuid",
+  "json",
+]
+
+[dependencies.tower]
+version = "0.5"
+
+[dependencies.tower-http]
+version = "0.6"
+features = ["catch-panic", "trace", "request-id"]
+
+[dependencies.axum]
+version = "0.8.0-alpha.1"
+default-features = false
+features = ["tokio", "macros", "http1", "http2", "json", "ws"]
+
+[dependencies.axum-extra]
+version = "0.10.0-alpha.1"
+default-features = false
+features = ["query", "cookie"]
+
+[dependencies.utoipa]
+version = "5.0"
+features = [
+  "axum_extras",
+  "time",
+  "uuid",
+  "url",
+  "preserve_order",
+  "non_strict_integers",
+]
+
+[dependencies.utoipa-swagger-ui]
+version = "8.0"
+features = ["axum", "url", "vendored"]
+
+[dependencies.clap]
+version = "4.5"
+features = ["derive"]
+
+[dev-dependencies.ctor]
+version = "0.2"
+
+[dev-dependencies.cs2kz]
+path = "../cs2kz"
+features = ["rand"]
+
+[dev-dependencies.rand]
+version = "0.8"

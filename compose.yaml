@@ -1,0 +1,53 @@
+# CS2KZ API
+#
+# Copyright (C) 2024  AlphaKeks <alphakeks@dawn>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see https://www.gnu.org/licenses.
+
+name: cs2kz-api
+
+services:
+  backend:
+    image: cs2kz-api:latest
+    restart: unless-stopped
+    build: ./docker/cs2kz-api.Dockerfile
+    configs:
+      - api-config
+    depends_on:
+      - database
+    env_file:
+      - path: ./.env
+        required: true
+    network_mode: host
+    ports:
+      - "${KZ_API_PORT:-7480}"
+    volumes:
+      - ./data/logs:/var/log/cs2kz-api
+      - ./data/workshop:/var/lib/cs2kz-api/workshop
+
+  database:
+    image: mariadb:11.5
+    environment:
+      MARIADB_USER: schnose
+      MARIADB_PASSWORD: csgo-kz-is-dead-boys
+      MARIADB_DATABASE: cs2kz
+      MARIADB_ROOT_PASSWORD: csgo-kz-is-dead-boys
+    ports:
+      - "${KZ_DATABASE_PORT:?}:3306"
+    volumes:
+      - ./database/volumes/cs2kz:/var/lib/mysql
+
+configs:
+  api-config:
+    file: ./.config/cs2kz-api.toml

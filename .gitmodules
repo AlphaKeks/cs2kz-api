@@ -1,0 +1,3 @@
+[submodule "vendor/utoipa"]
+	path = vendor/utoipa
+	url = https://github.com/juhaku/utoipa

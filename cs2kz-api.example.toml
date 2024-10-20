@@ -1,0 +1,94 @@
+### This is an example configuration file.
+###
+### The API requires a configuration file to be present, even if it is empty!
+### The default location will be `./cs2kz-api.toml` relative to the repository root, but a custom path can be specified
+### using the `--config` flag.
+
+## Configuration for the async runtime (Tokio).
+##
+## All of these correspond directly to method names on `tokio::runtime::Builder`.
+## Please refer to its documentation for details.
+[runtime]
+
+# The number of worker threads to spawn.
+#
+# If this option is omitted or `0`, Tokio will choose the amount.
+worker-threads = 0
+
+# The maximum number of threads to spawn in the blocking pool.
+#
+# If this option is omitted or `0`, Tokio will choose the amount.
+max-blocking-threads = 0
+
+## Configuration for the database connection.
+##
+## We use MariaDB as our database of choice, and a service for it is provided in the `compose.yaml` file in the
+## repository root.
+[database]
+
+# The URL we should connect to.
+#
+# This option may be omitted as long as the `DATABASE_URL` environment variable is set.
+# However, if this option is set, it takes precedence.
+url = "mysql://schnose:csgo-kz-is-dead-boys@localhost:8070/cs2kz"
+
+# The minimum number of connections to open immediately.
+#
+# If this option is omitted or `0`, no connections will be opened immediately.
+min-connections = 0
+
+# The maximum number of connections to open at any given point.
+#
+# If this option is omitted, 1 connection per available CPU core will be used as the limit.
+max-connections = 4
+
+## Configuration for the HTTP server.
+[http]
+
+# The address and port we should listen on.
+# This is a `host:port` combination. `host` can be any IP address (both IPv4 and IPv6 are supported).
+#
+# If this option is omitted, `127.0.0.1:42069` is used.
+listen-addr = "127.0.0.1:42069"
+
+# The public URL at which other services can reach this API instance.
+#
+# If this option is omitted, `https://api.cs2kz.org` is used.
+public-url = "https://api.cs2kz.org"
+
+## Configuration for HTTP cookies sent to clients.
+##
+## These options correspond directly to attributes of the `Set-Cookie` header:
+## <https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#attributes>
+[http.cookies]
+
+# The value to use for the `Domain` attribute.
+domain = ".cs2kz.org"
+
+# The value to use for the `Max-Age` attribute.
+#
+# If this option is omitted, `1209600` (2 weeks) is used.
+max-age = 1209600
+
+## Configuration for the logging infrastructure.
+[tracing]
+
+# Whether to enable logging.
+#
+# If this option is omitted, `true` is used.
+enable = true
+
+# Whether to include HTTP headers in request logs.
+#
+# If this option is omitted, `false` is used.
+include-http-headers = false
+
+## Configuration related to Steam.
+[steam]
+
+# The Steam WebAPI Key to use.
+#
+# You can get one here: https://steamcommunity.com/dev/apikey
+#
+# If this option is omitted or an empty string, requests to Steam that require authentication will fail at runtime.
+api-key = ""
