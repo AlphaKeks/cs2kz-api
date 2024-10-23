@@ -1,11 +1,20 @@
-max-fn-params-bools = 1
 check-private-items = true
+max-fn-params-bools = 1
+single-char-binding-names-threshold = 0
 
 disallowed-types = [
-  { path = "std::net::IpAddr", reason = "use `crate::net::IpAddr` instead" },
-  { path = "std::net::Ipv4Addr", reason = "use `crate::net::IpAddr` instead" },
-  { path = "std::net::Ipv6Addr", reason = "use `crate::net::IpAddr` instead" },
-  { path = "axum::extract::Path", reason = "use `crate::http::extract::Path` instead" },
-  { path = "axum::extract::Query", reason = "use `crate::http::extract::Query` instead" },
-  { path = "axum::Json", reason = "use `crate::http::extract::Json` instead" },
+  # { path = "…", reason = "…" }
+]
+
+standard-macro-braces = [
+  { name = "join", brace = "[" },
+  { name = "tokio::join", brace = "[" },
+  { name = "try_join", brace = "[" },
+  { name = "tokio::try_join", brace = "[" },
+  { name = "query", brace = "(" },
+  { name = "sqlx::query", brace = "(" },
+  { name = "query_as", brace = "(" },
+  { name = "sqlx::query_as", brace = "(" },
+  { name = "query_scalar", brace = "(" },
+  { name = "sqlx::query_scalar", brace = "(" },
 ]

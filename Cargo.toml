@@ -1,261 +1,206 @@
-[package]
-name = "cs2kz-api"
-version = "0.0.0"
+# CS2KZ API
+#
+# Copyright (C) 2024  AlphaKeks <alphakeks@dawn>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see https://www.gnu.org/licenses.
+
+[workspace]
+resolver = "2"
+default-members = ["crates/cs2kz-api"]
+members = [
+  "crates/cs2kz",
+  "crates/cs2kz-api-common",
+  "crates/cs2kz-api-database",
+  "crates/cs2kz-api",
+  "crates/cs2kz-api-server",
+  "crates/cs2kz-api-cli",
+]
+
+[workspace.package]
 authors = ["AlphaKeks <alphakeks@dawn.sh>"]
 edition = "2021"
-readme = "./README.md"
+rust-version = "1.82"
+documentation = "https://docs.cs2kz.org/api"
 homepage = "https://cs2kz.org"
 repository = "https://github.com/KZGlobalTeam/cs2kz-api"
 license = "GPL-3.0"
 
-[features]
-production = []
-console = ["tokio/tracing", "dep:console-subscriber"]
+[workspace.dependencies]
 
-[lints]
-workspace = true
-
-[dependencies.cs2kz]
-path = "./lib/cs2kz"
-features = ["serde", "sqlx", "utoipa"]
-
-[dependencies.cs2kz-api-macros]
-path = "./lib/macros"
-
-[dependencies.thiserror]
-workspace = true
-
-[dependencies.color-eyre]
-workspace = true
-
-[dependencies.clap]
-version = "4.5"
-features = ["derive", "env"]
-
-[dependencies.similar]
-version = "2.6"
-
-[dependencies.dotenvy]
-workspace = true
-
-[dependencies.tokio]
-version = "1.38"
-features = ["macros", "rt-multi-thread", "signal", "process"]
-
-[dependencies.futures]
-version = "0.3"
-default-features = false
-
-[dependencies.tracing]
-version = "0.1"
-
-[dependencies.tracing-subscriber]
-version = "0.3"
-default-features = false
-features = ["ansi", "env-filter"]
-
-[dependencies.tracing-appender]
-version = "0.2"
-
-[dependencies.tracing-journald]
-version = "0.3"
-
-[dependencies.console-subscriber]
-version = "0.4"
-optional = true
-
-[dependencies.axum]
-version = "0.7.7"
-default-features = false
-features = ["macros", "http1", "http2", "tokio", "json"]
-
-[dependencies.axum-extra]
-version = "0.9"
-default-features = false
-features = ["query", "typed-header", "cookie"]
-
-[dependencies.http]
-version = "1.0"
-
-[dependencies.tower]
-version = "0.5"
-features = ["util", "make"]
-
-[dependencies.tower-http]
-version = "0.5"
-features = ["trace", "catch-panic", "cors"]
-
-[dependencies.pin-project]
-version = "1"
-
-[dependencies.reqwest]
-version = "0.12"
-default-features = false
-features = ["rustls-tls", "json"]
-
-[dependencies.sqlx]
-version = "0.8"
-default-features = false
-features = [
-  "macros",
-  "runtime-tokio-rustls",
-  "mysql",
-  "migrate",
-  "uuid",
-  "time",
-  "json",
-]
-
-[dependencies.utoipa]
-version = "4.2"
-features = [
-  "auto_into_responses",
-  "axum_extras",
-  "time",
-  "non_strict_integers",
-  "preserve_order",
-  "preserve_path_order",
-  "url",
-  "uuid",
-]
-
-[dependencies.utoipa-swagger-ui]
-version = "7.1"
-features = ["axum", "vendored"]
-
-[dependencies.utoipauto]
-version = "0.1"
-
-[dependencies.serde]
-version = "1"
-features = ["derive"]
-
-[dependencies.serde_json]
-version = "1"
-
-[dependencies.toml]
-version = "0.8"
-default-features = false
-features = ["parse"]
-
-[dependencies.serde_urlencoded]
-version = "0.7"
-
-[dependencies.jsonwebtoken]
-version = "9.3"
-
-[dependencies.time]
-version = "0.3"
-features = ["serde-human-readable"]
-
-[dependencies.url]
-version = "2.5"
-features = ["serde"]
-
-[dependencies.uuid]
-version = "1.10"
-features = ["v4", "v7", "serde"]
-
-[dependencies.md5]
-version = "0.7"
-
-[dependencies.hex]
-version = "0.4"
-features = ["serde"]
-
-[dependencies.semver]
-version = "1.0"
-features = ["serde"]
-
-[dependencies.mime]
-version = "0.3"
-
-[dependencies.itertools]
-version = "0.13"
-
-[dependencies.tap]
-version = "1.0"
-
-[dependencies.sealed]
-version = "0.6"
-
-[dev-dependencies.ctor]
-version = "0.2"
-
-[dev-dependencies.fake]
-version = "2.9"
-features = ["derive", "time"]
-
-[dev-dependencies.rand]
-version = "0.8"
-
-[workspace]
-members = ["lib/cs2kz", "lib/macros"]
-
-# See https://doc.rust-lang.org/rustc/lints/listing/index.html
+# https://doc.rust-lang.org/rustc/lints/listing/index.html
 [workspace.lints.rust]
-elided_lifetimes_in_paths = "warn"
+ambiguous_negative_literals = "warn"
+deprecated_safe_2024 = "deny"
+elided_lifetimes_in_paths = "deny"
 explicit_outlives_requirements = "warn"
+impl_trait_overcaptures = "warn"
 keyword_idents_2024 = "warn"
-let_underscore_drop = "warn"
+let_underscore_drop = "deny"
+missing_copy_implementations = "warn"
+missing_debug_implementations = "warn"
 missing_docs = "warn"
 non_ascii_idents = "deny"
+redundant_imports = "warn"
 redundant_lifetimes = "warn"
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(tokio_unstable)"] }
+single_use_lifetimes = "warn"
 unit_bindings = "warn"
 unsafe_op_in_unsafe_fn = "forbid"
+unused_crate_dependencies = "warn"
+unused_import_braces = "warn"
 unused_lifetimes = "warn"
+unused_qualifications = "warn"
 
-# See https://doc.rust-lang.org/rustdoc/lints.html
-[workspace.lints.rustdoc]
-broken_intra_doc_links = "deny"
-
-# See https://rust-lang.github.io/rust-clippy/stable/index.html
+# https://rust-lang.github.io/rust-clippy/rust-1.82.0/index.html
 [workspace.lints.clippy]
-bool_to_int_with_if = "warn"
+allow_attributes_without_reason = "deny"
+as_conversions = "deny"
+as_underscore = "deny"
+assigning_clones = "deny"
+bool_to_int_with_if = "deny"
 branches_sharing_code = "warn"
 builtin_type_shadow = "deny"
-clone_on_ref_ptr = "warn"
+cast_lossless = "deny"
+cast_possible_wrap = "deny"
+cast_precision_loss = "deny"
+cast_sign_loss = "deny"
+checked_conversions = "deny"
+clear_with_drain = "warn"
+clone_on_ref_ptr = "deny"
 cloned_instead_of_copied = "warn"
+cognitive_complexity = "warn"
+collection_is_never_read = "warn"
+copy_iterator = "deny"
+create_dir = "warn"
 dbg_macro = "warn"
+doc_link_with_quotes = "warn"
+doc_markdown = "warn"
+else_if_without_else = "deny"
+empty_drop = "deny"
+empty_enum_variants_with_brackets = "deny"
+empty_line_after_doc_comments = "deny"
+empty_loop = "deny"
+empty_structs_with_brackets = "deny"
 enum_glob_use = "deny"
-filter_map_next = "warn"
-flat_map_option = "warn"
-fn_params_excessive_bools = "warn"
+exit = "deny"
+expl_impl_clone_on_copy = "deny"
+explicit_auto_deref = "allow"
+explicit_deref_methods = "deny"
+explicit_into_iter_loop = "deny"
+explicit_iter_loop = "deny"
+filetype_is_file = "warn"
+filter_map_next = "deny"
+flat_map_option = "deny"
+fn_params_excessive_bools = "deny"
+format_push_string = "deny"
+from_over_into = "deny"
 future_not_send = "warn"
 if_not_else = "warn"
-ignored_unit_patterns = "warn"
-inconsistent_struct_constructor = "deny"
+if_then_some_else_none = "warn"
+ignored_unit_patterns = "deny"
+implicit_hasher = "warn"
+index_refutable_slice = "warn"
+indexing_slicing = "warn"
+inefficient_to_string = "warn"
+infinite_loop = "deny"
+inherent_to_string = "deny"
+init_numbered_fields = "deny"
+into_iter_without_iter = "warn"
+items_after_statements = "deny"
+items_after_test_module = "deny"
+iter_filter_is_ok = "deny"
+iter_filter_is_some = "deny"
+iter_not_returning_iterator = "warn"
+iter_on_empty_collections = "warn"
+iter_on_single_items = "warn"
+iter_with_drain = "warn"
+iter_without_into_iter = "warn"
 manual_assert = "warn"
 manual_instant_elapsed = "warn"
 manual_is_variant_and = "warn"
 manual_let_else = "warn"
 manual_ok_or = "warn"
-manual_string_new = "deny"
+manual_string_new = "warn"
 many_single_char_names = "deny"
-map_unwrap_or = "warn"
+map_err_ignore = "warn"
+match_same_arms = "warn"
+match_wild_err_arm = "warn"
+match_wildcard_for_single_variants = "warn"
+mismatching_type_param_order = "deny"
 missing_assert_message = "deny"
+missing_const_for_fn = "warn"
 missing_docs_in_private_items = "warn"
-missing_safety_doc = "deny"
+missing_safety_doc = "forbid"
+mixed_read_write_in_expression = "warn"
+multiple_unsafe_ops_per_block = "warn"
+mutex_atomic = "warn"
+mutex_integer = "warn"
+needless_bitwise_bool = "deny"
 needless_collect = "warn"
-needless_continue = "warn"
 needless_for_each = "warn"
-new_without_default = "allow"
-redundant_closure = "allow"
+needless_return = "deny"
+nonstandard_macro_braces = "warn"
+or_fun_call = "warn"
+path_buf_push_overwrite = "warn"
+pathbuf_init_then_push = "warn"
+pattern_type_mismatch = "warn"
+print_stderr = "warn"
+print_stdout = "warn"
+ptr_as_ptr = "warn"
+ptr_cast_constness = "warn"
+rc_buffer = "warn"
+read_zero_byte_vec = "warn"
+redundant_closure_for_method_calls = "warn"
 redundant_else = "warn"
+redundant_type_annotations = "warn"
+ref_as_ptr = "warn"
+ref_option_ref = "warn"
+renamed_function_params = "warn"
+rest_pat_in_fully_bound_structs = "warn"
 same_name_method = "warn"
+self_named_module_files = "deny"
+semicolon_inside_block = "deny"
+significant_drop_in_scrutinee = "warn"
+significant_drop_tightening = "warn"
+single_char_pattern = "warn"
+single_match_else = "deny"
+str_split_at_newline = "warn"
+str_to_string = "deny"
+string_add = "deny"
+string_add_assign = "deny"
+string_lit_as_bytes = "warn"
+string_lit_chars_any = "deny"
+string_slice = "deny"
+string_to_string = "deny"
+tests_outside_test_module = "deny"
 todo = "warn"
-unimplemented = "deny"
+trait_duplication_in_bounds = "warn"
+try_err = "deny"
+undocumented_unsafe_blocks = "forbid"
+unimplemented = "warn"
+uninlined_format_args = "warn"
 unnecessary_safety_comment = "warn"
 unnecessary_safety_doc = "warn"
-upper_case_acronyms = "allow"
+unnecessary_self_imports = "warn"
+unneeded_field_pattern = "warn"
+unnested_or_patterns = "warn"
+unseparated_literal_suffix = "deny"
+unused_async = "warn"
+unused_self = "warn"
+unwrap_used = "deny"
+use_self = "warn"
+useless_let_if_seq = "warn"
+verbose_file_reads = "warn"
+wildcard_dependencies = "deny"
+wildcard_enum_match_arm = "warn"
 wildcard_imports = "deny"
-
-[workspace.dependencies.thiserror]
-version = "1.0"
-
-[workspace.dependencies.color-eyre]
-version = "0.6"
-
-[workspace.dependencies.dotenvy]
-version = "0.15"
