@@ -26,5 +26,18 @@ homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 
+[dependencies.thiserror]
+version = "1"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+optional = true
+
+[dependencies.sqlx]
+version = "0.8"
+default-features = false
+optional = true
+
 [lints]
 workspace = true

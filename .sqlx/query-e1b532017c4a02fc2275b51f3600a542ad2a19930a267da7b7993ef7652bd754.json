@@ -1,0 +1,34 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT\n\t\t   u.id `user_id: UserID`,\n\t\t   u.permissions `user_permissions: Permissions`\n\t\t FROM UserSessions s\n\t\t JOIN Users u ON u.id = s.user_id\n\t\t WHERE s.id = ?\n\t\t AND s.expires_at > NOW()",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id: UserID",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_permissions: Permissions",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | UNSIGNED",
+          "max_size": 20
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "e1b532017c4a02fc2275b51f3600a542ad2a19930a267da7b7993ef7652bd754"
+}

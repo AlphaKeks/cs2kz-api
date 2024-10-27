@@ -71,7 +71,11 @@ pub struct ProblemDetails<T> {
 impl<T> ProblemDetails<T> {
 	/// Creates a new [`ProblemDetails`].
 	pub fn new(problem_type: T) -> Self {
-		Self { problem_type, detail: None, extension_members: Default::default() }
+		Self {
+			problem_type,
+			detail: None,
+			extension_members: Default::default(),
+		}
 	}
 
 	/// Adds [detail] describing this particular problem.
@@ -169,8 +173,10 @@ where
 
 		let mut serializer = serializer.serialize_map(Some(field_count))?;
 
-		serializer
-			.serialize_entry("type", &problem_type::SerializeProblemType(self.problem_type()))?;
+		serializer.serialize_entry(
+			"type",
+			&problem_type::SerializeProblemType(self.problem_type()),
+		)?;
 
 		if let Some(detail) = self.detail() {
 			serializer.serialize_entry("detail", detail)?;
@@ -192,7 +198,6 @@ where
 	where
 		D: Deserializer<'de>,
 	{
-		#[allow(clippy::missing_docs_in_private_items)]
 		#[derive(Debug, Deserialize)]
 		#[serde(bound(deserialize = "problem_type::DeserializeProblemType<T>: Deserialize<'de>"))]
 		struct Helper<T>

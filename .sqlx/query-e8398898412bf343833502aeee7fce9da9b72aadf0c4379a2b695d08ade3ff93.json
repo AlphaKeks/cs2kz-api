@@ -1,0 +1,34 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT\n\t\t   s.created_at `created_at: Timestamp`,\n\t\t   s.expires_at `expires_at: Timestamp`\n\t\t FROM UserSessions s\n\t\t JOIN Users u ON u.id = s.user_id\n\t\t WHERE s.id = ?\n\t\t AND s.expires_at > NOW()",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "created_at: Timestamp",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY | TIMESTAMP",
+          "max_size": 19
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "expires_at: Timestamp",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY | NO_DEFAULT_VALUE",
+          "max_size": 19
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "e8398898412bf343833502aeee7fce9da9b72aadf0c4379a2b695d08ade3ff93"
+}

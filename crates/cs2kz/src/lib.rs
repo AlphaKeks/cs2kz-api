@@ -19,3 +19,11 @@
 //! The "standard library" for CS2KZ-related crates.
 //!
 //! This crate contains core types used by most Rust code around CS2KZ.
+
+#![cfg_attr(test, allow(clippy::as_conversions))]
+
+#[macro_use(Error)]
+extern crate thiserror;
+
+pub mod steam_id;
+pub use steam_id::SteamID;

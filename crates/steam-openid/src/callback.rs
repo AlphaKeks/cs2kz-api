@@ -59,7 +59,7 @@ impl CallbackPayload {
 	///
 	/// [`realm`]: crate::LoginForm::realm
 	/// [`LoginForm::new()`]: crate::LoginForm::new()
-	#[allow(
+	#[expect(
 		clippy::future_not_send,
 		reason = "callers control `Send`ness, and we don't want to be opinionated"
 	)]
@@ -98,13 +98,19 @@ impl CallbackPayload {
 			.await
 			.map_err(VerifyCallbackPayloadError::HttpClient)?;
 
-		let response =
-			http_client.call(request).await.map_err(VerifyCallbackPayloadError::HttpClient)?;
+		let response = http_client
+			.call(request)
+			.await
+			.map_err(VerifyCallbackPayloadError::HttpClient)?;
 
 		let response_body = std::str::from_utf8(response.body().as_ref())
 			.expect("Steam always sends UTF-8 text here");
 
-		if response_body.lines().rfind(|&line| line == "is_valid:true").is_none() {
+		if response_body
+			.lines()
+			.rfind(|&line| line == "is_valid:true")
+			.is_none()
+		{
 			return Err(VerifyCallbackPayloadError::InvalidPayload);
 		}
 

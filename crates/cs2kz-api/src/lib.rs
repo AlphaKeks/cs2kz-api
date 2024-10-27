@@ -16,9 +16,37 @@
  * along with this program. If not, see https://www.gnu.org/licenses.
  */
 
-//! The core logic of the CS2KZ API.
-//!
-//! This crate contains types and functions modeling the core logic of the API.
-//! Other crates in the workspace, such as `cs2kz-api-server` depend on this
-//! crate and act as "frontends" for it. You can think of this crate as the
-//! "service layer" of the whole stack.
+//! The CS2KZ API.
+
+#[macro_use(Error)]
+extern crate thiserror;
+
+#[allow(unused_imports, reason = "may be used later")]
+#[macro_use(
+	error, error_span, warn, warn_span, info, info_span, debug, debug_span, trace, trace_span,
+	instrument
+)]
+extern crate tracing;
+
+// We do this instead of renaming the crate with cargo because utoipa macros
+// expect `serde_json` to be in scope.
+extern crate serde_json as json;
+
+#[macro_use]
+mod macros;
+
+pub mod cli;
+pub mod config;
+pub mod database;
+pub mod http;
+pub mod openapi;
+pub mod players;
+pub mod plugin;
+pub mod server;
+pub mod servers;
+pub mod users;
+
+mod git;
+mod pagination;
+mod state;
+mod time;

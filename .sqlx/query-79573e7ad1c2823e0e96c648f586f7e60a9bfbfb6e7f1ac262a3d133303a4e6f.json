@@ -1,0 +1,34 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT\n\t\t   id `id: UserID`,\n\t\t   permissions `permissions: Permissions`\n\t\t FROM Users\n\t\t WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: UserID",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "permissions: Permissions",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | UNSIGNED",
+          "max_size": 20
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "79573e7ad1c2823e0e96c648f586f7e60a9bfbfb6e7f1ac262a3d133303a4e6f"
+}

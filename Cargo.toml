@@ -20,11 +20,9 @@ resolver = "2"
 default-members = ["crates/cs2kz-api"]
 members = [
   "crates/cs2kz",
-  "crates/cs2kz-api-common",
-  "crates/cs2kz-api-database",
   "crates/cs2kz-api",
-  "crates/cs2kz-api-server",
-  "crates/cs2kz-api-cli",
+  "crates/steam-openid",
+  "crates/problem-details",
 ]
 
 [workspace.package]
@@ -36,7 +34,26 @@ homepage = "https://cs2kz.org"
 repository = "https://github.com/KZGlobalTeam/cs2kz-api"
 license = "GPL-3.0"
 
-[workspace.dependencies]
+[workspace.dependencies.thiserror]
+version = "1"
+
+[workspace.dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[workspace.dependencies.serde_json]
+version = "1"
+
+[workspace.dependencies.tokio]
+version = "1"
+features = ["macros", "rt-multi-thread", "net"]
+
+[workspace.dependencies.tracing]
+version = "0.1"
+
+[workspace.dependencies.clap]
+version = "4.5"
+features = ["derive"]
 
 # https://doc.rust-lang.org/rustc/lints/listing/index.html
 [workspace.lints.rust]
@@ -47,24 +64,19 @@ explicit_outlives_requirements = "warn"
 impl_trait_overcaptures = "warn"
 keyword_idents_2024 = "warn"
 let_underscore_drop = "deny"
-missing_copy_implementations = "warn"
-missing_debug_implementations = "warn"
 missing_docs = "warn"
 non_ascii_idents = "deny"
 redundant_imports = "warn"
 redundant_lifetimes = "warn"
 single_use_lifetimes = "warn"
 unit_bindings = "warn"
-unsafe_op_in_unsafe_fn = "forbid"
-unused_crate_dependencies = "warn"
+unsafe_op_in_unsafe_fn = "deny"
 unused_import_braces = "warn"
 unused_lifetimes = "warn"
 unused_qualifications = "warn"
 
 # https://rust-lang.github.io/rust-clippy/rust-1.82.0/index.html
 [workspace.lints.clippy]
-allow_attributes_without_reason = "deny"
-as_conversions = "deny"
 as_underscore = "deny"
 assigning_clones = "deny"
 bool_to_int_with_if = "deny"
@@ -84,13 +96,11 @@ copy_iterator = "deny"
 create_dir = "warn"
 dbg_macro = "warn"
 doc_link_with_quotes = "warn"
-doc_markdown = "warn"
 else_if_without_else = "deny"
 empty_drop = "deny"
 empty_enum_variants_with_brackets = "deny"
 empty_line_after_doc_comments = "deny"
 empty_loop = "deny"
-empty_structs_with_brackets = "deny"
 enum_glob_use = "deny"
 exit = "deny"
 expl_impl_clone_on_copy = "deny"
@@ -106,7 +116,6 @@ format_push_string = "deny"
 from_over_into = "deny"
 future_not_send = "warn"
 if_not_else = "warn"
-if_then_some_else_none = "warn"
 ignored_unit_patterns = "deny"
 implicit_hasher = "warn"
 index_refutable_slice = "warn"
@@ -138,9 +147,7 @@ match_wild_err_arm = "warn"
 match_wildcard_for_single_variants = "warn"
 mismatching_type_param_order = "deny"
 missing_assert_message = "deny"
-missing_const_for_fn = "warn"
-missing_docs_in_private_items = "warn"
-missing_safety_doc = "forbid"
+missing_safety_doc = "deny"
 mixed_read_write_in_expression = "warn"
 multiple_unsafe_ops_per_block = "warn"
 mutex_atomic = "warn"
@@ -153,19 +160,15 @@ nonstandard_macro_braces = "warn"
 or_fun_call = "warn"
 path_buf_push_overwrite = "warn"
 pathbuf_init_then_push = "warn"
-pattern_type_mismatch = "warn"
 print_stderr = "warn"
 print_stdout = "warn"
 ptr_as_ptr = "warn"
 ptr_cast_constness = "warn"
 rc_buffer = "warn"
 read_zero_byte_vec = "warn"
-redundant_closure_for_method_calls = "warn"
-redundant_else = "warn"
 redundant_type_annotations = "warn"
 ref_as_ptr = "warn"
 ref_option_ref = "warn"
-renamed_function_params = "warn"
 rest_pat_in_fully_bound_structs = "warn"
 same_name_method = "warn"
 self_named_module_files = "deny"
@@ -186,7 +189,7 @@ tests_outside_test_module = "deny"
 todo = "warn"
 trait_duplication_in_bounds = "warn"
 try_err = "deny"
-undocumented_unsafe_blocks = "forbid"
+undocumented_unsafe_blocks = "deny"
 unimplemented = "warn"
 uninlined_format_args = "warn"
 unnecessary_safety_comment = "warn"

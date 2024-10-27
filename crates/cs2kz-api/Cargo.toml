@@ -26,5 +26,117 @@ homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 
+[features]
+production = []
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+clap.workspace = true
+
+[dependencies.cs2kz]
+path = "../cs2kz"
+features = ["serde", "sqlx"]
+
+[dependencies.problem-details]
+path = "../problem-details"
+features = ["axum"]
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+default-features = false
+features = ["fmt", "ansi", "env-filter"]
+
+[dependencies.bytes]
+version = "1"
+
+[dependencies.http]
+version = "1"
+
+[dependencies.headers]
+version = "0.4"
+
+[dependencies.mime]
+version = "0.3"
+
+[dependencies.cookie]
+version = "0.18"
+features = ["percent-encode"]
+
+[dependencies.futures-util]
+version = "0.3"
+default-features = false
+features = ["std"]
+
+[dependencies.tower-http]
+version = "0.6"
+features = ["catch-panic", "trace", "request-id", "redirect"]
+
+[dependencies.axum]
+version = "0.8.0-alpha.1"
+default-features = false
+features = ["macros", "tokio", "http1", "http2", "json", "multipart"]
+
+[dependencies.axum-extra]
+version = "0.10.0-alpha.1"
+default-features = false
+features = ["query", "cookie"]
+
+[dependencies.utoipa]
+version = "5"
+features = [
+  "axum_extras",
+  "non_strict_integers",
+  "preserve_order",
+  "preserve_path_order",
+  "time",
+  "url",
+  "uuid",
+]
+
+[dependencies.utoipa-swagger-ui]
+version = "8"
+default-features = false
+features = ["vendored"]
+
+[dependencies.sqlx]
+version = "0.8"
+default-features = false
+features = [
+  "macros",
+  "runtime-tokio-rustls",
+  "migrate",
+  "mysql",
+  "time",
+  "json",
+]
+
+[dependencies.url]
+version = "2.5"
+features = ["serde"]
+
+[dependencies.uuid]
+version = "1"
+features = ["v4", "v7", "serde"]
+
+[dependencies.semver]
+version = "1"
+features = ["serde"]
+
+[dependencies.hex]
+version = "0.4"
+
+[dependencies.time]
+version = "0.3"
+features = ["serde-human-readable"]
+
+[dependencies.toml]
+version = "0.8"
+default-features = false
+features = ["parse"]
+
 [lints]
 workspace = true
