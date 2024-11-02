@@ -22,7 +22,15 @@ use super::message::{self, DecodeMessageError, Message};
 use super::{CloseReason, PlayerInfo};
 use crate::services::maps::{FetchMapRequest, MapService};
 use crate::services::players::{FetchPlayerPreferencesRequest, PlayerService, UpdatePlayerRequest};
+use crate::services::plugin::{
+	FetchPluginVersionRequest,
+	PluginService,
+	PluginVersionID,
+	PluginVersionIdentifier,
+};
+use crate::services::records::{RecordService, SubmitRecordRequest};
 use crate::services::servers::ServerID;
+use crate::stats::BhopStats;
 use crate::time::DurationExt;
 use crate::util::MapIdentifier;
 
@@ -58,8 +66,14 @@ pub struct Connection<S>
 	/// ID of the server currently connected to us.
 	server_id: ServerID,
 
+	/// ID of the cs2kz-metamod version the server is currently running.
+	plugin_version_id: PluginVersionID,
+
 	/// Service for fetching map information.
 	map_service: MapService,
+
+	/// Service for submitting records.
+	record_service: RecordService,
 
 	/// Service for updating player information.
 	player_service: PlayerService,
@@ -83,31 +97,42 @@ where
 	<S as Sink<ws::Message>>::Error: std::error::Error + Send + Sync + 'static,
 {
 	/// Establishes a new connection.
+	#[expect(clippy::too_many_arguments)] // FIXME
 	#[tracing::instrument(err(Debug, level = "debug"), skip(stream, cancellation_token))]
 	pub async fn establish(
-		stream: S,
+		mut stream: S,
 		heartbeat_interval: Duration,
 		cancellation_token: CancellationToken,
 		server_id: ServerID,
 		map_service: MapService,
 		player_service: PlayerService,
+		record_service: RecordService,
+		plugin_service: &PluginService,
 	) -> Result<Self, EstablishConnectionError>
 	{
-		let mut conn = Self {
+		let hello = perform_handshake(&mut stream, heartbeat_interval).await?;
+		let plugin_version_id = plugin_service
+			.fetch_version(FetchPluginVersionRequest {
+				ident: PluginVersionIdentifier::SemVer(hello.plugin_version),
+			})
+			.await
+			.map_err(HandshakeError::from)?
+			.ok_or(HandshakeError::InvalidPluginVersion)?
+			.id;
+
+		Ok(Self {
 			stream,
 			heartbeat_interval,
 			cancellation_token,
 			server_id,
+			plugin_version_id,
 			map_service,
+			record_service,
 			player_service,
 			connected_players: Default::default(),
 			max_players: 0,
 			total_players: 0,
-		};
-
-		conn.perform_handshake().await?;
-
-		Ok(conn)
+		})
 	}
 
 	/// Serves the connection.
@@ -175,65 +200,6 @@ where
 			.await
 		{
 			tracing::error!(?error, "failed to send close frame");
-		}
-	}
-
-	/// Performs the initial handshake with the client.
-	#[tracing::instrument(err(Debug, level = "debug"), skip(self))]
-	async fn perform_handshake(&mut self) -> Result<Hello, HandshakeError>
-	{
-		let timeout = tokio::time::sleep(Duration::MINUTE);
-		tokio::pin!(timeout);
-
-		loop {
-			select! {
-				() = &mut timeout => {
-					break Err(HandshakeError::Timeout);
-				},
-
-				Some(result) = self.stream.next() => match result {
-					Err(io_error) => {
-						break Err(HandshakeError::Io(io_error.into()));
-					},
-					Ok(raw) => match Hello::decode(raw) {
-						Err(DecodeMessageError::ParseJson(err)) => {
-							let message = Message::error(&err);
-							let encoded = message.encode()?;
-
-							self.stream
-								.send(encoded)
-								.await
-								.map_err(|err| HandshakeError::Io(err.into()))?;
-
-							continue;
-						},
-						Err(DecodeMessageError::NotJson) => {
-							// ignore and try again
-							continue;
-						},
-						Err(DecodeMessageError::ConnectionClosed { close_frame }) => {
-							break Err(HandshakeError::ConnectionClosed { close_frame });
-						},
-						Ok(hello) => {
-							tracing::info!(?hello, "received hello message");
-
-							let ack = HelloAck::new(self.heartbeat_interval);
-							let encoded = ack.encode()?;
-
-							self.stream
-								.send(encoded)
-								.await
-								.map_err(|err| HandshakeError::Io(err.into()))?;
-
-							tracing::info!(?ack, "sent hello ack message");
-
-							break Ok(hello);
-						},
-					},
-				},
-
-				else => break Err(HandshakeError::ConnectionClosed { close_frame: None }),
-			}
 		}
 	}
 
@@ -335,6 +301,35 @@ where
 							id: message.id,
 							payload: message::Outgoing::MapInfo(maybe_map),
 						})));
+					}
+					Err(error) => {
+						return Ok(ControlFlow::Continue(Some(Message::error(&error).tap_mut(
+							|msg| {
+								msg.id = message.id;
+							},
+						))));
+					}
+				}
+			}
+			M::SubmitRecord { course_id, mode, styles, teleports, time, player_id } => {
+				match self
+					.record_service
+					.submit_record(SubmitRecordRequest {
+						course_id,
+						mode,
+						styles,
+						teleports,
+						time,
+						player_id,
+						server_id: self.server_id,
+						// FIXME
+						bhop_stats: BhopStats { total: 0, perfs: 0, perfect_perfs: 0 },
+						plugin_version_id: self.plugin_version_id,
+					})
+					.await
+				{
+					Ok(res) => {
+						tracing::info!(?res, "submitted record");
 					}
 					Err(error) => {
 						return Ok(ControlFlow::Continue(Some(Message::error(&error).tap_mut(
@@ -478,5 +473,73 @@ impl<S> fmt::Debug for Connection<S>
 			.field("total_players", &self.total_players)
 			.field("max_players", &self.max_players)
 			.finish()
+	}
+}
+
+/// Performs the initial handshake with the client.
+#[tracing::instrument(err(Debug, level = "debug"), skip(conn))]
+async fn perform_handshake<C, E>(
+	conn: &mut C,
+	heartbeat_interval: Duration,
+) -> Result<Hello, HandshakeError>
+where
+	C: Stream<Item = Result<ws::Message, E>>,
+	C: Sink<ws::Message>,
+	C: Send + Unpin,
+	E: std::error::Error + Send + Sync + 'static,
+	<C as Sink<ws::Message>>::Error: std::error::Error + Send + Sync + 'static,
+{
+	let timeout = tokio::time::sleep(Duration::MINUTE);
+	tokio::pin!(timeout);
+
+	loop {
+		select! {
+			() = &mut timeout => {
+				break Err(HandshakeError::Timeout);
+			},
+
+			Some(result) = conn.next() => match result {
+				Err(io_error) => {
+					break Err(HandshakeError::Io(io_error.into()));
+				},
+				Ok(raw) => match Hello::decode(raw) {
+					Err(DecodeMessageError::ParseJson(err)) => {
+						let message = Message::error(&err);
+						let encoded = message.encode()?;
+
+						conn
+							.send(encoded)
+							.await
+							.map_err(|err| HandshakeError::Io(err.into()))?;
+
+						continue;
+					},
+					Err(DecodeMessageError::NotJson) => {
+						// ignore and try again
+						continue;
+					},
+					Err(DecodeMessageError::ConnectionClosed { close_frame }) => {
+						break Err(HandshakeError::ConnectionClosed { close_frame });
+					},
+					Ok(hello) => {
+						tracing::info!(?hello, "received hello message");
+
+						let ack = HelloAck::new(heartbeat_interval);
+						let encoded = ack.encode()?;
+
+						conn
+							.send(encoded)
+							.await
+							.map_err(|err| HandshakeError::Io(err.into()))?;
+
+						tracing::info!(?ack, "sent hello ack message");
+
+						break Ok(hello);
+					},
+				},
+			},
+
+			else => break Err(HandshakeError::ConnectionClosed { close_frame: None }),
+		}
 	}
 }

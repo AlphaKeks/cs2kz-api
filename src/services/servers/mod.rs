@@ -12,7 +12,7 @@ use tokio_util::task::task_tracker::TaskTracker;
 use crate::database::{SqlErrorExt, TransactionExt};
 use crate::services::auth::{jwt, Jwt};
 use crate::services::plugin::PluginVersionID;
-use crate::services::{AuthService, MapService, PlayerService};
+use crate::services::{AuthService, MapService, PlayerService, PluginService, RecordService};
 use crate::time::DurationExt;
 
 pub(crate) mod http;
@@ -54,6 +54,8 @@ pub struct ServerService
 	auth_svc: AuthService,
 	map_svc: MapService,
 	player_svc: PlayerService,
+	record_svc: RecordService,
+	plugin_svc: PluginService,
 	websocket_cancellation_token: CancellationToken,
 	websocket_task_tracker: TaskTracker,
 }
@@ -69,12 +71,15 @@ impl fmt::Debug for ServerService
 impl ServerService
 {
 	/// Create a new [`ServerService`].
+	#[expect(clippy::too_many_arguments)] // FIXME
 	#[tracing::instrument]
 	pub fn new(
 		database: Pool<MySql>,
 		auth_svc: AuthService,
 		map_svc: MapService,
 		player_svc: PlayerService,
+		record_svc: RecordService,
+		plugin_svc: PluginService,
 		websocket_cancellation_token: CancellationToken,
 		websocket_task_tracker: TaskTracker,
 	) -> Self
@@ -84,6 +89,8 @@ impl ServerService
 			auth_svc,
 			map_svc,
 			player_svc,
+			record_svc,
+			plugin_svc,
 			websocket_cancellation_token,
 			websocket_task_tracker,
 		}

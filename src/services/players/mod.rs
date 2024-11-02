@@ -441,7 +441,7 @@ mod tests
 			.await?
 			.context("got `None`")?;
 
-		testing::assert_eq!(res.preferences, json!({ "foo": "bar" }));
+		testing::assert_eq!(&res.preferences, json!({ "foo": "bar" }).as_object().unwrap());
 
 		Ok(())
 	}

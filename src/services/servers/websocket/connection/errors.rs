@@ -6,7 +6,7 @@ use axum::extract::ws;
 use thiserror::Error;
 
 use super::super::message::{DecodeMessageError, EncodeMessageError};
-use crate::services;
+use crate::services::{self, plugin};
 
 /// Errors that can occur while receiving messages.
 #[derive(Debug, Error)]
@@ -61,6 +61,10 @@ pub enum SendMessageError
 #[derive(Debug, Error)]
 pub enum HandshakeError
 {
+	/// The client sent a plugin version that was not in the database.
+	#[error("invalid plugin version")]
+	InvalidPluginVersion,
+
 	/// The client didn't shake hands in time.
 	#[error("handshake did not complete within the timeout")]
 	Timeout,
@@ -80,6 +84,18 @@ pub enum HandshakeError
 	/// The underlying stream returned an error.
 	#[error("failed to send message into stream: {0}")]
 	Io(#[source] Box<dyn std::error::Error + Send + Sync + 'static>),
+}
+
+impl From<plugin::Error> for HandshakeError
+{
+	fn from(error: plugin::Error) -> Self
+	{
+		match error {
+			plugin::Error::VersionDoesNotExist => Self::InvalidPluginVersion,
+			plugin::Error::OutdatedVersion { .. } => unreachable!(),
+			plugin::Error::Database(error) => Self::Io(error.into()),
+		}
+	}
 }
 
 /// Errors that can occur when establishing a new [`Connection`].

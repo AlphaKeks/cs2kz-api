@@ -4,6 +4,8 @@ use color_eyre::eyre::WrapErr;
 use cs2kz::SteamID;
 use serde::de::DeserializeOwned;
 use sqlx::{MySql, Pool};
+use tokio_util::sync::CancellationToken;
+use tokio_util::task::TaskTracker;
 use url::Url;
 
 use crate::services::{
@@ -11,6 +13,8 @@ use crate::services::{
 	BanService,
 	MapService,
 	PlayerService,
+	PluginService,
+	RecordService,
 	ServerService,
 	SteamService,
 };
@@ -58,8 +62,23 @@ pub fn map_svc(database: Pool<MySql>) -> MapService
 pub fn server_svc(database: Pool<MySql>) -> ServerService
 {
 	let auth_svc = auth_svc(database.clone());
+	let map_svc = map_svc(database.clone());
+	let player_svc = player_svc(database.clone());
+	let record_svc = record_svc(database.clone());
+	let plugin_svc = plugin_svc(database.clone());
+	let cancellation_token = CancellationToken::new();
+	let task_tracker = TaskTracker::new();
 
-	ServerService::new(database, auth_svc)
+	ServerService::new(
+		database,
+		auth_svc,
+		map_svc,
+		player_svc,
+		record_svc,
+		plugin_svc,
+		cancellation_token,
+		task_tracker,
+	)
 }
 
 pub fn ban_svc(database: Pool<MySql>) -> BanService
@@ -67,6 +86,18 @@ pub fn ban_svc(database: Pool<MySql>) -> BanService
 	let auth_svc = auth_svc(database.clone());
 
 	BanService::new(database, auth_svc)
+}
+
+pub fn record_svc(database: Pool<MySql>) -> RecordService
+{
+	let auth_svc = auth_svc(database.clone());
+
+	RecordService::new(database, auth_svc)
+}
+
+fn plugin_svc(database: Pool<MySql>) -> PluginService
+{
+	PluginService::new(database)
 }
 
 pub async fn parse_body<T>(body: axum::body::Body) -> color_eyre::Result<T>
@@ -85,8 +116,8 @@ fn ctor()
 {
 	use std::env;
 
-	use tracing_subscriber::fmt::format::FmtSpan;
 	use tracing_subscriber::EnvFilter;
+	use tracing_subscriber::fmt::format::FmtSpan;
 	use url::Url;
 
 	color_eyre::install().expect("failed to install color-eyre");

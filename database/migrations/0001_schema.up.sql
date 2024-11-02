@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS `Records` (
   `time` FLOAT8 NOT NULL,
   `player_id` INT8 UNSIGNED NOT NULL,
   `server_id` INT2 UNSIGNED NOT NULL,
+  `dist_point_ratio` FLOAT8 UNSIGNED NOT NULL,
   `bhops` INT4 UNSIGNED NOT NULL,
   `perfs` INT4 UNSIGNED NOT NULL,
   `perfect_perfs` INT4 UNSIGNED NOT NULL,
@@ -171,6 +172,15 @@ CREATE TABLE IF NOT EXISTS `SuspiciousRecords` LIKE `Records`;
 CREATE TABLE IF NOT EXISTS `CheatedRecords` LIKE `Records`;
 
 CREATE TABLE IF NOT EXISTS `WipedRecords` LIKE `Records`;
+
+CREATE TABLE IF NOT EXISTS `PointsData` (
+  `filter_id` INT2 UNSIGNED NOT NULL,
+  `a` FLOAT8 NOT NULL,
+  `b` FLOAT8 NOT NULL,
+  `loc` FLOAT8 NOT NULL,
+  `scale` FLOAT8 NOT NULL,
+  `top_scale` FLOAT8 NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS `Bans` (
   `id` INT8 UNSIGNED NOT NULL AUTO_INCREMENT,

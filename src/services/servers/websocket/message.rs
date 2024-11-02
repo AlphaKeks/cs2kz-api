@@ -1,13 +1,14 @@
 //! WebSocket messages.
 
 use axum::extract::ws;
-use cs2kz::SteamID;
+use cs2kz::{Mode, SteamID, Styles};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::PlayerInfo;
-use crate::services::maps::FetchMapResponse;
+use crate::services::maps::{CourseID, FetchMapResponse};
 use crate::services::players::Session;
+use crate::time::Seconds;
 use crate::util::MapIdentifier;
 
 /// A WebSocket message.
@@ -82,6 +83,17 @@ pub enum Incoming
 	{
 		/// The map's ID or name.
 		map_identifier: MapIdentifier,
+	},
+
+	#[allow(missing_docs, clippy::missing_docs_in_private_items)]
+	SubmitRecord
+	{
+		course_id: CourseID,
+		mode: Mode,
+		styles: Styles,
+		teleports: u32,
+		time: Seconds,
+		player_id: SteamID,
 	},
 }
 

@@ -31,6 +31,7 @@ mod num;
 mod serde;
 mod time;
 mod util;
+mod points;
 
 #[cfg(test)]
 mod testing;
@@ -107,19 +108,21 @@ pub async fn server(
 	let health_svc = HealthService::new();
 	let player_svc = PlayerService::new(database.clone(), auth_svc.clone(), steam_svc.clone());
 	let map_svc = MapService::new(database.clone(), auth_svc.clone(), steam_svc.clone());
+	let record_svc = RecordService::new(database.clone(), auth_svc.clone());
+	let plugin_svc = PluginService::new(database.clone());
 	let server_svc = ServerService::new(
 		database.clone(),
 		auth_svc.clone(),
 		map_svc.clone(),
 		player_svc.clone(),
+		record_svc.clone(),
+		plugin_svc.clone(),
 		cancellation_token.child_token(),
 		task_tracker.clone(),
 	);
-	let record_svc = RecordService::new(database.clone(), auth_svc.clone());
 	let jumpstat_svc = JumpstatService::new(database.clone(), auth_svc.clone());
 	let ban_svc = BanService::new(database.clone(), auth_svc.clone());
 	let admin_svc = AdminService::new(database.clone(), auth_svc.clone());
-	let plugin_svc = PluginService::new(database.clone());
 
 	let docs = docs::router();
 

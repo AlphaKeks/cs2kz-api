@@ -130,6 +130,11 @@ features = ["axum", "vendored"]
 [dependencies.utoipauto]
 version = "0.1"
 
+[dependencies.pyo3]
+version = "0.22"
+default-features = false
+features = ["auto-initialize"]
+
 [dependencies.serde]
 version = "1"
 features = ["derive"]

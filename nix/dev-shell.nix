@@ -14,6 +14,7 @@ pkgs.mkShell {
     tokio-console
     depotdownloader
     oha
+    (python3.withPackages (p: [ p.scipy ]))
   ]);
 
   shellHook = ''

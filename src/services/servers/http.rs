@@ -3,10 +3,10 @@
 use std::time::Duration;
 
 use axum::extract::{State, WebSocketUpgrade};
-use axum::{routing, Extension, Router};
-use axum_extra::headers::authorization::Bearer;
-use axum_extra::headers::Authorization;
+use axum::{Extension, Router, routing};
 use axum_extra::TypedHeader;
+use axum_extra::headers::Authorization;
+use axum_extra::headers::authorization::Bearer;
 use cs2kz::SteamID;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
@@ -14,7 +14,6 @@ use tokio_util::task::task_tracker::TaskTracker;
 use tower::ServiceBuilder;
 
 use super::{
-	websocket,
 	ApiKey,
 	DeleteKeyRequest,
 	DeleteKeyResponse,
@@ -33,13 +32,14 @@ use super::{
 	ServerService,
 	UpdateServerRequest,
 	UpdateServerResponse,
+	websocket,
 };
-use crate::http::extract::{Json, Path, Query};
 use crate::http::ProblemDetails;
+use crate::http::extract::{Json, Path, Query};
 use crate::middleware;
-use crate::services::auth::session::user::Permissions;
-use crate::services::auth::session::{authorization, SessionManagerLayer};
 use crate::services::auth::Session;
+use crate::services::auth::session::user::Permissions;
+use crate::services::auth::session::{SessionManagerLayer, authorization};
 use crate::services::servers::ServerID;
 use crate::util::ServerIdentifier;
 
@@ -163,7 +163,7 @@ async fn websocket(
 	upgrade: WebSocketUpgrade,
 ) -> Result<axum::response::Response, ProblemDetails>
 {
-	#[expect(clippy::missing_docs_in_private_items)]
+	#[allow(clippy::missing_docs_in_private_items)]
 	#[derive(Debug, thiserror::Error)]
 	#[error("you are not authorized to perform this action")]
 	struct Unauthorized;
@@ -197,10 +197,18 @@ async fn websocket(
 			server_id,
 			svc.map_svc,
 			svc.player_svc,
+			svc.record_svc,
+			&svc.plugin_svc,
 		)
 		.await
 		{
 			Ok(conn) => conn,
+			Err(websocket::connection::EstablishConnectionError::Handshake(
+				websocket::connection::HandshakeError::InvalidPluginVersion,
+			)) => {
+				tracing::warn!("invalid plugin version");
+				return;
+			}
 			Err(websocket::connection::EstablishConnectionError::Handshake(
 				websocket::connection::HandshakeError::Timeout,
 			)) => {
