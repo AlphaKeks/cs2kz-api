@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS `Players` (
   `ip_address` INET6 NOT NULL,
   `permissions` INT8 UNSIGNED NOT NULL DEFAULT 0,
   `preferences` JSON NOT NULL DEFAULT '{}',
+  `rating` INT2 NOT NULL DEFAULT 0,
   `created_on` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_seen_on` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT `non_empty_name` CHECK(`name` != ''),
@@ -154,7 +155,6 @@ CREATE TABLE IF NOT EXISTS `Records` (
   `time` FLOAT8 NOT NULL,
   `player_id` INT8 UNSIGNED NOT NULL,
   `server_id` INT2 UNSIGNED NOT NULL,
-  `dist_point_ratio` FLOAT8 UNSIGNED NOT NULL,
   `bhops` INT4 UNSIGNED NOT NULL,
   `perfs` INT4 UNSIGNED NOT NULL,
   `perfect_perfs` INT4 UNSIGNED NOT NULL,
@@ -173,13 +173,22 @@ CREATE TABLE IF NOT EXISTS `CheatedRecords` LIKE `Records`;
 
 CREATE TABLE IF NOT EXISTS `WipedRecords` LIKE `Records`;
 
-CREATE TABLE IF NOT EXISTS `PointsData` (
-  `filter_id` INT2 UNSIGNED NOT NULL,
+CREATE TABLE IF NOT EXISTS `BestRecords` (
+  `player_id` INT8 UNSIGNED NOT NULL REFERENCES `Players` (`id`),
+  `filter_id` INT2 UNSIGNED NOT NULL REFERENCES `CourseFilters` (`id`),
+  `record_id` INT8 UNSIGNED NOT NULL REFERENCES `Records` (`id`),
+  `dist_points` FLOAT8 NOT NULL,
+  PRIMARY KEY (`player_id`, `filter_id`)
+);
+
+CREATE TABLE IF NOT EXISTS `PointDistributionData` (
+  `filter_id` INT2 UNSIGNED NOT NULL REFERENCES `CourseFilters` (`id`),
   `a` FLOAT8 NOT NULL,
   `b` FLOAT8 NOT NULL,
   `loc` FLOAT8 NOT NULL,
   `scale` FLOAT8 NOT NULL,
-  `top_scale` FLOAT8 NOT NULL
+  `top_scale` FLOAT8 NOT NULL,
+  PRIMARY KEY (`filter_id`)
 );
 
 CREATE TABLE IF NOT EXISTS `Bans` (

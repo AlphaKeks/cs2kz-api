@@ -1,18 +1,22 @@
-//! Per-record data.
+//! Record data relevant for calculating points.
 
 use std::cmp;
 
+use cs2kz::SteamID;
+
 use crate::services::records::RecordID;
 
-/// Record data relevant for calculating points.
-#[derive(Debug)]
+/// A single record.
 #[cfg_attr(test, derive(serde::Deserialize))]
 pub struct Record
 {
 	/// The record's ID.
 	pub id: RecordID,
 
-	/// The time it took the player to complete the course.
+	/// SteamID of the player who set the record.
+	pub player_id: SteamID,
+
+	/// The time of the record.
 	pub time: f64,
 }
 

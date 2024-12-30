@@ -8,6 +8,7 @@ use tap::Tap;
 
 use crate::database::TransactionExt;
 use crate::services::AuthService;
+use crate::services::maps::FilterID;
 
 pub(crate) mod http;
 
@@ -214,41 +215,42 @@ impl RecordService
 	#[tracing::instrument(level = "debug", err(Debug, level = "debug"))]
 	pub async fn submit_record(&self, req: SubmitRecordRequest) -> Result<SubmitRecordResponse>
 	{
-		let record_id = sqlx::query! {
-			r"
-			INSERT INTO
-			  Records (
-			    filter_id,
-			    styles,
-			    teleports,
-			    time,
-			    player_id,
-			    server_id,
-			    bhops,
-			    perfs,
-			    perfect_perfs,
-			    plugin_version_id
-			  )
-			VALUES
-			  (
-			    (
-			      SELECT
-				id
-			      FROM
-				CourseFilters
-			      WHERE
-				course_id = ?
-				AND mode = ?
-				AND teleports = ?
-			      LIMIT
-				1
-			    ), ?, ?, ?, ?, ?, ?, ?, ?, ?
-			  )
-			RETURNING id
-			",
+		let mut txn = self.database.begin().await?;
+
+		let filter = sqlx::query!(
+			"SELECT
+			   id `id: FilterID`,
+			   tier `tier: Tier`,
+			   has_teleports `has_teleports: bool`
+			 FROM CourseFilters
+			 WHERE
+			 course_id = ?
+			 AND mode = ?
+			 AND teleports = ?
+			 LIMIT 1",
 			req.course_id,
 			req.mode,
 			req.teleports > 0,
+		)
+		.fetch_one(txn.as_mut())
+		.await?;
+
+		let record_id = sqlx::query! {
+			"INSERT INTO Records (
+			   filter_id,
+			   styles,
+			   teleports,
+			   time,
+			   player_id,
+			   server_id,
+			   bhops,
+			   perfs,
+			   perfect_perfs,
+			   plugin_version_id
+			 )
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 RETURNING id",
+			filter.id,
 			req.styles,
 			req.teleports,
 			req.time,
@@ -259,11 +261,198 @@ impl RecordService
 			req.bhop_stats.perfect_perfs,
 			req.plugin_version_id,
 		}
-		.fetch_one(&self.database)
+		.fetch_one(txn.as_mut())
 		.await
 		.and_then(|row| row.try_get(0))?;
 
-		Ok(SubmitRecordResponse { record_id })
+		let distribution = sqlx::query_as!(
+			Distribution,
+			"SELECT a, b, loc, scale, top_scale
+			 FROM PointDistributionData
+			 WHERE filter_id = ?",
+			filter.id,
+		)
+		.fetch_optional(txn.as_mut())
+		.await?;
+
+		let (leaderboard_size, wr_time) = sqlx::query_scalar!(
+			"SELECT COUNT(br.*) total, MIN(r.time) wr_time
+			 FROM BestRecords br
+			 JOIN Records r ON r.id = br.record_id
+			 WHERE br.filter_id = ?",
+			filter.id,
+		)
+		.fetch_one(txn.as_mut())
+		.await
+		.map(|row| {
+			let total = row
+				.total
+				.try_into()
+				.expect("`COUNT()` should never return a negative value");
+
+			(total, row.time)
+		})?;
+
+		let Some(old_stats) = sqlx::query!(
+			"SELECT
+			   r.time,
+			   br.dist_points,
+			   ROW_NUMBER() OVER (
+			     PARTITION BY r.filter_id
+			     ORDER BY r.time ASC, r.created_on ASC
+			   ) rank
+			 FROM BestRecords br
+			 JOIN Records r ON r.id = br.record_id
+			 WHERE br.player_id = ?
+			 AND br.filter_id = ?",
+			req.player_id,
+			filter.id,
+		)
+		.fetch_optional(txn.as_mut())
+		.await?
+		else {
+			let points = Python::with_gil(|py| {
+				points_for_record(
+					py,
+					distribution.as_ref(),
+					leaderboard_size,
+					wr_time,
+					filter.tier,
+					req.time,
+					rank,
+					is_pro_leaderboard,
+				)
+			})
+			.expect("shitfuck");
+
+			sqlx::query!(
+				"INSERT INTO BestRecords (
+				   player_id,
+				   filter_id,
+				   record_id,
+				   dist_points
+				 )
+				 VALUES (?, ?, ?, ?)",
+				req.player_id,
+				filter_id,
+				record_id,
+				points.dist,
+			)
+			.execute(txn.as_mut())
+			.await?;
+
+			let rank = sqlx::query_scalar!(
+				"SELECT ROW_NUMBER() OVER (
+				   PARTITION BY r.filter_id
+				   ORDER BY r.time ASC, r.created_on ASC
+				 ) rank
+				 FROM BestRecords br
+				 JOIN Records r ON r.id = br.record_id
+				 WHERE br.player_id = ?
+				 AND br.filter_id = ?",
+				req.player_id,
+				filter.id,
+			)
+			.fetch_one(txn.as_mut())
+			.await?;
+
+			return Ok(SubmitRecordResponse {
+				record_id,
+				points: points.total(),
+				points_diff: points.total(),
+				rank,
+				is_pb: true,
+			});
+		};
+
+		let minimum_points =
+			minimum_points(filter.tier, !filter.has_teleports).expect("`tier` should be <= 8");
+		let remaining_points = MAX_POINTS - minimum_points;
+		let rank_points =
+			0.25 * remaining_points * points_for_rank(leaderboard_size, old_stats.rank);
+		let total_old_points = minimum_points + rank_points + old_stats.points;
+
+		if old_stats.time < req.time {
+			return Ok(SubmitRecordResponse {
+				record_id,
+				points: total_old_points,
+				points_diff: 0.0,
+				rank: old_stats.rank,
+				is_pb: false,
+			});
+		}
+
+		sqlx::query!(
+			"UPDATE BestRecords
+			 SET record_id = ?
+			 WHERE player_id = ?
+			 AND filter_id = ?",
+			record_id,
+			req.player_id,
+			filter.id,
+		)
+		.execute(txn.as_mut())
+		.await?;
+
+		let rank = sqlx::query_scalar!(
+			"SELECT ROW_NUMBER() OVER (
+			   PARTITION BY r.filter_id
+			   ORDER BY r.time ASC, r.created_on ASC
+			 ) rank
+			 FROM BestRecords br
+			 JOIN Records r ON r.id = br.record_id
+			 WHERE br.player_id = ?
+			 AND br.filter_id = ?",
+			req.player_id,
+			filter.id,
+		)
+		.fetch_one(txn.as_mut())
+		.await?;
+
+		let rating = sqlx::query_scalar!(
+			"SELECT br.dist_points
+			 FROM BestRecords br
+			 JOIN CourseFilters f ON f.id = br.filter_id
+			 WHERE br.player_id = ?
+			 AND f.mode = 1",
+		)
+		.fetch(&db)
+		.enumerate()
+		.map_ok(|(rank, points)| points * 0.975.powi(rank));
+
+		let points = Python::with_gil(|py| {
+			points_for_record(
+				py,
+				distribution.as_ref(),
+				leaderboard_size,
+				wr_time,
+				filter.tier,
+				req.time,
+				rank,
+				is_pro_leaderboard,
+			)
+		})
+		.expect("shitfuck");
+
+		sqlx::query!(
+			"UPDATE BestRecords
+			 SET dist_points = ?
+			 WHERE player_id = ?
+			 AND filter_id = ?",
+			points.dist,
+			req.player_id,
+			filter.id,
+		)
+		.execute(txn.as_mut())
+		.await?;
+
+		Ok(SubmitRecordResponse {
+			record_id,
+			points: points.total(),
+			points_diff: points.total() - total_old_points,
+			rank,
+			is_pb: true,
+		})
 	}
 
 	/// Update an existing record.

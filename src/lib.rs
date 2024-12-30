@@ -129,6 +129,8 @@ pub async fn server(
 	let panic_handler = middleware::panic_handler::layer();
 	let logging = middleware::logging::layer!();
 
+	task_tracker.spawn(points::daemon::run(database, cancellation_token.child_token()));
+
 	let server = axum::Router::new()
 		.merge(health_svc)
 		.nest("/players", player_svc.into())

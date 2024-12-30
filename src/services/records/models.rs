@@ -292,6 +292,15 @@ pub struct SubmitRecordResponse
 {
 	/// The generated record ID.
 	pub record_id: RecordID,
+
+	pub points: f64,
+	pub points_diff: f64,
+
+	/// The rank of this record on the leaderboard.
+	pub rank: u32,
+
+	/// Whether this is a new personal best.
+	pub is_pb: bool,
 }
 
 impl IntoResponse for SubmitRecordResponse
