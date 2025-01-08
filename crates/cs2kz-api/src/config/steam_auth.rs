@@ -25,7 +25,7 @@ impl Default for SteamAuthConfig {
 }
 
 fn default_public_url() -> Url {
-	Url::parse("https://cs2kz.org").expect("hard-coded URL should be valid")
+	Url::parse("https://api.cs2kz.org").expect("hard-coded URL should be valid")
 }
 
 fn default_redirect_to_after_login() -> Url {

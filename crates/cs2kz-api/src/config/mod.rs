@@ -1,6 +1,9 @@
 mod server;
 pub use server::ServerConfig;
 
+pub mod tracing;
+pub use tracing::TracingConfig;
+
 mod runtime;
 pub use runtime::RuntimeConfig;
 
@@ -21,6 +24,9 @@ pub use depot_downloader::DepotDownloaderConfig;
 pub struct Config {
 	/// Configuration for the HTTP server.
 	pub server: ServerConfig,
+
+	/// Configuration for [`tracing-subscriber`].
+	pub tracing: TracingConfig,
 
 	/// Configuration for Tokio.
 	pub runtime: RuntimeConfig,

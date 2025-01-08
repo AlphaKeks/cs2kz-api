@@ -64,6 +64,12 @@ path = "../steam-openid"
 [dependencies.anyhow]
 version = "1.0.95"
 
+[dependencies.tracing-appender]
+version = "0.2.3"
+
+[dependencies.console-subscriber]
+version = "0.4.1"
+
 [dependencies.tokio]
 workspace = true
 features = ["signal"]
