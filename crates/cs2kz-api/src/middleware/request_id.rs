@@ -5,7 +5,7 @@ use ulid::Ulid;
 ///
 /// [`SetRequestIdLayer`]: tower_http::request_id::SetRequestIdLayer
 pub fn make_request_id() -> impl MakeRequestId + Clone {
-	MakeUlidRequestId
+    MakeUlidRequestId
 }
 
 /// An implementation of [`MakeRequestId`] that generates [ULID]s.
@@ -15,13 +15,13 @@ pub fn make_request_id() -> impl MakeRequestId + Clone {
 struct MakeUlidRequestId;
 
 impl MakeRequestId for MakeUlidRequestId {
-	#[tracing::instrument(level = "trace", skip_all, ret)]
-	fn make_request_id<B>(&mut self, _: &http::Request<B>) -> Option<RequestId> {
-		let ulid = Ulid::new();
+    #[tracing::instrument(level = "trace", skip_all, ret)]
+    fn make_request_id<B>(&mut self, _: &http::Request<B>) -> Option<RequestId> {
+        let ulid = Ulid::new();
 
-		ulid.array_to_str(&mut [0; 26])
-			.parse::<http::HeaderValue>()
-			.map(RequestId::from)
-			.ok()
-	}
+        ulid.array_to_str(&mut [0; 26])
+            .parse::<http::HeaderValue>()
+            .map(RequestId::from)
+            .ok()
+    }
 }

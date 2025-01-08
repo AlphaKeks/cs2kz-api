@@ -8,9 +8,7 @@ use tokio_util::time::FutureExt;
 use crate::extract::Json;
 
 pub fn router<S>() -> Router<S> {
-	Router::new()
-		.route("/", routing::get(get))
-		.with_state(())
+    Router::new().route("/", routing::get(get)).with_state(())
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -22,24 +20,24 @@ struct Timeout(tokio::time::error::Elapsed);
 /// [taskdump]: tokio::runtime::Handle::dump
 #[tracing::instrument(err)]
 async fn get() -> Result<Json<Vec<String>>, Timeout> {
-	info!("capturing taskdump");
+    info!("capturing taskdump");
 
-	let dump = RuntimeHandle::current()
-		.dump()
-		.timeout(Duration::from_secs(5))
-		.await?;
+    let dump = RuntimeHandle::current()
+        .dump()
+        .timeout(Duration::from_secs(5))
+        .await?;
 
-	let traces = dump
-		.tasks()
-		.iter()
-		.map(|task| task.trace().to_string())
-		.collect();
+    let traces = dump
+        .tasks()
+        .iter()
+        .map(|task| task.trace().to_string())
+        .collect();
 
-	Ok(Json(traces))
+    Ok(Json(traces))
 }
 
 impl IntoResponse for Timeout {
-	fn into_response(self) -> Response {
-		(http::StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
-	}
+    fn into_response(self) -> Response {
+        (http::StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
+    }
 }

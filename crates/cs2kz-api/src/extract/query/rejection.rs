@@ -10,53 +10,53 @@ use crate::response::ErrorResponse;
 #[derive(Error)]
 pub struct QueryRejection<T>
 where
-	T: for<'de> Deserialize<'de>,
+    T: for<'de> Deserialize<'de>,
 {
-	source: serde_html_form::de::Error,
-	_marker: PhantomData<T>,
+    source: serde_html_form::de::Error,
+    _marker: PhantomData<T>,
 }
 
 impl<T> QueryRejection<T>
 where
-	T: for<'de> Deserialize<'de>,
+    T: for<'de> Deserialize<'de>,
 {
-	pub(super) fn new(source: serde_html_form::de::Error) -> Self {
-		Self { source, _marker: PhantomData }
-	}
+    pub(super) fn new(source: serde_html_form::de::Error) -> Self {
+        Self { source, _marker: PhantomData }
+    }
 }
 
 impl<T> fmt::Debug for QueryRejection<T>
 where
-	T: for<'de> Deserialize<'de>,
+    T: for<'de> Deserialize<'de>,
 {
-	fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-		fmt.debug_tuple("QueryRejection")
-			.field(&self.source)
-			.finish()
-	}
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("QueryRejection")
+            .field(&self.source)
+            .finish()
+    }
 }
 
 impl<T> fmt::Display for QueryRejection<T>
 where
-	T: for<'de> Deserialize<'de>,
+    T: for<'de> Deserialize<'de>,
 {
-	fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(fmt, "failed to deserialize query string")?;
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "failed to deserialize query string")?;
 
-		if cfg!(not(feature = "production")) {
-			write!(fmt, " of type `{}`", type_name::<T>())?;
-		}
+        if cfg!(not(feature = "production")) {
+            write!(fmt, " of type `{}`", type_name::<T>())?;
+        }
 
-		write!(fmt, ": {}", self.source)
-	}
+        write!(fmt, ": {}", self.source)
+    }
 }
 
 impl<T> IntoResponse for QueryRejection<T>
 where
-	T: for<'de> Deserialize<'de>,
+    T: for<'de> Deserialize<'de>,
 {
-	fn into_response(self) -> Response {
-		ErrorResponse::invalid_query_string(|details| details.set_detail(self.source.to_string()))
-			.into_response()
-	}
+    fn into_response(self) -> Response {
+        ErrorResponse::invalid_query_string(|details| details.set_detail(self.source.to_string()))
+            .into_response()
+    }
 }

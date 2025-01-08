@@ -22,24 +22,24 @@ pub use depot_downloader::DepotDownloaderConfig;
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(default, rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Config {
-	/// Configuration for the HTTP server.
-	pub server: ServerConfig,
+    /// Configuration for the HTTP server.
+    pub server: ServerConfig,
 
-	/// Configuration for [`tracing-subscriber`].
-	pub tracing: TracingConfig,
+    /// Configuration for [`tracing-subscriber`].
+    pub tracing: TracingConfig,
 
-	/// Configuration for Tokio.
-	pub runtime: RuntimeConfig,
+    /// Configuration for Tokio.
+    pub runtime: RuntimeConfig,
 
-	/// Names of known access keys.
-	pub access_keys: AccessKeys,
+    /// Names of known access keys.
+    pub access_keys: AccessKeys,
 
-	/// Default values for HTTP cookie fields.
-	pub cookies: CookieConfig,
+    /// Default values for HTTP cookie fields.
+    pub cookies: CookieConfig,
 
-	pub steam_auth: SteamAuthConfig,
-	pub depot_downloader: DepotDownloaderConfig,
+    pub steam_auth: SteamAuthConfig,
+    pub depot_downloader: DepotDownloaderConfig,
 
-	#[serde(flatten)]
-	pub cs2kz: cs2kz::Config,
+    #[serde(flatten)]
+    pub cs2kz: cs2kz::Config,
 }

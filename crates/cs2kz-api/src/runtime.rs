@@ -9,16 +9,16 @@ use crate::config::RuntimeConfig;
 ///
 /// [Tokio runtime]: Config
 pub fn build(config: &RuntimeConfig) -> io::Result<Runtime> {
-	let mut builder = Builder::new_multi_thread();
-	builder.enable_all();
+    let mut builder = Builder::new_multi_thread();
+    builder.enable_all();
 
-	if let Some(n) = config.worker_threads {
-		builder.worker_threads(n.get());
-	}
+    if let Some(n) = config.worker_threads {
+        builder.worker_threads(n.get());
+    }
 
-	if let Some(n) = config.max_blocking_threads {
-		builder.max_blocking_threads(n.get());
-	}
+    if let Some(n) = config.max_blocking_threads {
+        builder.max_blocking_threads(n.get());
+    }
 
-	builder.build()
+    builder.build()
 }

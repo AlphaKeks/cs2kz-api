@@ -10,9 +10,9 @@ use tower_http::catch_panic::{CatchPanicLayer, ResponseForPanic};
 ///
 /// This is purely a safety guard! If a handler ever panics, that's a bug.
 pub fn layer() -> CatchPanicLayer<
-	impl ResponseForPanic<ResponseBody: HttpBody<Data = Bytes, Error = Infallible> + Send + 'static>,
+    impl ResponseForPanic<ResponseBody: HttpBody<Data = Bytes, Error = Infallible> + Send + 'static>,
 > {
-	CatchPanicLayer::custom(PanicResponse)
+    CatchPanicLayer::custom(PanicResponse)
 }
 
 /// An implementation of [`ResponseForPanic`].
@@ -20,27 +20,23 @@ pub fn layer() -> CatchPanicLayer<
 struct PanicResponse;
 
 impl ResponseForPanic for PanicResponse {
-	type ResponseBody = Empty<Bytes>;
+    type ResponseBody = Empty<Bytes>;
 
-	fn response_for_panic(
-		&mut self,
-		panic_payload: Box<dyn Any + Send + 'static>,
-	) -> http::Response<Self::ResponseBody> {
-		let error = panic_payload
-			.downcast_ref::<&'static str>()
-			.copied()
-			.or_else(|| {
-				panic_payload
-					.downcast_ref::<String>()
-					.map(String::as_str)
-			})
-			.unwrap_or("<unavailable>");
+    fn response_for_panic(
+        &mut self,
+        panic_payload: Box<dyn Any + Send + 'static>,
+    ) -> http::Response<Self::ResponseBody> {
+        let error = panic_payload
+            .downcast_ref::<&'static str>()
+            .copied()
+            .or_else(|| panic_payload.downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("<unavailable>");
 
-		error!(%error, "request handler panicked");
+        error!(%error, "request handler panicked");
 
-		http::Response::builder()
-			.status(http::StatusCode::INTERNAL_SERVER_ERROR)
-			.body(Empty::new())
-			.unwrap()
-	}
+        http::Response::builder()
+            .status(http::StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Empty::new())
+            .unwrap()
+    }
 }

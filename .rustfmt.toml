@@ -5,9 +5,6 @@ edition = "2024"
 style_edition = "2024"
 unstable_features = true
 
-# indentation
-hard_tabs = true
-
 # max widths
 max_width = 100
 array_width = 50

@@ -20,44 +20,44 @@ pub use session::Session;
 pub mod authorization;
 
 #[tracing::instrument(
-	skip(cx, authorization, session, cookies, request, next),
-	fields(session.id = %session.id()),
-	err(level = "debug"),
+    skip(cx, authorization, session, cookies, request, next),
+    fields(session.id = %session.id()),
+    err(level = "debug"),
 )]
 pub async fn session_auth(
-	State { cx, cookie_config, mut authorization }: State<impl AuthorizeSession>,
-	session: Session,
-	cookies: CookieJar,
-	mut request: Request,
-	next: Next,
+    State { cx, cookie_config, mut authorization }: State<impl AuthorizeSession>,
+    session: Session,
+    cookies: CookieJar,
+    mut request: Request,
+    next: Next,
 ) -> Result<Response, Rejection> {
-	let response = match authorization
-		.authorize_session(&mut request, &session)
-		.await
-	{
-		Ok(()) => next.run(request).await,
-		Err(rejection) => rejection.into_response(),
-	};
+    let response = match authorization
+        .authorize_session(&mut request, &session)
+        .await
+    {
+        Ok(()) => next.run(request).await,
+        Err(rejection) => rejection.into_response(),
+    };
 
-	let mut cookie = cookie_config
-		.build_cookie::<true>(COOKIE_NAME, session.id().to_string())
-		.build();
+    let mut cookie = cookie_config
+        .build_cookie::<true>(COOKIE_NAME, session.id().to_string())
+        .build();
 
-	if session.is_expired() {
-		cookie.make_removal();
-		cs2kz::users::sessions::expire(&cx, session.id()).await?;
-	} else {
-		cs2kz::users::sessions::extend(&cx, session.id(), cookie_config.max_age_auth).await?;
-	}
+    if session.is_expired() {
+        cookie.make_removal();
+        cs2kz::users::sessions::expire(&cx, session.id()).await?;
+    } else {
+        cs2kz::users::sessions::extend(&cx, session.id(), cookie_config.max_age_auth).await?;
+    }
 
-	Ok((cookies.add(cookie), response).into_response())
+    Ok((cookies.add(cookie), response).into_response())
 }
 
 #[derive(Clone)]
 pub struct State<A = authorization::Noop> {
-	cx: Context,
-	cookie_config: Arc<CookieConfig>,
-	authorization: A,
+    cx: Context,
+    cookie_config: Arc<CookieConfig>,
+    authorization: A,
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -65,59 +65,59 @@ pub struct State<A = authorization::Noop> {
 pub struct Rejection(UpdateSessionError);
 
 impl State {
-	pub fn new(cx: Context, cookie_config: impl Into<Arc<CookieConfig>>) -> Self {
-		Self {
-			cx,
-			cookie_config: cookie_config.into(),
-			authorization: authorization::Noop,
-		}
-	}
+    pub fn new(cx: Context, cookie_config: impl Into<Arc<CookieConfig>>) -> Self {
+        Self {
+            cx,
+            cookie_config: cookie_config.into(),
+            authorization: authorization::Noop,
+        }
+    }
 }
 
 impl<A> State<A> {
-	pub fn authorize_with<NewA: AuthorizeSession>(self, authorization: NewA) -> State<NewA> {
-		State {
-			cx: self.cx,
-			cookie_config: self.cookie_config,
-			authorization,
-		}
-	}
+    pub fn authorize_with<NewA: AuthorizeSession>(self, authorization: NewA) -> State<NewA> {
+        State {
+            cx: self.cx,
+            cookie_config: self.cookie_config,
+            authorization,
+        }
+    }
 
-	pub fn map_authorization<NewA: AuthorizeSession>(
-		self,
-		f: impl FnOnce(A) -> NewA,
-	) -> State<NewA> {
-		State {
-			cx: self.cx,
-			cookie_config: self.cookie_config,
-			authorization: f(self.authorization),
-		}
-	}
+    pub fn map_authorization<NewA: AuthorizeSession>(
+        self,
+        f: impl FnOnce(A) -> NewA,
+    ) -> State<NewA> {
+        State {
+            cx: self.cx,
+            cookie_config: self.cookie_config,
+            authorization: f(self.authorization),
+        }
+    }
 }
 
 impl<S, A> FromRequestParts<S> for State<A>
 where
-	S: Send + Sync,
-	Self: FromRef<S>,
+    S: Send + Sync,
+    Self: FromRef<S>,
 {
-	type Rejection = Infallible;
+    type Rejection = Infallible;
 
-	async fn from_request_parts(
-		_: &mut http::request::Parts,
-		state: &S,
-	) -> Result<Self, Self::Rejection> {
-		Ok(Self::from_ref(state))
-	}
+    async fn from_request_parts(
+        _: &mut http::request::Parts,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self::from_ref(state))
+    }
 }
 
 impl<A> FromRef<State<A>> for Context {
-	fn from_ref(state: &State<A>) -> Self {
-		state.cx.clone()
-	}
+    fn from_ref(state: &State<A>) -> Self {
+        state.cx.clone()
+    }
 }
 
 impl IntoResponse for Rejection {
-	fn into_response(self) -> Response {
-		ErrorResponse::internal_server_error(self.0).into_response()
-	}
+    fn into_response(self) -> Response {
+        ErrorResponse::internal_server_error(self.0).into_response()
+    }
 }
