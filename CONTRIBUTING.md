@@ -26,10 +26,12 @@ the repository root.
 
 Some parts of the project (the database in particular) require a `DATABASE_URL`
 environment variable to be set both at compile-time and run-time. You can do
-this manually, but I recommend you install [direnv] and create an `.envrc` file:
+this manually, but I recommend you install [direnv] and inspect the `.envrc`
+file. To set environment variables, create a `.env` file (which will be loaded
+by `.envrc`):
 
 ```sh
-$ cp .example.envrc .envrc
+$ cp .example.env .env
 ```
 
 This way, any relevant variables will be set automatically whenever you enter
