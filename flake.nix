@@ -15,7 +15,7 @@
         inherit system overlays;
       };
 
-      mkToolchain = components: pkgs.rust-bin.nightly.latest.minimal.override {
+      mkToolchain = components: pkgs.rust-bin.nightly."2025-01-08".minimal.override {
         extensions = [ "rust-src" ] ++ components;
       };
     in

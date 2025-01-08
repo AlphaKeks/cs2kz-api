@@ -1,7 +1,7 @@
 FROM rust:1.83-slim as builder
 
 WORKDIR /kz
-RUN rustup toolchain install nightly-2024-11-28
+RUN rustup toolchain install nightly-2025-01-08
 
 COPY Cargo.toml Cargo.lock .
 COPY .example.env .example.env

@@ -16,7 +16,6 @@
 
 #![feature(array_try_from_fn)]
 #![feature(assert_matches)]
-#![feature(async_closure)]
 #![feature(decl_macro)]
 #![feature(iter_chain)]
 #![feature(trait_alias)]

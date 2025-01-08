@@ -221,7 +221,6 @@ pub async fn get(
 pub async fn get_by_id(cx: &Context, map_id: MapId) -> Result<Option<Map>, GetMapsError> {
 	self::macros::select!(cx.database().as_ref(), "WHERE m.id = ?", map_id)
 		.try_next()
-		.map_ok(|map| map.map(Map::from))
 		.map_err(GetMapsError::from)
 		.await
 }
@@ -230,7 +229,6 @@ pub async fn get_by_id(cx: &Context, map_id: MapId) -> Result<Option<Map>, GetMa
 pub async fn get_by_name(cx: &Context, map_name: &str) -> Result<Option<Map>, GetMapsError> {
 	self::macros::select!(cx.database().as_ref(), "WHERE m.name LIKE ?", format!("%{map_name}%"))
 		.try_next()
-		.map_ok(|map| map.map(Map::from))
 		.map_err(GetMapsError::from)
 		.await
 }

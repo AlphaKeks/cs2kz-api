@@ -14,7 +14,6 @@
  * along with this repository.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#![feature(async_closure)]
 #![feature(decl_macro)]
 #![feature(future_join)]
 #![feature(iter_chain)]
