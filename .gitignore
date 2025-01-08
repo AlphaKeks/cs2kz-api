@@ -1,0 +1,17 @@
+# env variables
+/.env
+
+# direnv
+/.direnv
+
+# ctags
+/tags
+
+# Nix
+/result
+
+# Rust
+/target
+
+# config
+/cs2kz-api.toml
