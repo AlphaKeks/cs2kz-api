@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO BestNubRecords (\n\t\t\t\t   filter_id,\n\t\t\t\t   player_id,\n\t\t\t\t   record_id,\n\t\t\t\t   points\n\t\t\t\t )\n\t\t\t\t VALUES (?, ?, ?, ?)\n\t\t\t\t ON DUPLICATE KEY\n\t\t\t\t UPDATE record_id = VALUES(record_id),\n\t\t\t\t        points = VALUES(points)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "84e3e60fa9079fd71282ae50e578392231dea1c76a768be5b69dba7c3c61bb06"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE Maps\n\t\t\t SET workshop_id = COALESCE(?, workshop_id),\n\t\t\t     name = COALESCE(?, name),\n\t\t\t     description = COALESCE(?, description),\n\t\t\t     state = COALESCE(?, state),\n\t\t\t     vpk_checksum = COALESCE(?, vpk_checksum)\n\t\t\t WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "be521783b6fa942be11ac5b49e2224d8e0982d504ecb3053b0c04b8a66fa8fb0"
+}

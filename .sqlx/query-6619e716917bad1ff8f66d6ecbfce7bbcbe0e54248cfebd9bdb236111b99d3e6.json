@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT COUNT(*)\n\t\t     FROM Bans AS b\n\t\t\t LEFT JOIN Unbans AS ub ON ub.ban_id = b.id\n\t\t\t WHERE b.player_id = ?\n\t\t\t AND (\n\t\t\t   ub.ban_id IS NULL\n\t\t\t   OR b.expires_at > NOW()\n\t\t\t )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "COUNT(*)",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | BINARY",
+          "max_size": 21
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6619e716917bad1ff8f66d6ecbfce7bbcbe0e54248cfebd9bdb236111b99d3e6"
+}

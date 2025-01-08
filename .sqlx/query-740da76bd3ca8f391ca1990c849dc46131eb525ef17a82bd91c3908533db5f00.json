@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE UserSessions\n\t\t SET expires_at = ?\n\t\t WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "740da76bd3ca8f391ca1990c849dc46131eb525ef17a82bd91c3908533db5f00"
+}

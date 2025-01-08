@@ -1,0 +1,214 @@
+{
+  "db_name": "MySQL",
+  "query": "WITH NubLeaderboard AS (\n\t\t\t\t   SELECT\n\t\t\t\t     r.id AS record_id,\n\t\t\t\t     NubRecords.points,\n\t\t\t\t     RANK() OVER (\n\t\t\t\t       PARTITION BY r.filter_id\n\t\t\t\t\t   ORDER BY\n\t\t\t\t\t     r.time ASC,\n\t\t\t\t\t     r.submitted_at ASC\n\t\t\t\t     ) AS rank\n\t\t\t\t   FROM Records AS r\n\t\t\t\t   JOIN BestNubRecords AS NubRecords ON NubRecords.record_id = r.id\n\t\t\t\t   JOIN Players AS p ON p.id = r.player_id\n\t\t\t\t   JOIN Servers AS s ON s.id = r.server_id\n\t\t\t\t   JOIN CourseFilters AS cf ON cf.id = r.filter_id\n\t\t\t\t   JOIN Courses AS c ON c.id = cf.course_id\n\t\t\t\t   JOIN Maps AS m ON m.id = c.map_id WHERE p.id = ? AND m.id = ?),ProLeaderboard AS (\n\t\t\t\t   SELECT\n\t\t\t\t     r.id AS record_id,\n\t\t\t\t     ProRecords.points,\n\t\t\t\t     RANK() OVER (\n\t\t\t\t       PARTITION BY r.filter_id\n\t\t\t\t\t   ORDER BY\n\t\t\t\t\t     r.time ASC,\n\t\t\t\t\t     r.submitted_at ASC\n\t\t\t\t     ) AS rank\n\t\t\t\t   FROM Records AS r\n\t\t\t\t   JOIN BestProRecords AS ProRecords ON ProRecords.record_id = r.id\n\t\t\t\t   JOIN Players AS p ON p.id = r.player_id\n\t\t\t\t   JOIN Servers AS s ON s.id = r.server_id\n\t\t\t\t   JOIN CourseFilters AS cf ON cf.id = r.filter_id\n\t\t\t\t   JOIN Courses AS c ON c.id = cf.course_id\n\t\t\t\t   JOIN Maps AS m ON m.id = c.map_id WHERE p.id = ? AND m.id = ?)\n\t\t\t\t   SELECT\n\t\t\t\t     r.id AS `id: RecordId`,\n\t\t\t\t     p.id AS `player_id: PlayerId`,\n\t\t\t\t     p.name AS player_name,\n\t\t\t\t     s.id AS `server_id: ServerId`,\n\t\t\t\t     s.name AS server_name,\n\t\t\t\t     m.id AS `map_id: MapId`,\n\t\t\t\t     m.name AS map_name,\n\t\t\t\t     c.id AS `course_id: CourseId`,\n\t\t\t\t     c.name AS course_name,\n\t\t\t\t     cf.mode AS `mode: Mode`,\n\t\t\t\t     cf.nub_tier AS `nub_tier: Tier`,\n\t\t\t\t     cf.pro_tier AS `pro_tier: Tier`,\n\t\t\t\t     r.styles AS `styles: Styles`,\n\t\t\t\t     r.teleports,\n\t\t\t\t     r.time AS `time: Seconds`,\n\t\t\t\t     NubLeaderboard.rank AS nub_rank,\n\t\t\t\t     NubLeaderboard.points AS nub_points,\n\t\t\t\t     ProLeaderboard.rank AS pro_rank,\n\t\t\t\t     ProLeaderboard.points AS pro_points,\n\t\t\t\t     r.submitted_at\n\t\t\t\t   FROM Records AS r\n\t\t\t\t   LEFT JOIN NubLeaderboard ON NubLeaderboard.record_id = r.id\n\t\t\t\t   LEFT JOIN ProLeaderboard ON ProLeaderboard.record_id = r.id\n\t\t\t\t   JOIN Players AS p ON p.id = r.player_id\n\t\t\t\t   JOIN Servers AS s ON s.id = r.server_id\n\t\t\t\t   JOIN CourseFilters AS cf ON cf.id = r.filter_id\n\t\t\t\t   JOIN Courses AS c ON c.id = cf.course_id\n\t\t\t\t   JOIN Maps AS m ON m.id = c.map_id WHERE (NubLeaderboard.rank >= 1 OR ProLeaderboard.rank >= 1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: RecordId",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 10
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "player_id: PlayerId",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "player_name",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "server_id: ServerId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "server_name",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | UNIQUE_KEY | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "map_id: MapId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "map_name",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "course_id: CourseId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "course_name",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "mode: Mode",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "nub_tier: Tier",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "pro_tier: Tier",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "styles: Styles",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 10
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "teleports",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 10
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "time: Seconds",
+        "type_info": {
+          "type": "Double",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 22
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "nub_rank",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "",
+          "max_size": 21
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "nub_points",
+        "type_info": {
+          "type": "Double",
+          "flags": "NO_DEFAULT_VALUE",
+          "max_size": 22
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "pro_rank",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "",
+          "max_size": 21
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "pro_points",
+        "type_info": {
+          "type": "Double",
+          "flags": "NO_DEFAULT_VALUE",
+          "max_size": 22
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "submitted_at",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY | TIMESTAMP",
+          "max_size": 19
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "aca6cce08403f05b0eabff08ce19cfdd6c78a1840aaa5eeccdbb9142b0cd0420"
+}

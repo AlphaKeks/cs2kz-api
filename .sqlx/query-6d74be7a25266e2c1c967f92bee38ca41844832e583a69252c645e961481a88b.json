@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT mode AS `mode: Mode`\n\t\t\t FROM CourseFilters\n\t\t\t WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mode: Mode",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6d74be7a25266e2c1c967f92bee38ca41844832e583a69252c645e961481a88b"
+}

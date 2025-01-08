@@ -1,0 +1,44 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT\n\t\t   r.teleports,\n\t\t   cf.nub_tier AS `nub_tier: Tier`,\n\t\t   cf.pro_tier AS `pro_tier: Tier`\n\t\t FROM Records AS r\n\t\t JOIN CourseFilters AS cf ON cf.id = r.filter_id\n\t\t LEFT JOIN BestNubRecords AS NubRecords ON NubRecords.record_id = r.id\n\t\t LEFT JOIN BestProRecords AS ProRecords ON ProRecords.record_id = r.id\n\t\t WHERE r.player_id = ?\n\t\t AND (NOT ((NubRecords.points IS NULL) AND (ProRecords.points IS NULL)))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "teleports",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 10
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "nub_tier: Tier",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "pro_tier: Tier",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "df9529a2a3203a0562cdf897331d6657d5d2637215af1069bc0481b88638695e"
+}

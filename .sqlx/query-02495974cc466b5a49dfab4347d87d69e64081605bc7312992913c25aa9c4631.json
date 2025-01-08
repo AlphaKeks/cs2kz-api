@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT IGNORE INTO Players (id, name, ip_address)\n\t\t VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "02495974cc466b5a49dfab4347d87d69e64081605bc7312992913c25aa9c4631"
+}

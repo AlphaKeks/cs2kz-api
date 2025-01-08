@@ -1,0 +1,64 @@
+{
+  "db_name": "MySQL",
+  "query": "WITH RankedPoints AS (\n\t\t     SELECT\n\t\t\t   source,\n\t\t       record_id,\n\t\t       ROW_NUMBER() OVER (\n\t\t         PARTITION BY player_id\n\t\t         ORDER BY points DESC\n\t\t       ) AS n\n\t\t     FROM ((\n\t\t       SELECT \"pro\" AS source, record_id, player_id, points\n\t\t       FROM BestProRecords\n\t\t       WHERE player_id = ?\n\t\t     ) UNION ALL (\n\t\t       SELECT \"nub\" AS source, record_id, player_id, points\n\t\t       FROM BestNubRecords\n\t\t       WHERE player_id = ?\n\t\t     )) AS _\n\t\t   ),\n\t\t   NubRecords AS (\n\t\t     SELECT\n\t\t       r.id AS record_id,\n\t\t       r.player_id,\n\t\t       cf.nub_tier AS tier,\n\t\t       BestNubRecords.points,\n\t\t       RANK() OVER (\n\t\t         PARTITION BY r.filter_id\n\t\t         ORDER BY\n\t\t           r.time ASC,\n\t\t           r.submitted_at ASC\n\t\t       ) AS rank\n\t\t     FROM Records AS r\n\t\t     JOIN BestNubRecords ON BestNubRecords.record_id = r.id\n\t\t     JOIN CourseFilters AS cf ON cf.id = r.filter_id\n\t\t     WHERE r.player_id = ?\n\t\t     AND cf.mode = ?\n\t\t   ),\n\t\t   ProRecords AS (\n\t\t     SELECT\n\t\t       r.id AS record_id,\n\t\t       r.player_id,\n\t\t       cf.pro_tier AS tier,\n\t\t       BestProRecords.points,\n\t\t       RANK() OVER (\n\t\t         PARTITION BY r.filter_id\n\t\t         ORDER BY\n\t\t           r.time ASC,\n\t\t           r.submitted_at ASC\n\t\t       ) AS rank\n\t\t     FROM Records AS r\n\t\t     JOIN BestProRecords ON BestProRecords.record_id = r.id\n\t\t     JOIN CourseFilters AS cf ON cf.id = r.filter_id\n\t\t     WHERE r.player_id = ?\n\t\t     AND cf.mode = ?\n\t\t   ),\n\t\t   NubRatings AS (\n\t\t     SELECT\n\t\t       player_id,\n\t\t       SUM(KZ_POINTS(tier, false, rank - 1, points) * POWER(0.975, n - 1)) AS rating\n\t\t     FROM NubRecords\n\t\t     JOIN RankedPoints\n\t\t\t   ON RankedPoints.record_id = NubRecords.record_id\n\t\t\t   AND RankedPoints.source = \"nub\"\n\t\t     GROUP BY player_id\n\t\t   ),\n\t\t   ProRatings AS (\n\t\t     SELECT\n\t\t       player_id,\n\t\t       SUM(KZ_POINTS(tier, true, rank - 1, points) * POWER(0.975, n - 1)) AS rating\n\t\t     FROM ProRecords\n\t\t     JOIN RankedPoints\n\t\t\t   ON RankedPoints.record_id = ProRecords.record_id\n\t\t\t   AND RankedPoints.source = \"pro\"\n\t\t     GROUP BY ProRecords.player_id\n\t\t   )\n\t\t   SELECT\n\t\t     p.id AS `player_id: PlayerId`,\n\t\t     p.name AS player_name,\n\t\t     NubRatings.rating AS nub_rating,\n\t\t     ProRatings.rating AS pro_rating,\n\t\t     p.first_joined_at\n\t\t   FROM Players AS p\n\t\t   LEFT JOIN NubRatings ON NubRatings.player_id = p.id\n\t\t   LEFT JOIN ProRatings ON ProRatings.player_id = p.id\n\t\t   WHERE p.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "player_id: PlayerId",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "player_name",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "nub_rating",
+        "type_info": {
+          "type": "Double",
+          "flags": "",
+          "max_size": 23
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "pro_rating",
+        "type_info": {
+          "type": "Double",
+          "flags": "",
+          "max_size": 23
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "first_joined_at",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY | TIMESTAMP",
+          "max_size": 19
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "7b80a5f4e11270a11d4e785ccc6cb1dab7a451054ea2048b134d3de94655ee59"
+}

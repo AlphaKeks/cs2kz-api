@@ -1,0 +1,94 @@
+{
+  "db_name": "MySQL",
+  "query": "WITH RankedPoints AS (\n\t\t\t     SELECT\n\t\t\t       source,\n\t\t\t       record_id,\n\t\t\t       ROW_NUMBER() OVER (\n\t\t\t         PARTITION BY player_id\n\t\t\t         ORDER BY points DESC\n\t\t\t       ) AS n\n\t\t\t     FROM ((\n\t\t\t       SELECT \"nub\" AS source, record_id, player_id, points\n\t\t\t       FROM BestNubRecords\n\t\t\t       WHERE player_id = ?\n\t\t\t     ) UNION ALL (\n\t\t\t       SELECT \"pro\" AS source, record_id, player_id, points\n\t\t\t       FROM BestProRecords\n\t\t\t       WHERE player_id = ?\n\t\t\t     )) AS _\n\t\t\t   ),\n\t\t\t   NubRecords AS (\n\t\t\t     SELECT\n\t\t\t       r.id AS record_id,\n\t\t\t       r.player_id,\n\t\t\t       cf.nub_tier AS tier,\n\t\t\t       BestNubRecords.points,\n\t\t\t       RANK() OVER (\n\t\t\t         PARTITION BY r.filter_id\n\t\t\t         ORDER BY\n\t\t\t      \t r.time ASC,\n\t\t\t      \t r.submitted_at ASC\n\t\t\t       ) AS rank\n\t\t\t     FROM Records AS r\n\t\t\t     JOIN BestNubRecords ON BestNubRecords.record_id = r.id\n\t\t\t     JOIN CourseFilters AS cf ON cf.id = r.filter_id\n\t\t\t     WHERE r.player_id = ?\n\t\t\t     AND cf.mode = ?\n\t\t\t   ),\n\t\t\t   ProRecords AS (\n\t\t\t     SELECT\n\t\t\t       r.id AS record_id,\n\t\t\t       r.player_id,\n\t\t\t       cf.pro_tier AS tier,\n\t\t\t       BestProRecords.points,\n\t\t\t       RANK() OVER (\n\t\t\t         PARTITION BY r.filter_id\n\t\t\t         ORDER BY\n\t\t\t      \t r.time ASC,\n\t\t\t      \t r.submitted_at ASC\n\t\t\t       ) AS rank\n\t\t\t     FROM Records AS r\n\t\t\t     JOIN BestProRecords ON BestProRecords.record_id = r.id\n\t\t\t     JOIN CourseFilters AS cf ON cf.id = r.filter_id\n\t\t\t     WHERE r.player_id = ?\n\t\t\t     AND cf.mode = ?\n\t\t\t   ),\n\t\t\t   NubRatings AS (\n\t\t\t     SELECT\n\t\t\t       player_id,\n\t\t\t       SUM(KZ_POINTS(tier, false, rank - 1, points) * POWER(0.975, n - 1)) AS rating\n\t\t\t     FROM NubRecords\n\t\t\t     JOIN RankedPoints\n\t\t\t\t   ON RankedPoints.record_id = NubRecords.record_id\n\t\t\t\t   AND RankedPoints.source = \"nub\"\n\t\t\t     GROUP BY player_id\n\t\t\t   ),\n\t\t\t   NubRankAndPoints AS (\n\t\t\t     SELECT\n\t\t\t       player_id,\n\t\t\t       rank,\n\t\t\t       SUM(KZ_POINTS(tier, false, rank - 1, points)) AS points\n\t\t\t     FROM NubRecords\n\t\t\t     WHERE record_id = ?\n\t\t\t     GROUP BY player_id\n\t\t\t   ),\n\t\t\t   ProRatings AS (\n\t\t\t     SELECT\n\t\t\t       player_id,\n\t\t\t       SUM(KZ_POINTS(tier, true, rank - 1, points) * POWER(0.975, n - 1)) AS rating\n\t\t\t     FROM ProRecords\n\t\t\t     JOIN RankedPoints\n\t\t\t\t   ON RankedPoints.record_id = ProRecords.record_id\n\t\t\t\t   AND RankedPoints.source = \"pro\"\n\t\t\t     GROUP BY player_id\n\t\t\t   ),\n\t\t\t   ProRankAndPoints AS (\n\t\t\t     SELECT\n\t\t\t       player_id,\n\t\t\t       rank,\n\t\t\t       SUM(KZ_POINTS(tier, false, rank - 1, points)) AS points\n\t\t\t     FROM ProRecords\n\t\t\t     WHERE record_id = ?\n\t\t\t     GROUP BY player_id\n\t\t\t   )\n\t\t\t   SELECT\n\t\t\t\t (SELECT COUNT(*) FROM BestNubRecords WHERE filter_id = ?) AS nub_leaderboard_size,\n\t\t\t\t (SELECT COUNT(*) FROM BestProRecords WHERE filter_id = ?) AS pro_leaderboard_size,\n\t\t\t     NubRatings.rating AS nub_rating,\n\t\t\t     NubRankAndPoints.rank AS nub_rank,\n\t\t\t     NubRankAndPoints.points AS nub_points,\n\t\t\t     ProRatings.rating AS pro_rating,\n\t\t\t     ProRankAndPoints.rank AS pro_rank,\n\t\t\t     ProRankAndPoints.points AS pro_points\n\t\t\t   FROM Players AS p\n\t\t\t   LEFT JOIN NubRecords ON NubRecords.player_id = p.id\n\t\t\t   LEFT JOIN ProRecords ON ProRecords.player_id = p.id\n\t\t\t   LEFT JOIN NubRatings ON NubRatings.player_id = p.id\n\t\t\t   LEFT JOIN NubRankAndPoints ON NubRankAndPoints.player_id = p.id\n\t\t\t   LEFT JOIN ProRatings ON ProRatings.player_id = p.id\n\t\t\t   LEFT JOIN ProRankAndPoints ON ProRankAndPoints.player_id = p.id\n\t\t\t   WHERE p.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "nub_leaderboard_size",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "BINARY",
+          "max_size": 21
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "pro_leaderboard_size",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "BINARY",
+          "max_size": 21
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "nub_rating",
+        "type_info": {
+          "type": "Double",
+          "flags": "",
+          "max_size": 23
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "nub_rank",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "",
+          "max_size": 21
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "nub_points",
+        "type_info": {
+          "type": "Double",
+          "flags": "",
+          "max_size": 23
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "pro_rating",
+        "type_info": {
+          "type": "Double",
+          "flags": "",
+          "max_size": 23
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "pro_rank",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "",
+          "max_size": 21
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "pro_points",
+        "type_info": {
+          "type": "Double",
+          "flags": "",
+          "max_size": 23
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "9d2e04487fde9755213a4637c32b11f07435dc03a45603b42d8366294104e483"
+}
