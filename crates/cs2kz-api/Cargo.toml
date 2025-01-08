@@ -90,12 +90,12 @@ features = [
 ]
 
 [dependencies.axum]
-version = "0.8.0-rc.1"
+version = "0.8.1"
 default-features = false
 features = ["macros", "tokio", "http1", "http2", "ws"]
 
 [dependencies.axum-extra]
-version = "0.10.0-rc.1"
+version = "0.10.0"
 default-features = false
 features = ["cookie"]
 

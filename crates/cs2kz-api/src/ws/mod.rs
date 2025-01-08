@@ -94,7 +94,7 @@ where
 		};
 
 		let bytes = match message {
-			RawMessage::Text(text) => text.into_bytes(),
+			RawMessage::Text(text) => text.into(),
 			RawMessage::Binary(bytes) => bytes,
 			RawMessage::Ping(_) => {
 				trace!("received ping");
@@ -184,7 +184,7 @@ where
 		};
 
 		let bytes = match message {
-			RawMessage::Text(text) => text.into_bytes(),
+			RawMessage::Text(text) => text.into(),
 			RawMessage::Binary(bytes) => bytes,
 			RawMessage::Ping(_) => {
 				trace!("received ping, trying again");
@@ -384,15 +384,15 @@ where
 	Ok(())
 }
 
-fn shutdown_close_frame() -> CloseFrame<'static> {
+fn shutdown_close_frame() -> CloseFrame {
 	CloseFrame {
 		code: close_code::NORMAL,
-		reason: Cow::Borrowed("server is shutting down"),
+		reason: "server is shutting down".into(),
 	}
 }
-fn timeout_close_frame() -> CloseFrame<'static> {
+fn timeout_close_frame() -> CloseFrame {
 	CloseFrame {
 		code: close_code::NORMAL,
-		reason: Cow::Borrowed("exceeded heartbeat timeout"),
+		reason: "exceeded heartbeat timeout".into(),
 	}
 }

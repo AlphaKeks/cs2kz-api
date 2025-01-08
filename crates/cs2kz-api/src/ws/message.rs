@@ -156,7 +156,7 @@ impl<T: serde::Serialize> Message<T> {
 	/// Encodes an outgoing message.
 	pub fn encode(&self) -> Result<RawMessage, EncodeMessageError> {
 		serde_json::to_string(self)
-			.map(RawMessage::Text)
+			.map(|text| RawMessage::Text(text.into()))
 			.map_err(EncodeMessageError)
 	}
 }
