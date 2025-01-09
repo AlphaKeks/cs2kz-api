@@ -29,7 +29,7 @@ pub enum Error {
     UpdateDistributionData(UpdateDistributionDataError),
 }
 
-#[tracing::instrument(err)]
+#[tracing::instrument(skip_all, err)]
 pub async fn run(cx: Context, cancellation_token: CancellationToken) -> Result<(), Error> {
     let (filter_id_tx, mut filter_id_rx) = mpsc::channel(16);
 
