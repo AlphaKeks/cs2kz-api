@@ -1,3 +1,4 @@
+use headers::HeaderMapExt;
 use http::{HeaderValue, Method, Uri, header, request};
 use tower_http::cors::{AllowCredentials, AllowHeaders, AllowMethods, AllowOrigin, CorsLayer};
 
@@ -14,8 +15,14 @@ pub fn layer() -> CorsLayer {
 }
 
 fn allow_credentials(_header: &HeaderValue, request: &request::Parts) -> bool {
-    matches!(request.method, Method::POST | Method::PUT | Method::PATCH | Method::DELETE)
-        || request.uri.path().starts_with("/auth")
+    request
+        .headers
+        .typed_get::<headers::AccessControlRequestMethod>()
+        .is_some_and(|method| match Method::from(method) {
+            Method::POST | Method::PUT | Method::PATCH | Method::DELETE => true,
+            Method::GET => request.uri.path().starts_with("/auth"),
+            _ => false,
+        })
 }
 
 fn allow_origin(header: &HeaderValue, request: &request::Parts) -> bool {
