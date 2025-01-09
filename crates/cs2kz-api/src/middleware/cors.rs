@@ -15,14 +15,19 @@ pub fn layer() -> CorsLayer {
 }
 
 fn allow_credentials(_header: &HeaderValue, request: &request::Parts) -> bool {
-    request
-        .headers
-        .typed_get::<headers::AccessControlRequestMethod>()
-        .is_some_and(|method| match Method::from(method) {
-            Method::POST | Method::PUT | Method::PATCH | Method::DELETE => true,
-            Method::GET => request.uri.path().starts_with("/auth"),
-            _ => false,
-        })
+    dbg!(_header);
+    match request.method {
+        Method::POST | Method::PUT | Method::PATCH | Method::DELETE => true,
+        Method::GET => request.uri.path().starts_with("/auth"),
+        Method::OPTIONS => request
+            .headers
+            .typed_get::<headers::AccessControlRequestMethod>()
+            .map(Method::from)
+            .is_some_and(|method| {
+                matches!(method, Method::POST | Method::PUT | Method::PATCH | Method::DELETE)
+            }),
+        _ => false,
+    }
 }
 
 fn allow_origin(header: &HeaderValue, request: &request::Parts) -> bool {
