@@ -7,127 +7,50 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     crane.url = "github:ipetkov/crane";
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    {
-      self,
-      nixpkgs,
-      utils,
-      rust-overlay,
-      crane,
-      ...
+    { self
+    , nixpkgs
+    , utils
+    , rust-overlay
+    , crane
+    , disko
+    , ...
     }@inputs:
-    utils.lib.eachDefaultSystem (system:
-      let
+    let
+      inherit (nixpkgs) lib;
+      getPkgs = system: import nixpkgs {
+        inherit system;
         overlays = [ (import inputs.rust-overlay) ];
-        pkgs = import nixpkgs { inherit system overlays; };
-
-        python = pkgs.python311.withPackages (p: with p; [
-          scipy
-        ]);
-
-        rust-toolchain =
-          pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-
-        craneLib = (crane.mkLib pkgs).overrideToolchain (p:
-          ((p.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
-            extensions = [ "clippy" "rustfmt" ];
-          }));
-
-        mkFileSet = files: nixpkgs.lib.fileset.toSource {
-          root = ./.;
-          fileset = nixpkgs.lib.fileset.unions (files ++ [
-            (craneLib.fileset.commonCargoSources ./.)
-            ./crates/cs2kz/migrations
-            ./.sqlx
-            ./.example.env
-          ]);
-        };
-
-        fileSetForCrate = crate: mkFileSet [
-          (craneLib.fileset.commonCargoSources crate)
-        ];
-
-        src = mkFileSet [];
-
-        commonArgs = {
-          inherit src;
-          strictDeps = true;
-          buildInputs = [ python ];
-          env = {
-            PYO3_PYTHON = "${python}/bin/python";
-            SQLX_OFFLINE = true;
-          };
-        };
-
-        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-        crateArgs = commonArgs // {
-          inherit cargoArtifacts;
-          inherit (craneLib.crateNameFromCargoToml { inherit src; }) version;
-        };
-
-        cs2kz-api = craneLib.buildPackage (crateArgs // {
-          pname = "cs2kz-api";
-          src = fileSetForCrate ./crates/cs2kz-api;
-          cargoExtraArgs = "--bin=cs2kz-api";
-        });
-
-        openapi-schema = craneLib.buildPackage (crateArgs // {
-          pname = "openapi";
-          src = fileSetForCrate ./crates/cs2kz-api;
-          cargoExtraArgs = "--bin=openapi";
-        });
-      in
-      {
-        checks = {
-          inherit cs2kz-api openapi-schema;
-
-          clippy = craneLib.cargoClippy (commonArgs // {
-            inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--no-deps --all-targets -- -Dwarnings";
-          });
-
-          clippy-tests = craneLib.cargoClippy (commonArgs // {
-            inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--no-deps --tests -- -Dwarnings";
-          });
-
-          rustfmt = craneLib.cargoFmt {
-            inherit src;
-          };
-        };
-
-        packages = {
-          inherit cs2kz-api openapi-schema;
-
-          dockerImage = pkgs.dockerTools.buildLayeredImage {
-            name = cs2kz-api.pname;
-            tag = cs2kz-api.version;
-            config = {
-              Cmd = [
-                "${cs2kz-api}/bin/cs2kz-api"
-                "--config"
-                "/etc/cs2kz-api.toml"
-                "--depot-downloader-path"
-                "${pkgs.depotdownloader}/bin/DepotDownloader"
-              ];
+      };
+    in
+    (utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
+    (getPkgs system).callPackage ./nix/cs2kz-api.nix {
+      inherit crane;
+    })) // {
+      nixosConfigurations = {
+        production =
+          let
+            system = "aarch64-linux";
+            pkgs = getPkgs system;
+          in
+          lib.nixosSystem {
+            specialArgs = {
+              inherit system disko;
+              cs2kz-api = (pkgs.callPackage ./nix/cs2kz-api.nix {
+                inherit crane;
+              }).packages.cs2kz-api;
             };
+            modules = [
+              ./nix/NixOS/configuration.nix
+              ./nix/NixOS/disks.nix
+            ];
           };
-        };
-
-        devShells.default = pkgs.mkShell {
-          nativeBuildInputs = [ rust-toolchain python ] ++ (with pkgs; [
-            docker-client
-            lazydocker
-            mycli
-            sqlx-cli
-            tokio-console
-            depotdownloader
-            oha
-          ]);
-
-          PYO3_PYTHON = "${python}/bin/python";
-        };
-      });
+      };
+    };
 }
