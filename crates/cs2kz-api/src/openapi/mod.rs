@@ -48,7 +48,16 @@ static CONFIG: LazyLock<Arc<utoipa_swagger_ui::Config<'static>>> = LazyLock::new
         (name = "Records"),
         (name = "Player Bans"),
     ),
-    components(schemas(shims::Limit, shims::Offset), responses()),
+    components(
+        schemas(
+            shims::Limit,
+            shims::Offset,
+            crate::players::PlayerIdentifier,
+            crate::servers::ServerIdentifier,
+            crate::maps::MapIdentifier,
+            crate::plugin::PluginVersionIdentifier,
+        ),
+    ),
     paths(
         crate::plugin::publish_plugin_version,
         crate::plugin::get_plugin_versions,
