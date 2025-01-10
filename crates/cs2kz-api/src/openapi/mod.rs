@@ -139,7 +139,7 @@ async fn serve_openapi_json(State(config): State<Arc<ServerConfig>>) -> Response
 
         if runtime::environment().is_local() {
             let local_server = ServerBuilder::new()
-                .url(format!("http://{}:{}", config.ip_addr, config.port))
+                .url(format!("http://{}", config.socket_addr()))
                 .description(Some("local dev server"))
                 .build();
 
