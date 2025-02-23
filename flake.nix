@@ -50,7 +50,7 @@
           inherit src;
           strictDeps = true;
           buildInputs = [ python ];
-          nativeBuildInputs = [ python ];
+          nativeBuildInputs = [ python pkgs.python311Packages.virtualenv ];
           env = {
             PYO3_PYTHON = "${python}/bin/python3";
             SQLX_OFFLINE = true;
