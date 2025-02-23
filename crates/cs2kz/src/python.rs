@@ -22,6 +22,10 @@ static JOBS: LazyLock<mpsc::Sender<Job>> = LazyLock::new(|| {
         .name(String::from("pyo3"))
         .spawn(move || {
             Python::with_gil(|py| {
+                let sys = py.import("sys").expect("failed to import sys");
+
+                warn!(executable = %sys.getattr("executable").unwrap(), path = %sys.getattr("path").unwrap());
+
                 let norminvgauss = import_norminvgauss(py).expect("failed to import norminvgauss");
 
                 let fit = norminvgauss
