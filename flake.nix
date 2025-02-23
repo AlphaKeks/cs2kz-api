@@ -52,7 +52,7 @@
           buildInputs = [ python ];
           nativeBuildInputs = [ python ];
           env = {
-            PYO3_PYTHON = "${python}/bin/python3.11";
+            PYO3_PYTHON = "${python}/bin/python3";
             SQLX_OFFLINE = true;
           };
         };
