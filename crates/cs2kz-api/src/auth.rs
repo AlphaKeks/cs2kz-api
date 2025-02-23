@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::panic::AssertUnwindSafe;
 use std::str;
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use cs2kz::Context;
 use cs2kz::access_keys::AccessKey;
 use cs2kz::time::Timestamp;
 use cs2kz::users::UserId;
+use futures_util::FutureExt;
 use headers::authorization::{Authorization, Bearer};
 use steam_openid::VerifyCallbackPayloadError;
 use tower::ServiceBuilder;
@@ -128,6 +130,7 @@ async fn cs2_server_auth(
     let server_id = server.id;
 
     Ok(upgrade.on_upgrade(move |socket| {
+        AssertUnwindSafe(
         async move {
             info!("server connected");
 
@@ -190,7 +193,12 @@ async fn cs2_server_auth(
                     error!(%error);
                 },
             }
-        }
+        })
+        .catch_unwind()
+        .map(|res| match res {
+            Ok(()) => (),
+            Err(_) => error!("we panicked"),
+        })
         .instrument(info_span!("cs2_server_connection", %server.id, server.name))
     }))
 }
