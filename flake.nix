@@ -50,8 +50,9 @@
           inherit src;
           strictDeps = true;
           buildInputs = [ python ];
+          nativeBuildInputs = [ python ];
           env = {
-            PYO3_PYTHON = "${python}/bin/python";
+            PYO3_PYTHON = "${python}/bin/python3.11";
             SQLX_OFFLINE = true;
           };
         };
