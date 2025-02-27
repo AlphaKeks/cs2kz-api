@@ -49,7 +49,6 @@
         commonArgs = {
           inherit src;
           strictDeps = true;
-          buildInputs = [ python ];
           propagatedBuildInputs = [ python ];
           env = {
             PYO3_PYTHON = "${python}/bin/python";
