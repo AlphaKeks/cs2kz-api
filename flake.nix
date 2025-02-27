@@ -66,6 +66,10 @@
           pname = "cs2kz-api";
           src = fileSetForCrate ./crates/cs2kz-api;
           cargoExtraArgs = "--bin=cs2kz-api";
+          preFixup = ''
+            wrapProgram $out/bin/cs2kz-api \
+              --prefix PYTHONPATH : ${python}/lib/${python.executable}/site-packages
+          '';
         });
 
         generator = craneLib.buildPackage (crateArgs // {
