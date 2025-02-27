@@ -69,7 +69,7 @@
           nativeBuildInputs = [ pkgs.makeWrapper ];
           preFixup = ''
             wrapProgram $out/bin/cs2kz-api \
-              --prefix PYTHONPATH : ${python}/${python.sitePackages}
+              --prefix PATH : ${python}/bin
           '';
         });
 
