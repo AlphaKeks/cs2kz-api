@@ -66,9 +66,10 @@
           pname = "cs2kz-api";
           src = fileSetForCrate ./crates/cs2kz-api;
           cargoExtraArgs = "--bin=cs2kz-api";
+          nativeBuildInputs = [ pkgs.makeWrapper ];
           preFixup = ''
             wrapProgram $out/bin/cs2kz-api \
-              --prefix PYTHONPATH : ${python}/lib/${python.executable}/site-packages
+              --prefix PYTHONPATH : ${python}/${python.sitePackages}
           '';
         });
 
