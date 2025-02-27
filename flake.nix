@@ -52,7 +52,7 @@
           buildInputs = [ python ];
           propagatedBuildInputs = [ python ];
           env = {
-            PYO3_PYTHON = "${python}/bin/python3";
+            PYO3_PYTHON = "${python}/bin/python";
             SQLX_OFFLINE = true;
           };
         };
