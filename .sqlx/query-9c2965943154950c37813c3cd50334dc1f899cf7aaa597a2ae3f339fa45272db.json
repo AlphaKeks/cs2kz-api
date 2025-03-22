@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE Servers\n\t\t SET access_key = ?\n\t\t WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "9c2965943154950c37813c3cd50334dc1f899cf7aaa597a2ae3f339fa45272db"
+}

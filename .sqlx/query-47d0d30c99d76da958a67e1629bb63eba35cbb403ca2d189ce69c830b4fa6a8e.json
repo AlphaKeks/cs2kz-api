@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT COUNT(*)\n\t\t FROM Bans\n\t\t WHERE player_id = COALESCE(?, player_id)\n\t\t AND banned_by = COALESCE(?, banned_by)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "COUNT(*)",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | BINARY",
+          "max_size": 21
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "47d0d30c99d76da958a67e1629bb63eba35cbb403ca2d189ce69c830b4fa6a8e"
+}

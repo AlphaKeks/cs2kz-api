@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT (COUNT(*) > 0) AS `has_unbans: bool`\n\t\t FROM Unbans\n\t\t WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "has_unbans: bool",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | BINARY",
+          "max_size": 1
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "db26dbd22fe06a8716eafebae2d358d2ea8ccf9acd933ce35d03860fb1938ed4"
+}

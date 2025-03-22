@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO Unbans (id, reason, unbanned_by)\n\t\t VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "1736ec4ab94ef8f6a13ddc54a5bb63c52c4c3c3c2014276ae23367cc271a1f6f"
+}

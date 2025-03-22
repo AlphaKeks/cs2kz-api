@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE Users\n\t\t SET permissions = ?\n\t\t WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a7e9994b1426ca13a7fcde282ea5f352d35373a142ce43db70cd12d8029f31f8"
+}

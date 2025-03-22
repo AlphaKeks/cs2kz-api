@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT expires_at FROM Bans WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "expires_at",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY | NO_DEFAULT_VALUE",
+          "max_size": 19
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f7574dfbc443c0b380a1fc5ec262e543ff47cca017e3eca1736b80a2723b79c7"
+}

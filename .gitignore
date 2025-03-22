@@ -1,18 +1,9 @@
-# env variables
-/.env
-/.docker.env
-
-# direnv
+# nix
 /.direnv
-
-# ctags
-/tags
-
-# Nix
 /result
 
-# Rust
+# rust
 /target
 
-# config
-/cs2kz-api.toml
+# env
+/.env

@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE Users\n\t\t SET server_budget = server_budget - ?\n\t\t WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "072f7550a28323c9b27f348e463f4eb70507211f8b0ab6bfc1b26e6207efc27f"
+}

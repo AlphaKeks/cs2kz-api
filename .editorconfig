@@ -1,15 +1,18 @@
-# https://editorconfig.org
-
 root = true
 
 [*]
-charset = utf-8
+indent_style = tab
+indent_size = tab
 end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
 insert_final_newline = true
+max_line_length = 80
+
+[*.{txt,md}]
 indent_style = space
+indent_size = 3
 
-[*.rs]
-indent_size = 4
-
-[*.{md,toml,nix,yaml,sql,editorconfig}]
+[{*.{toml,yaml,json,sh,env,nix,sql},.envrc}]
+indent_style = space
 indent_size = 2

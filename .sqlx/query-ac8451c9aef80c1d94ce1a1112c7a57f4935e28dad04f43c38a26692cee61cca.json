@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO CourseMappers (course_id, user_id)\n\t\t VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ac8451c9aef80c1d94ce1a1112c7a57f4935e28dad04f43c38a26692cee61cca"
+}

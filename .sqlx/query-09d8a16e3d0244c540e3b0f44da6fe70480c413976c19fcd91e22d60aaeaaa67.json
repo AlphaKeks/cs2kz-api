@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO UserSessions (id, user_id, expires_at)\n\t\t VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "09d8a16e3d0244c540e3b0f44da6fe70480c413976c19fcd91e22d60aaeaaa67"
+}

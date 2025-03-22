@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO Filters (course_id, mode, nub_tier, pro_tier, ranked, notes)\n\t\t VALUES (?, ?, ?, ?, ?, ?)\n\t\t RETURNING id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "ec36931a2f43ea1b0d4f14b125c0388a2dfc96e8b06539ebf145bb914b6a67aa"
+}
