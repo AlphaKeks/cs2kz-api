@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "LOCK TABLES Filters READ LOCAL, FiltersToRecalculate WRITE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "4bd6df81da3cd7c28fa3ae46d2c82ca171c9f3110338dd4326940ab066e03cd7"
+}

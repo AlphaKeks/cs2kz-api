@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE PlayersToRecalculate\n\t\t SET priority = 0\n\t\t WHERE player_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "3f7f7d670761211015326cf62af031006731586e7f44f3606e31f95f41bc86e6"
+}

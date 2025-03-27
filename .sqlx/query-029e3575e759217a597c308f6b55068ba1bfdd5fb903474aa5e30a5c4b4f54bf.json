@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "DELETE FROM Maps\n\t\t WHERE created_by = COALESCE(?, created_by)\n\t\t LIMIT ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "029e3575e759217a597c308f6b55068ba1bfdd5fb903474aa5e30a5c4b4f54bf"
+}

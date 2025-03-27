@@ -1,0 +1,44 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT\n\t\t   style AS `style: Style`,\n\t\t   linux_checksum AS `linux_checksum: Checksum`,\n\t\t   windows_checksum AS `windows_checksum: Checksum`\n\t\t FROM StyleChecksums\n\t\t WHERE plugin_version_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "style: Style",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 10
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "linux_checksum: Checksum",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | BINARY | NO_DEFAULT_VALUE",
+          "max_size": 16
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "windows_checksum: Checksum",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | BINARY | NO_DEFAULT_VALUE",
+          "max_size": 16
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9d4eaf2d40b11fe8b8ac72c7a5230bd1f3bbe51223f80a3f67ca6baa6fa62fa1"
+}

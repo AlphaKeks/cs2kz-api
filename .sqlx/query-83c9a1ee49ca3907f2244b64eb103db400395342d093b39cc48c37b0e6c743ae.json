@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "DELETE FROM PluginVersions WHERE id >= ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "83c9a1ee49ca3907f2244b64eb103db400395342d093b39cc48c37b0e6c743ae"
+}

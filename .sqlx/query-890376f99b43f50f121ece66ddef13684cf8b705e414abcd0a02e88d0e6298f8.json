@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT created_at AS `created_at: Timestamp`\n\t\t FROM Bans\n\t\t WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "created_at: Timestamp",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY | TIMESTAMP",
+          "max_size": 19
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "890376f99b43f50f121ece66ddef13684cf8b705e414abcd0a02e88d0e6298f8"
+}

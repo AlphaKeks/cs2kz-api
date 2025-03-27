@@ -1,0 +1,104 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT\n\t\t   b.id AS `id: BanId`,\n\t\t   b.player_id AS `player_id: PlayerId`,\n\t\t   b.reason AS `reason: BanReason`,\n\t\t   b.banned_by AS `banned_by: BannedBy`,\n\t\t   b.created_at AS `created_at: Timestamp`,\n\t\t   b.expires_at AS `expires_at: Timestamp`,\n\t\t   ub.reason AS `unban_reason: UnbanReason`,\n\t\t   ub.unbanned_by AS `unbanned_by: UserId`,\n\t\t   ub.created_at AS `unban_created_at: Timestamp`\n\t\t FROM Bans AS b\n\t\t LEFT JOIN Unbans AS ub ON ub.id = b.id\n\t\t WHERE b.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: BanId",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 10
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "player_id: PlayerId",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | MULTIPLE_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "reason: BanReason",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "banned_by: BannedBy",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at: Timestamp",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY | TIMESTAMP",
+          "max_size": 19
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "expires_at: Timestamp",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY | NO_DEFAULT_VALUE",
+          "max_size": 19
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "unban_reason: UnbanReason",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "unbanned_by: UserId",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "MULTIPLE_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "unban_created_at: Timestamp",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "UNSIGNED | BINARY | TIMESTAMP",
+          "max_size": 19
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "e5461fb77f4608dbe03ebbd4e8d4408e69e2c4b3cb136e283748c97dc5d06afc"
+}

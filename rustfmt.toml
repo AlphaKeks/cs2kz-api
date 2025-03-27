@@ -1,0 +1,35 @@
+unstable_features = true
+
+edition = "2024"
+style_edition = "2024"
+
+brace_style = "AlwaysNextLine"
+chain_width = 75
+condense_wildcard_suffixes = true
+empty_item_single_line = false
+fn_call_width = 80
+format_code_in_doc_comments = true
+format_strings = true
+group_imports = "StdExternalCrate"
+hard_tabs = true
+hex_literal_case = "Lower"
+imports_granularity = "Crate"
+imports_layout = "HorizontalVertical"
+match_block_trailing_comma = true
+newline_style = "Unix"
+normalize_comments = true
+normalize_doc_attributes = true
+overflow_delimited_expr = true
+single_line_let_else_max_width = 0
+struct_lit_width = 60
+
+skip_macro_invocations = [
+  "assert",
+  "debug_assert",
+  "assert_eq",
+  "debug_assert_eq",
+  "assert_ne",
+  "debug_assert_ne",
+  "assert_matches",
+  "debug_assert_matches",
+]

@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT COUNT(*)\n\t\t\t\t FROM Servers\n\t\t\t\t WHERE owner_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "COUNT(*)",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | BINARY",
+          "max_size": 21
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0c69a9928cf1f7808cd44120f56d4c3142d6b111bd57551772851d531be38ee1"
+}

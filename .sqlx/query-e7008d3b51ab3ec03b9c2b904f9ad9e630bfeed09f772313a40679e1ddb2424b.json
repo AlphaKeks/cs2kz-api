@@ -1,0 +1,74 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT\n\t\t   s.id AS `id: SessionId`,\n\t\t   s.expires_at AS `expires_at: Timestamp`,\n\t\t   u.id AS `user_id: UserId`,\n\t\t   u.name AS `username: Username`,\n\t\t   u.permissions AS `user_permissions: Permissions`,\n\t\t   u.server_budget AS `user_server_budget: ServerBudget`\n\t\t FROM UserSessions AS s\n\t\t INNER JOIN Users AS u ON u.id = s.user_id\n\t\t WHERE s.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: SessionId",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | BINARY | NO_DEFAULT_VALUE",
+          "max_size": 16
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "expires_at: Timestamp",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY | NO_DEFAULT_VALUE",
+          "max_size": 19
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id: UserId",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "username: Username",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "user_permissions: Permissions",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | UNSIGNED",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "user_server_budget: ServerBudget",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED",
+          "max_size": 3
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e7008d3b51ab3ec03b9c2b904f9ad9e630bfeed09f772313a40679e1ddb2424b"
+}

@@ -1,0 +1,84 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT\n\t\t   major,\n\t\t   minor,\n\t\t   patch,\n\t\t   pre,\n\t\t   build,\n\t\t   git_revision AS `git_revision: GitRevision`,\n\t\t   created_at AS `created_at: Timestamp`\n\t\t FROM PluginVersions\n\t\t WHERE game = ?\n\t\t ORDER BY id DESC\n\t\t LIMIT ?, ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "major",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "minor",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "patch",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "pre",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "build",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "git_revision: GitRevision",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | BINARY | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at: Timestamp",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY | TIMESTAMP",
+          "max_size": 19
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a8fd808438dc714d13e041868eb9b73392a4c2fd182f66d40c8d670e98dde8d2"
+}

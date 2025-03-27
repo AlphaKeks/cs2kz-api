@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE Filters\n\t\t\t SET nub_tier = COALESCE(?, nub_tier),\n\t\t\t     pro_tier = COALESCE(?, pro_tier),\n\t\t\t\t ranked = COALESCE(?, ranked),\n\t\t\t\t notes = COALESCE(?, notes)\n\t\t\t WHERE course_id = ? AND mode = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "ca00766268fce0968910457af3261a6f8ff18b715a6ffb7ebf969ced12b4499c"
+}

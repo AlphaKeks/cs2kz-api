@@ -1,0 +1,29 @@
+excludes = [
+  "*.txt",
+  "*.md",
+  "*.json",
+  "*.yaml",
+  "*.sql",
+  "*.lock",
+  ".gitignore",
+  ".editorconfig",
+  "Justfile",
+]
+
+[formatter.shell]
+command = "shfmt"
+options = ["--write", "--indent", "2"]
+includes = ["*.sh", ".envrc", "*.env"]
+
+[formatter.toml]
+command = "taplo"
+options = ["fmt"]
+includes = ["*.toml"]
+
+[formatter.nix]
+command = "nixpkgs-fmt"
+includes = ["*.nix"]
+
+[formatter.rust]
+command = "rustfmt"
+includes = ["*.rs"]

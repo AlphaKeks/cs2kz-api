@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO Records (filter_id, player_id, session_id, time, teleports, styles)\n\t\t VALUES (?, ?, ?, ?, ?, ?)\n\t\t RETURNING id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "39117fca00610866d16f1f46980e76369baf1f7912a2276090be7960e8a59032"
+}

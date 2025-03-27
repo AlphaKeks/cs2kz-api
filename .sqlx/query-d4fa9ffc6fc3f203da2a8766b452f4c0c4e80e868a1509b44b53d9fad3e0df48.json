@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "WITH RankedPoints AS (\n\t\t   SELECT\n\t\t     player_id,\n\t\t     leaderboard,\n\t\t     points,\n\t\t     ROW_NUMBER() OVER (\n\t\t       PARTITION BY player_id\n\t\t       ORDER BY\n\t\t         points DESC,\n\t\t         leaderboard DESC\n\t\t     ) AS n\n\t\t   FROM ((\n\t\t     SELECT 1 AS leaderboard, points, player_id\n\t\t     FROM BestRecords\n\t\t     WHERE player_id = ?\n\t\t   ) UNION ALL (\n\t\t     SELECT 2 AS leaderboard, points, player_id\n\t\t     FROM BestProRecords\n\t\t     WHERE player_id = ?\n\t\t   )) AS _\n\t\t )\n\t\t SELECT SUM(points * POWER(0.975, n - 1)) AS `rating: PlayerRating`\n\t\t FROM RankedPoints\n         GROUP BY player_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "rating: PlayerRating",
+        "type_info": {
+          "type": "Double",
+          "flags": "BINARY",
+          "max_size": 23
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "d4fa9ffc6fc3f203da2a8766b452f4c0c4e80e868a1509b44b53d9fad3e0df48"
+}

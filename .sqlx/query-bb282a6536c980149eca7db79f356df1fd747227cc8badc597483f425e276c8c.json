@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id AS `id: FilterId`\n\t\t FROM Filters\n\t\t WHERE course_id = ? AND mode = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: FilterId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 5
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bb282a6536c980149eca7db79f356df1fd747227cc8badc597483f425e276c8c"
+}

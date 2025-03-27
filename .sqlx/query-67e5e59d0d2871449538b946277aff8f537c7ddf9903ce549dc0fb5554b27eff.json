@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id AS `id: PluginVersionId`\n\t\t FROM PluginVersions\n\t\t WHERE game = ?\n\t\t ORDER BY id DESC\n\t\t LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: PluginVersionId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 5
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "67e5e59d0d2871449538b946277aff8f537c7ddf9903ce549dc0fb5554b27eff"
+}

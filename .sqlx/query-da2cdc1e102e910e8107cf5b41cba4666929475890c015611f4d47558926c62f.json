@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "WITH LatestVersions AS (\n\t\t   SELECT *\n\t\t   FROM PluginVersions\n\t\t   ORDER BY id DESC\n\t\t   LIMIT ?\n\t\t )\n\t\t SELECT id\n\t\t FROM LatestVersions\n\t\t ORDER BY id ASC\n\t\t LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | UNSIGNED",
+          "max_size": 5
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "da2cdc1e102e910e8107cf5b41cba4666929475890c015611f4d47558926c62f"
+}

@@ -1,0 +1,44 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT\n\t\t   id AS `id: FilterId`,\n\t\t   nub_tier AS `nub_tier: Tier`,\n\t\t   pro_tier AS `pro_tier: Tier`\n\t\t FROM Filters\n\t\t WHERE id = (\n\t\t   SELECT filter_id\n\t\t   FROM FiltersToRecalculate\n\t\t   WHERE priority != 0\n\t\t   ORDER BY priority DESC\n\t\t   LIMIT 1\n\t\t )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: FilterId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "nub_tier: Tier",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "pro_tier: Tier",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3c614b9524b0b6d379964bf24eca6dcdc45fafd0adceec43a1abfb3a458b1906"
+}

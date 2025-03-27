@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT owner_id AS `owner_id: UserId`\n\t\t FROM Servers\n\t\t WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "owner_id: UserId",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | MULTIPLE_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d143822c4314b93faecae84410f56406acbcf903a524c5e66ac5a5a0f334d791"
+}

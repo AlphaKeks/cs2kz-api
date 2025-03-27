@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO Courses (map_id, local_id, name, description)\n\t\t VALUES (?, ?, ?, ?)\n\t\t RETURNING id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "e25ab89643adec9a65f9d01594e3b61acda980cb4d22f43ca0a7f2d614fba940"
+}

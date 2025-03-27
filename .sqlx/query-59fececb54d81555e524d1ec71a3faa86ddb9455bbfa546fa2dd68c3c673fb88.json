@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE Courses\n\t\t SET name = COALESCE(?, name),\n\t\t     description = COALESCE(?, description)\n\t\t WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "59fececb54d81555e524d1ec71a3faa86ddb9455bbfa546fa2dd68c3c673fb88"
+}

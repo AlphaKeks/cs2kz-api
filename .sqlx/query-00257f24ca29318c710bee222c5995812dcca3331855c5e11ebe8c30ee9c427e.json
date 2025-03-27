@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO ModeChecksums (\n\t\t\t   mode,\n\t\t\t   plugin_version_id,\n\t\t\t   linux_checksum,\n\t\t\t   windows_checksum\n\t\t\t )\n\t\t\t VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "00257f24ca29318c710bee222c5995812dcca3331855c5e11ebe8c30ee9c427e"
+}

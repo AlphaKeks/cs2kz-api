@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO ServerSessions (server_id, plugin_version_id)\n\t\t VALUES (?, ?)\n\t\t RETURNING id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "1dc257fa4cdb1377e281a65a4e1c5a449fee494c40abbc8833e5cc903413c42f"
+}

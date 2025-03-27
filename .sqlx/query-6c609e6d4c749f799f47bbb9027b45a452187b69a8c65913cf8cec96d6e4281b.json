@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO StyleChecksums (\n\t\t\t   style,\n\t\t\t   plugin_version_id,\n\t\t\t   linux_checksum,\n\t\t\t   windows_checksum\n\t\t\t )\n\t\t\t VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "6c609e6d4c749f799f47bbb9027b45a452187b69a8c65913cf8cec96d6e4281b"
+}

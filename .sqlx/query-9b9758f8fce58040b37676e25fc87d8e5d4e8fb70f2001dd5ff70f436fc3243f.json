@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT name AS `name: Box<str>` FROM AccessKeys WHERE value = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name: Box<str>",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9b9758f8fce58040b37676e25fc87d8e5d4e8fb70f2001dd5ff70f436fc3243f"
+}

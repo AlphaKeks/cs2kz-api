@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UNLOCK TABLES",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "e3dad0ba02873fa226a05484e1ce8ec96990801f5849db17b230edf9e6962cd7"
+}

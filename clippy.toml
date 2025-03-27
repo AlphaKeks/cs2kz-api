@@ -1,0 +1,17 @@
+allowed-idents-below-min-chars = ["f", "x", "y", "z", "n", "a", "b"]
+allow-renamed-params-for = [
+  "std::fmt::Debug",
+  "std::fmt::Display",
+  "serde::de::Visitor",
+  "..",
+]
+doc-valid-idents = [
+  "SteamID",
+  "SteamIDs",
+  "SteamID64",
+  "Steam2ID",
+  "OpenID",
+  "OpenAPI",
+  "SemVer",
+  "..",
+]

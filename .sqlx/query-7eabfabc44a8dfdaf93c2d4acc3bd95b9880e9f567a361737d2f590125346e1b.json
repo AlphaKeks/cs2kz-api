@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT COUNT(DISTINCT r.id)\n\t\t FROM Records AS r\n\t\t INNER JOIN Filters AS f ON f.id = r.filter_id\n\t\t WHERE r.player_id = COALESCE(?, r.player_id)\n\t\t AND f.course_id = COALESCE(?, f.course_id)\n\t\t AND f.mode = COALESCE(?, f.mode)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "COUNT(DISTINCT r.id)",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | BINARY",
+          "max_size": 21
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7eabfabc44a8dfdaf93c2d4acc3bd95b9880e9f567a361737d2f590125346e1b"
+}

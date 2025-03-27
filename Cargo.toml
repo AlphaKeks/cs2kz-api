@@ -1,126 +1,545 @@
-# Copyright (C) 2024  AlphaKeks <alphakeks@dawn.sh>
-#
-# This library is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This library is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this repository.  If not, see <https://www.gnu.org/licenses/>.
+[package]
+name = "cs2kz-api"
+version = "0.0.0-dev"
+authors.workspace = true
+edition.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+default-run = "cs2kz-api"
+
+[[bin]]
+name = "cs2kz-api-generator"
+path = "src/bin/generator/main.rs"
+required-features = ["generator"]
+
+[features]
+generator = ["rand", "fake"]
+rand = ["dep:rand", "steam-id/rand"]
+
+[lints]
+workspace = true
+
+[dependencies.steam-id]
+path = "crates/steam-id"
+features = ["serde"]
+
+[dependencies.problem-details]
+path = "crates/problem-details"
+features = ["axum", "utoipa"]
+
+[dependencies.steam-openid]
+path = "crates/steam-openid"
+
+[dependencies.derive_more]
+workspace = true
+
+[dependencies.bon]
+workspace = true
+
+[dependencies.color-eyre]
+workspace = true
+
+[dependencies.dotenvy]
+workspace = true
+
+[dependencies.clap]
+workspace = true
+features = ["env"]
+
+[dependencies.zerocopy]
+workspace = true
+
+[dependencies.pin-project]
+workspace = true
+
+[dependencies.bytes]
+workspace = true
+
+[dependencies.time]
+workspace = true
+features = ["serde-human-readable"]
+
+[dependencies.url]
+workspace = true
+features = ["serde"]
+
+[dependencies.uuid]
+workspace = true
+features = ["serde", "v4", "v7"]
+
+[dependencies.semver]
+workspace = true
+features = ["serde"]
+
+[dependencies.serde]
+workspace = true
+features = ["rc", "derive"]
+
+[dependencies.serde_json]
+workspace = true
+
+[dependencies.serde_html_form]
+workspace = true
+
+[dependencies.toml]
+workspace = true
+features = ["parse"]
+
+[dependencies.tracing]
+workspace = true
+
+[dependencies.tracing-subscriber]
+workspace = true
+features = ["time", "env-filter", "fmt", "ansi", "json"]
+
+[dependencies.tracing-appender]
+version = "0.2"
+
+[dependencies.console-subscriber]
+version = "0.4"
+
+[dependencies.tracing-journald]
+version = "0.3"
+
+[dependencies.futures-util]
+workspace = true
+
+[dependencies.tokio]
+workspace = true
+features = ["rt-multi-thread", "sync", "signal", "process"]
+
+[dependencies.tokio-util]
+workspace = true
+features = ["rt", "time"]
+
+[dependencies.tokio-websockets]
+workspace = true
+
+[dependencies.tower]
+workspace = true
+
+[dependencies.http]
+workspace = true
+
+[dependencies.http-body-util]
+workspace = true
+
+[dependencies.headers]
+workspace = true
+
+[dependencies.mime]
+workspace = true
+
+[dependencies.cookie]
+workspace = true
+
+[dependencies.tower-http]
+workspace = true
+features = ["cors", "request-id", "trace"]
+
+[dependencies.reqwest]
+workspace = true
+features = ["json"]
+
+[dependencies.axum]
+version = "0.8"
+default-features = false
+features = ["macros", "tracing", "tokio", "http1", "http2", "json"]
+
+[dependencies.axum-extra]
+version = "0.10"
+features = ["cookie"]
+
+[dependencies.axum-server]
+version = "0.7"
+
+[dependencies.axum-tws]
+version = "0.5"
+features = ["http2"]
+
+[dependencies.utoipa]
+workspace = true
+features = ["preserve_path_order", "non_strict_integers"]
+
+[dependencies.utoipa-swagger-ui]
+version = "9.0"
+features = ["vendored"]
+
+[dependencies.sqlx]
+workspace = true
+
+[dependencies.lettre]
+workspace = true
+
+[dependencies.addr]
+workspace = true
+
+[dependencies.md-5]
+workspace = true
+
+[dependencies.rand]
+workspace = true
+optional = true
+
+[dependencies.fake]
+optional = true
+version = "4.2"
+features = ["derive"]
+
+[dependencies.pyo3]
+version = "0.23"
+default-features = false
+features = ["auto-initialize"]
+
+[dependencies.poise]
+version = "0.6"
 
 [workspace]
 resolver = "2"
 members = ["crates/*"]
-default-members = ["crates/cs2kz-api"]
 
 [workspace.package]
-version = "0.0.0"
 authors = ["AlphaKeks <alphakeks@dawn.sh>"]
 edition = "2024"
+documentation = "https://docs.cs2kz.org"
 homepage = "https://cs2kz.org"
 repository = "https://github.com/KZGlobalTeam/cs2kz-api"
+license = "GPL-3.0"
 
-[workspace.metadata.crane]
-name = "cs2kz-api"
+# https://doc.rust-lang.org/rustc/lints/listing/index.html
+[workspace.lints.rust]
+async_fn_in_trait = "allow"
+closure_returning_async_block = "warn"
+elided_lifetimes_in_paths = "deny"
+missing_debug_implementations = "warn"
+non_ascii_idents = "deny"
+non_exhaustive_omitted_patterns = "warn"
+redundant_imports = "warn"
+redundant_lifetimes = "warn"
+unit_bindings = "warn"
+unnameable_types = "warn"
+unqualified_local_imports = "deny"
+unreachable_pub = "warn"
+unsafe_op_in_unsafe_fn = "deny"
+unused_extern_crates = "warn"
+unused_lifetimes = "warn"
+unused_macro_rules = "warn"
+unused_parens = "allow"
+
+# https://doc.rust-lang.org/rustdoc/lints.html
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "deny"
+private_doc_tests = "warn"
+unescaped_backticks = "warn"
 
 [workspace.lints.clippy]
-redundant_pattern_matching = "allow"
-# `Result::map_err()` messes up caller location if the function passed to it is
-# annotated with `#[track_caller]`
+as_pointer_underscore = "deny"
+as_ptr_cast_mut = "warn"
+as_underscore = "deny"
+assertions_on_result_states = "deny"
+assigning_clones = "deny"
+await_holding_invalid_type = "warn"
+bool_to_int_with_if = "warn"
+borrow_as_ptr = "warn"
+builtin_type_shadow = "deny"
+cast_lossless = "deny"
+cast_possible_truncation = "deny"
+cast_possible_wrap = "warn"
+cast_precision_loss = "warn"
+cast_ptr_alignment = "warn"
+cast_sign_loss = "warn"
+cfg_not_test = "warn"
+checked_conversions = "deny"
+clear_with_drain = "warn"
+clone_on_ref_ptr = "warn"
+cloned_instead_of_copied = "warn"
+collection_is_never_read = "warn"
+copy_iterator = "deny"
+create_dir = "warn"
+dbg_macro = "warn"
+debug_assert_with_mut_call = "warn"
+decimal_literal_representation = "warn"
+default_numeric_fallback = "warn"
+default_union_representation = "warn"
+derive_partial_eq_without_eq = "warn"
+doc_link_with_quotes = "warn"
+doc_markdown = "warn"
+else_if_without_else = "warn"
+empty_drop = "warn"
+empty_enum = "warn"
+empty_enum_variants_with_brackets = "deny"
+empty_structs_with_brackets = "deny"
+enum_glob_use = "deny"
+error_impl_error = "deny"
+exit = "deny"
+expect_used = "deny"
+expl_impl_clone_on_copy = "deny"
+explicit_auto_deref = "allow"
+explicit_deref_methods = "deny"
+explicit_into_iter_loop = "deny"
+explicit_iter_loop = "deny"
+filetype_is_file = "warn"
+filter_map_next = "warn"
+flat_map_option = "warn"
+fn_params_excessive_bools = "warn"
+format_push_string = "deny"
+get_unwrap = "deny"
+if_not_else = "warn"
+ignored_unit_patterns = "warn"
+implicit_hasher = "warn"
+inconsistent_struct_constructor = "warn"
+index_refutable_slice = "warn"
+inefficient_to_string = "warn"
+infallible_destructuring_match = "allow"
+infinite_loop = "warn"
+into_iter_without_iter = "warn"
+items_after_statements = "deny"
+items_after_test_module = "deny"
+iter_filter_is_ok = "warn"
+iter_filter_is_some = "warn"
+iter_not_returning_iterator = "warn"
+iter_on_empty_collections = "warn"
+iter_on_single_items = "warn"
+iter_with_drain = "warn"
+iter_without_into_iter = "warn"
+large_digit_groups = "warn"
+large_include_file = "warn"
+large_types_passed_by_value = "warn"
+lossy_float_literal = "warn"
+manual_assert = "deny"
+manual_async_fn = "allow"
+manual_instant_elapsed = "warn"
+manual_is_power_of_two = "warn"
+manual_is_variant_and = "warn"
+manual_let_else = "warn"
+manual_ok_or = "warn"
+manual_string_new = "warn"
+match_on_vec_items = "deny"
+match_same_arms = "warn"
+match_wild_err_arm = "warn"
+match_wildcard_for_single_variants = "warn"
+min_ident_chars = "deny"
+missing_fields_in_debug = "warn"
+missing_safety_doc = "deny"
+multiple_unsafe_ops_per_block = "warn"
+mut_mut = "warn"
+needless_bitwise_bool = "deny"
+needless_borrowed_reference = "allow"
+needless_collect = "warn"
+needless_for_each = "warn"
+needless_pass_by_ref_mut = "warn"
+needless_pass_by_value = "warn"
+negative_feature_names = "warn"
+non_zero_suggestions = "warn"
+or_fun_call = "warn"
+pathbuf_init_then_push = "warn"
+print_stderr = "warn"
+print_stdout = "warn"
+ptr_as_ptr = "deny"
+ptr_cast_constness = "warn"
+pub_underscore_fields = "warn"
+pub_without_shorthand = "deny"
+range_minus_one = "warn"
+range_plus_one = "warn"
+rc_buffer = "warn"
+read_zero_byte_vec = "warn"
+redundant_clone = "warn"
 redundant_closure = "allow"
+redundant_else = "warn"
+redundant_pattern_matching = "allow"
+redundant_slicing = "allow"
+redundant_type_annotations = "warn"
+ref_as_ptr = "warn"
+ref_option = "warn"
+ref_option_ref = "warn"
+rest_pat_in_fully_bound_structs = "warn"
+same_name_method = "warn"
+self_named_module_files = "deny"
+semicolon_inside_block = "warn"
+set_contains_or_insert = "warn"
+significant_drop_in_scrutinee = "warn"
+single_char_pattern = "warn"
+str_split_at_newline = "warn"
+str_to_string = "deny"
+string_add = "deny"
+string_add_assign = "deny"
+string_lit_as_bytes = "warn"
+string_lit_chars_any = "warn"
+string_to_string = "warn"
+struct_excessive_bools = "warn"
+struct_field_names = "deny"
+suspicious_operation_groupings = "warn"
+tests_outside_test_module = "warn"
+todo = "warn"
+too_long_first_doc_paragraph = "warn"
+trait_duplication_in_bounds = "warn"
+transmute_ptr_to_ptr = "warn"
+trivial_regex = "warn"
+try_err = "deny"
+tuple_array_conversions = "warn"
+undocumented_unsafe_blocks = "deny"
+unimplemented = "warn"
+unnecessary_safety_comment = "warn"
+unnecessary_safety_doc = "warn"
+unnecessary_self_imports = "warn"
+unneeded_field_pattern = "warn"
+unseparated_literal_suffix = "deny"
+unused_result_ok = "warn"
+unwrap_used = "deny"
+used_underscore_binding = "warn"
+used_underscore_items = "warn"
+useless_let_if_seq = "deny"
+wildcard_dependencies = "deny"
+wildcard_enum_match_arm = "warn"
+wildcard_imports = "deny"
 
 [workspace.dependencies.derive_more]
-version = "1.0.0"
-features = [
-  "debug",
-  "display",
-  "error",
-  "from",
-  "into",
-  "deref",
-  "deref_mut",
-  "as_ref",
-]
+version = "2"
+features = ["debug", "display", "from", "into", "error"]
 
-[workspace.dependencies.time]
-version = "0.3.36"
-features = ["parsing", "formatting", "serde"]
+[workspace.dependencies.bon]
+version = "=3.4.0"
 
-[workspace.dependencies.ulid]
-version = "1.1.3"
-features = ["serde"]
-
-[workspace.dependencies.semver]
-version = "1.0.23"
-features = ["serde"]
-
-[workspace.dependencies.url]
-version = "2.5.4"
-features = ["serde"]
-
-[workspace.dependencies.serde]
-version = "1.0.215"
-features = ["derive"]
-
-[workspace.dependencies.serde_json]
-version = "1.0.133"
-
-[workspace.dependencies.tracing]
-version = "0.1.41"
-
-[workspace.dependencies.tracing-subscriber]
-version = "0.3.19"
+[workspace.dependencies.color-eyre]
+version = "0.6"
 default-features = false
-features = ["smallvec", "fmt", "ansi", "env-filter"]
+features = ["track-caller"]
 
-[workspace.dependencies.futures-util]
-version = "0.3.31"
-
-[workspace.dependencies.bytes]
-version = "1.9.0"
-
-[workspace.dependencies.pin-project]
-version = "1.1.7"
-
-[workspace.dependencies.tokio]
-version = "1.41.1"
-features = ["macros", "rt-multi-thread", "time", "net", "process", "tracing"]
-
-[workspace.dependencies.tokio-util]
-version = "0.7.12"
-features = ["rt", "time", "codec"]
-
-[workspace.dependencies.http]
-version = "1.2.0"
-
-[workspace.dependencies.http-body]
-version = "1.0.1"
-
-[workspace.dependencies.http-body-util]
-version = "0.1.2"
-
-[workspace.dependencies.mime]
-version = "0.3.17"
-
-[workspace.dependencies.lettre]
-version = "0.11.11"
-default-features = false
-features = ["serde"]
-
-[workspace.dependencies.pyo3]
-version = "0.23.3"
-default-features = false
-features = ["auto-initialize"]
-
-[workspace.dependencies.fake]
-version = "3.1.0"
-features = ["derive", "semver"]
+[workspace.dependencies.dotenvy]
+version = "0.15"
 
 [workspace.dependencies.clap]
-version = "4.5.23"
+version = "4.5"
 features = ["derive"]
+
+[workspace.dependencies.zerocopy]
+version = "0.8"
+features = ["std", "simd-nightly", "derive"]
+
+[workspace.dependencies.pin-project]
+version = "1.1"
+
+[workspace.dependencies.bytes]
+version = "1.10"
+
+[workspace.dependencies.time]
+version = "0.3"
+
+[workspace.dependencies.url]
+version = "2.5"
+
+[workspace.dependencies.uuid]
+version = "1.15"
+
+[workspace.dependencies.semver]
+version = "1.0"
+
+[workspace.dependencies.serde]
+version = "1"
+
+[workspace.dependencies.serde_json]
+version = "1"
+
+[workspace.dependencies.serde_html_form]
+version = "0.2"
+
+[workspace.dependencies.serde_urlencoded]
+version = "0.7"
+
+[workspace.dependencies.toml]
+version = "0.8"
+default-features = false
+
+[workspace.dependencies.tracing]
+version = "0.1"
+
+[workspace.dependencies.tracing-subscriber]
+version = "0.3"
+default-features = false
+features = ["std", "smallvec", "registry"]
+
+[workspace.dependencies.futures-util]
+version = "0.3"
+default-features = false
+
+[workspace.dependencies.tokio]
+version = "1.43"
+features = ["tracing", "rt", "time"]
+
+[workspace.dependencies.tokio-util]
+version = "0.7"
+
+[workspace.dependencies.tokio-websockets]
+version = "0.11"
+features = ["nightly"]
+
+[workspace.dependencies.tower]
+version = "0.5"
+
+[workspace.dependencies.http]
+version = "1.2"
+
+[workspace.dependencies.http-body]
+version = "1.0"
+
+[workspace.dependencies.http-body-util]
+version = "0.1"
+
+[workspace.dependencies.headers]
+version = "0.4"
+features = ["nightly"]
+
+[workspace.dependencies.mime]
+version = "0.3"
+
+[workspace.dependencies.cookie]
+version = "0.18"
+
+[workspace.dependencies.tower-http]
+version = "0.6"
+
+[workspace.dependencies.reqwest]
+version = "0.12"
+default-features = false
+features = ["http2", "rustls-tls"]
+
+[workspace.dependencies.axum-core]
+version = "0.5"
+features = ["tracing"]
+
+[workspace.dependencies.utoipa]
+version = "5.3"
+features = ["preserve_order", "time", "uuid", "url"]
+
+[workspace.dependencies.sqlx]
+version = "0.8"
+default-features = false
+features = [
+  "macros",
+  "migrate",
+  "mysql",
+  "runtime-tokio",
+  "tls-rustls",
+  "json",
+  "time",
+]
+
+[workspace.dependencies.lettre]
+version = "0.11"
+default-features = false
+features = ["serde"]
+
+[workspace.dependencies.addr]
+version = "0.15"
+features = ["serde"]
+
+[workspace.dependencies.md-5]
+version = "0.10"
+
+[workspace.dependencies.rand]
+version = "0.9"
+features = ["nightly"]

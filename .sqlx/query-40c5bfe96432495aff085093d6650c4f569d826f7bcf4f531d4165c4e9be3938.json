@@ -1,0 +1,224 @@
+{
+  "db_name": "MySQL",
+  "query": "WITH RelevantMaps AS (\n\t\t   SELECT *, MATCH (name) AGAINST (?) AS name_score\n\t\t   FROM Maps\n\t\t   WHERE name LIKE COALESCE(?, name)\n\t\t   AND state = ?\n\t\t   ORDER BY name_score DESC, id DESC\n\t\t   LIMIT ?, ?\n\t\t )\n\t\t SELECT\n\t\t   m.id AS `id: MapId`,\n\t\t   m.workshop_id AS `workshop_id: WorkshopId`,\n\t\t   m.name AS `name: MapName`,\n\t\t   m.description AS `description: MapDescription`,\n\t\t   m.state AS `state: MapState`,\n\t\t   m.checksum AS `checksum: Checksum`,\n\t\t   m.created_at AS `created_at: Timestamp`,\n\t\t   ma.id AS `mapper_id: UserId`,\n\t\t   ma.name AS `mapper_name: Username`,\n\t\t   c.id AS `course_id: CourseId`,\n\t\t   c.local_id AS `course_local_id: CourseLocalId`,\n\t\t   c.name AS `course_name: CourseName`,\n\t\t   c.description AS `course_description: CourseDescription`,\n\t\t   cma.id AS `course_mapper_id: UserId`,\n\t\t   cma.name AS `course_mapper_name: Username`,\n\t\t   f.id AS `filter_id: FilterId`,\n\t\t   f.mode AS `filter_mode: Mode`,\n\t\t   f.nub_tier AS `filter_nub_tier: Tier`,\n\t\t   f.pro_tier AS `filter_pro_tier: Tier`,\n\t\t   f.ranked AS `filter_ranked: bool`,\n\t\t   f.notes AS `filter_notes: FilterNotes`\n\t\t FROM RelevantMaps AS m\n\t\t INNER JOIN Users AS ma ON ma.id = m.created_by\n\t\t INNER JOIN Courses AS c ON c.map_id = m.id\n\t\t INNER JOIN CourseMappers ON CourseMappers.course_id = c.id\n\t\t INNER JOIN Users AS cma ON cma.id = CourseMappers.user_id\n\t\t INNER JOIN Filters AS f ON f.course_id = c.id\n\t\t ORDER BY m.name_score DESC, m.id DESC, ma.id ASC, c.id ASC, cma.id ASC, f.mode ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: MapId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | UNSIGNED",
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "workshop_id: WorkshopId",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 10
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name: MapName",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 108
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "description: MapDescription",
+        "type_info": {
+          "type": "Blob",
+          "flags": "BLOB",
+          "max_size": 262140
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "state: MapState",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 4
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "checksum: Checksum",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | BINARY | NO_DEFAULT_VALUE",
+          "max_size": 16
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at: Timestamp",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "NOT_NULL | UNSIGNED | BINARY",
+          "max_size": 19
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "mapper_id: UserId",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "mapper_name: Username",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "course_id: CourseId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "course_local_id: CourseLocalId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "course_name: CourseName",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "course_description: CourseDescription",
+        "type_info": {
+          "type": "Blob",
+          "flags": "BLOB",
+          "max_size": 262140
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "course_mapper_id: UserId",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 20
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "course_mapper_name: Username",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "filter_id: FilterId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "filter_mode: Mode",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "filter_nub_tier: Tier",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "filter_pro_tier: Tier",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "filter_ranked: bool",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 1
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "filter_notes: FilterNotes",
+        "type_info": {
+          "type": "Blob",
+          "flags": "BLOB",
+          "max_size": 262140
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "40c5bfe96432495aff085093d6650c4f569d826f7bcf4f531d4165c4e9be3938"
+}

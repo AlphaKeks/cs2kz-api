@@ -1,0 +1,64 @@
+{
+  "db_name": "MySQL",
+  "query": "WITH RelevantMaps AS (\n\t\t   SELECT *\n\t\t   FROM Maps\n\t\t   WHERE state = ?\n\t\t   ORDER BY id DESC\n\t\t   LIMIT ?, ?\n\t\t )\n\t\t SELECT\n\t\t   f.id AS `id: FilterId`,\n\t\t   f.nub_tier AS `nub_tier: Tier`,\n\t\t   f.pro_tier AS `pro_tier: Tier`,\n\t\t   f.ranked AS `ranked: bool`,\n\t\t   f.notes AS `notes: FilterNotes`\n\t\t FROM Filters AS f\n\t\t INNER JOIN Courses AS c ON c.id = f.course_id\n\t\t INNER JOIN RelevantMaps AS m ON m.id = c.map_id\n\t\t ORDER BY f.id DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: FilterId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "nub_tier: Tier",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "pro_tier: Tier",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "ranked: bool",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 1
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "notes: FilterNotes",
+        "type_info": {
+          "type": "Blob",
+          "flags": "BLOB",
+          "max_size": 262140
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "b8aef23738e9caba6f0d492d6b0eacc775641a0606531309b31f926cd0bab6b4"
+}

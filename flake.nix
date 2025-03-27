@@ -9,7 +9,7 @@
     crane.url = "github:ipetkov/crane";
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, crane, ... }:
+  outputs = { nixpkgs, flake-utils, rust-overlay, crane, ... }:
     let inherit (nixpkgs) lib; in
     flake-utils.lib.eachDefaultSystem (system:
       let
@@ -18,93 +18,83 @@
           overlays = [ (import rust-overlay) ];
         };
 
-        python = pkgs.python311.withPackages (p: with p; [
-          scipy
-        ]);
-
         rust-toolchain =
           pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
 
-        craneLib = (crane.mkLib pkgs).overrideToolchain (p:
-          ((p.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
-            extensions = [ "clippy" "rustfmt" ];
-          }));
+        python = pkgs.python312.withPackages (p: with p; [
+          scipy
+        ]);
 
-        mkFileSet = files: lib.fileset.toSource {
-          root = ./.;
-          fileset = lib.fileset.unions (files ++ [
-            (craneLib.fileset.commonCargoSources ./.)
-            ./crates/cs2kz/migrations
-            ./.sqlx
-            ./.example.env
+        craneLib = (crane.mkLib pkgs).overrideToolchain (p: (
+          (p.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
+            extensions = [ "clippy" "rustfmt" ];
+          }
+        ));
+
+        src = lib.cleanSourceWith {
+          src = ./.;
+          name = "source";
+          filter = path: type: (craneLib.filterCargoSources path type)
+            || (builtins.any (pattern: ((builtins.match pattern path) != null)) [
+            ".*README\.md$"
+            ".*/migrations/.*\.sql$"
+            ".*/\.sqlx/query-.*\.json$"
           ]);
         };
-
-        fileSetForCrate = crate: mkFileSet [
-          (craneLib.fileset.commonCargoSources crate)
-        ];
-
-        src = mkFileSet [ ];
 
         commonArgs = {
           inherit src;
           strictDeps = true;
           env = {
-            PYO3_PYTHON = "${python}/bin/python";
             SQLX_OFFLINE = true;
+            PYO3_PYTHON = lib.getExe python;
           };
         };
 
         cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-        crateArgs = commonArgs // {
-          inherit cargoArtifacts;
-          inherit (craneLib.crateNameFromCargoToml { inherit src; }) version;
-        };
 
-        cs2kz-api = craneLib.buildPackage (crateArgs // {
+        cs2kz-api = craneLib.buildPackage (commonArgs // {
+          inherit cargoArtifacts;
+          inherit (craneLib.crateNameFromCargoToml { src = ./.; }) version;
           pname = "cs2kz-api";
-          src = fileSetForCrate ./crates/cs2kz-api;
-          cargoExtraArgs = "--bin=cs2kz-api";
           nativeBuildInputs = [ pkgs.makeWrapper ];
           preFixup = ''
             wrapProgram $out/bin/cs2kz-api \
               --prefix PATH : ${python}/bin
           '';
         });
-
-        generator = craneLib.buildPackage (crateArgs // {
-          pname = "generator";
-          src = fileSetForCrate ./crates/cs2kz-api;
-          cargoExtraArgs = "--bin=generator -Ffake";
-        });
-
-        openapi-schema = craneLib.buildPackage (crateArgs // {
-          pname = "openapi";
-          src = fileSetForCrate ./crates/cs2kz-api;
-          cargoExtraArgs = "--bin=openapi";
-        });
       in
       {
+        formatter = pkgs.treefmt;
+        devShells.default = pkgs.mkShell {
+          nativeBuildInputs =
+            (with pkgs; [ treefmt nixpkgs-fmt shfmt taplo ])
+            ++ [ rust-toolchain pkgs.sqlx-cli pkgs.docker-client ]
+            ++ [ python pkgs.depotdownloader ];
+
+          PYO3_PYTHON = lib.getExe python;
+        };
         checks = {
-          inherit cs2kz-api generator openapi-schema;
+          inherit cs2kz-api;
 
           clippy = craneLib.cargoClippy (commonArgs // {
             inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--no-deps --all-features --all-targets -- -Dwarnings";
+            cargoClippyExtraArgs = "--no-deps --workspace --all-features --all-targets -- -Dwarnings";
           });
 
           clippy-tests = craneLib.cargoClippy (commonArgs // {
             inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--no-deps --all-features --tests -- -Dwarnings";
+            cargoClippyExtraArgs = "--no-deps --workspace --all-features --tests -- -Dwarnings";
           });
 
           rustfmt = craneLib.cargoFmt {
             inherit src;
           };
         };
-
         packages = {
-          inherit cs2kz-api generator openapi-schema;
+          inherit cs2kz-api;
+
+          default = cs2kz-api;
 
           dockerImage = pkgs.dockerTools.buildLayeredImage {
             name = cs2kz-api.pname;
@@ -115,25 +105,10 @@
                 "--config"
                 "/etc/cs2kz-api.toml"
                 "--depot-downloader-path"
-                "${pkgs.depotdownloader}/bin/DepotDownloader"
+                "${lib.getExe pkgs.depotdownloader}"
               ];
             };
           };
-        };
-
-        devShells.default = pkgs.mkShell {
-          nativeBuildInputs = [ rust-toolchain python ] ++ (with pkgs; [
-            docker-client
-            lazydocker
-            mycli
-            sqlx-cli
-            tokio-console
-            depotdownloader
-            oha
-          ]);
-
-          KZ_API_ENVIRONMENT = "local";
-          PYO3_PYTHON = "${python}/bin/python";
         };
       });
 }

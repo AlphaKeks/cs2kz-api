@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO Bans (player_id, player_ip, reason, banned_by, expires_at)\n\t\t VALUES (?, ?, ?, ?, ?)\n\t\t RETURNING id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "6d6f863a576f5520b62a93a54fcd6a4a2dfcd24449260dce269d49e16ba775c2"
+}

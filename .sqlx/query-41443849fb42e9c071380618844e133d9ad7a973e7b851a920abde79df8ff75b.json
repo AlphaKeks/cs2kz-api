@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "DELETE FROM Records LIMIT ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "41443849fb42e9c071380618844e133d9ad7a973e7b851a920abde79df8ff75b"
+}

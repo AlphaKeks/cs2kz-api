@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE FiltersToRecalculate\n\t\t\t SET priority = 0\n\t\t\t WHERE filter_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "dc41748bc31cd1b305d07fd2108b626dede2d9869331aaca0b893485ca765762"
+}

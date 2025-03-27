@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT discord_id FROM Users WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "discord_id",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "UNSIGNED",
+          "max_size": 20
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "47c45159af953d773202358bce746b6f9978bf08aa8c70cffd708093d50920f5"
+}

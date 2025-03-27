@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT r.time AS `time: Time`\n\t\t FROM BestProRecords AS br\n\t\t INNER JOIN Records as r ON r.id = br.record_id\n\t\t WHERE br.filter_id = ?\n\t\t AND br.player_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "time: Time",
+        "type_info": {
+          "type": "Double",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "max_size": 22
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5be322ba4ffdf917d7bc2d828cbab5b2b6dbd92ab1c23cf7b4a3333c6da9f396"
+}
