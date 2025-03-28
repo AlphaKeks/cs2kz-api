@@ -2593,16 +2593,7 @@ pub(crate) async fn web_login(
 	Query(WebLoginRequest { return_to }): Query<WebLoginRequest>,
 ) -> Redirect
 {
-	let userdata = return_to.as_ref().unwrap_or_else(|| {
-		static FALLBACK: LazyLock<Url> = LazyLock::new(|| {
-			"/".parse::<Url>().unwrap_or_else(|err| {
-				panic!("hard-coded URL should be correct: {err}");
-			})
-		});
-
-		&*FALLBACK
-	});
-
+	let userdata = return_to.as_ref().unwrap_or(&config.http.public_url);
 	let return_to = config
 		.http
 		.public_url
