@@ -43,6 +43,10 @@ cargo build --locked --package=cs2kz-api --bin=cs2kz-api
 
 # compile & run in one step
 cargo run --locked --package=cs2kz-api --bin=cs2kz-api
+
+# pass arguments to the compiled binary
+#    everything after `--` is passed to the executable vv
+cargo run --locked --package=cs2kz-api --bin=cs2kz-api -- serve
 ```
 
 To compile and run with Docker instead:
@@ -50,6 +54,13 @@ To compile and run with Docker instead:
 ```sh
 docker compose up --build api
 ```
+
+In order to see logs, first enable stderr logs by setting
+`tracing.stderr.enable` to `true` in the configuration file. Then make sure to
+set the `RUST_LOG` environment variable to a value conforming to
+[this format](https://docs.rs/tracing-subscriber/0.3.19/tracing_subscriber/filter/struct.EnvFilter.html#example-syntax).
+The simplest value is `cs2kz=debug,warn` to receive debug-level logs from the
+API's code and warn-level logs from any dependencies.
 
 The nix flake in the repository root also outputs the API binary as its default
 package.
