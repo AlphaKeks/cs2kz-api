@@ -26,5 +26,5 @@ fn default_exe_path() -> Box<Path>
 
 fn default_out_dir() -> Box<Path>
 {
-	PathBuf::from("/var/lib/cs2kz-api/workshop/").into_boxed_path()
+	PathBuf::from("/var/lib/cs2kz-api/workshop").into_boxed_path()
 }

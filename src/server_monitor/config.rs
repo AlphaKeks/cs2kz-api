@@ -1,15 +1,15 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub struct ServerMonitorConfig
 {
-	#[serde(default = "default_timeout")]
+	#[serde(default = "default_timeout", deserialize_with = "deserialize_duration")]
 	pub handshake_timeout: Duration,
 
-	#[serde(default = "default_timeout")]
+	#[serde(default = "default_timeout", deserialize_with = "deserialize_duration")]
 	pub heartbeat_interval: Duration,
 }
 
@@ -27,4 +27,11 @@ impl Default for ServerMonitorConfig
 fn default_timeout() -> Duration
 {
 	Duration::from_secs(30)
+}
+
+fn deserialize_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	f64::deserialize(deserializer).map(Duration::from_secs_f64)
 }

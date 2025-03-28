@@ -1,7 +1,7 @@
 use std::{
 	borrow::Cow,
 	fmt::{self, Write},
-	net::{IpAddr, Ipv6Addr, SocketAddr},
+	net::{IpAddr, Ipv4Addr, SocketAddr},
 	time::Duration,
 };
 
@@ -25,13 +25,22 @@ pub(crate) struct HttpConfig
 	#[debug("{:?}", public_url.as_str())]
 	pub public_url: Url,
 
-	#[serde(default = "default_handler_timeout")]
+	#[serde(
+		default = "default_handler_timeout",
+		deserialize_with = "deserialize_duration"
+	)]
 	pub handler_timeout: Duration,
 
-	#[serde(default = "default_shutdown_timeout")]
+	#[serde(
+		default = "default_shutdown_timeout",
+		deserialize_with = "deserialize_duration"
+	)]
 	pub shutdown_timeout: Duration,
 
-	#[serde(default = "default_session_duration")]
+	#[serde(
+		default = "default_session_duration",
+		deserialize_with = "deserialize_duration"
+	)]
 	pub session_duration: Duration,
 	pub cors: CorsConfig,
 	pub cookies: CookieConfig,
@@ -41,7 +50,10 @@ pub(crate) struct HttpConfig
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub(crate) struct CorsConfig
 {
-	#[serde(deserialize_with = "deserialize_allowed_origins")]
+	#[serde(
+		default = "default_allowed_origins",
+		deserialize_with = "deserialize_allowed_origins"
+	)]
 	pub allowed_origins: Box<[http::HeaderValue]>,
 }
 
@@ -49,20 +61,20 @@ pub(crate) struct CorsConfig
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub(crate) struct CookieConfig
 {
-	/// The default value for the [`Domain`] field.
+	/// The default value for the [`Domain`] field
 	///
 	/// [`Domain`]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#domaindomain-value
 	#[serde(default = "default_domain")]
 	pub domain: Box<str>,
 
-	/// The default value for the [`Max-Age`] field (in seconds).
+	/// The default value for the [`Max-Age`] field (in seconds)
 	///
 	/// [`Max-Age`]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#max-agenumber
 	#[debug("{max_age}")]
 	#[serde(default = "default_max_age", deserialize_with = "deserialize_max_age")]
 	pub max_age: time::Duration,
 
-	/// Same as the [`max_age`] field, but for authentication cookies.
+	/// Same as the [`max_age`] field, but for authentication cookies
 	///
 	/// [`max_age`]: Cookies::max_age
 	#[debug("{max_age_auth}")]
@@ -136,14 +148,7 @@ impl Default for CorsConfig
 {
 	fn default() -> Self
 	{
-		Self {
-			allowed_origins: Box::from([
-				http::HeaderValue::from_static("https://cs2kz.org"),
-				http::HeaderValue::from_static("https://dashboard.cs2kz.org"),
-				http::HeaderValue::from_static("https://docs.cs2kz.org"),
-				http::HeaderValue::from_static("https://forum.cs2kz.org"),
-			]),
-		}
+		Self { allowed_origins: default_allowed_origins() }
 	}
 }
 impl CookieConfig
@@ -187,7 +192,7 @@ impl Default for CookieConfig
 
 fn default_ip_addr() -> IpAddr
 {
-	IpAddr::V6(Ipv6Addr::LOCALHOST)
+	IpAddr::V4(Ipv4Addr::LOCALHOST)
 }
 
 fn default_port() -> u16
@@ -210,6 +215,16 @@ fn default_session_duration() -> Duration
 	Duration::WEEK * 2
 }
 
+fn default_allowed_origins() -> Box<[http::HeaderValue]>
+{
+	Box::from([
+		http::HeaderValue::from_static("https://cs2kz.org"),
+		http::HeaderValue::from_static("https://dashboard.cs2kz.org"),
+		http::HeaderValue::from_static("https://docs.cs2kz.org"),
+		http::HeaderValue::from_static("https://forum.cs2kz.org"),
+	])
+}
+
 fn default_domain() -> Box<str>
 {
 	Box::from(".cs2kz.org")
@@ -223,6 +238,13 @@ fn default_max_age() -> time::Duration
 fn default_max_age_auth() -> time::Duration
 {
 	time::Duration::WEEK
+}
+
+fn deserialize_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	f64::deserialize(deserializer).map(Duration::from_secs_f64)
 }
 
 fn deserialize_allowed_origins<'de, D>(

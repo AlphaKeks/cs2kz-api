@@ -1,0 +1,173 @@
+# Example configuration file
+#
+# This file contains all the available configuration options with their default
+# values. It is recommended that you place a copy of this file somewhere else
+# and point the API at it via the `--config` CLI flag.
+
+[runtime]
+# The environment the API is running in
+#
+# While developing locally this should be 'development'.
+# The other two available values are 'testing' and 'production'.
+environment = 'development'
+
+# The number of threads to spawn for running asynchronous tasks
+#
+# If omitted or 0, the API will choose automatically based on the number of
+# available CPU cores.
+worker-threads = 0
+
+# The maximum number of threads to spawn for blocking tasks (such as file I/O)
+#
+# If omitted or 0, the API will choose automatically.
+max-blocking-threads = 0
+
+[tracing]
+# Whether to include HTTP request/response headers in the API's logs
+include-http-headers = false
+
+[tracing.stderr]
+# Whether to emit logs to stderr
+enable = false
+
+# Whether to emit ANSI escape codes for colors and other formatting
+ansi = false
+
+[tracing.files]
+# Whether to emit logs to files
+enable = false
+
+# The directory to place log files in
+directory = '/var/log/cs2kz-api'
+
+[tracing.console]
+# Whether to run a tokio-console server
+enable = false
+
+# The IP address and port tokio-console will connect to
+server-addr = '127.0.0.1:6669'
+
+# NOTE: this configuration option is only supported on Linux
+# [tracing.journald]
+# # Whether to emit logs to systemd's journald
+# enable = false
+
+[database]
+# The URL of the database to connect to
+#
+# If `DATABASE_URL` is set, it takes precedence over this option.
+url = 'mysql://schnose:very-secure-password@localhost/kz'
+
+# The minimum number of database connections to open right away
+#
+# If omitted or 0, the API will choose automatically.
+min-connections = 0
+
+# The maximum number of database connections to open
+#
+# If omitted or 0, the API will choose automatically.
+max-connections = 0
+
+[http]
+# The IP address the HTTP server should listen on
+ip-addr = '127.0.0.1'
+
+# The port the HTTP server should listen to
+#
+# If omitted or 0, the OS will choose automatically.
+port = 0
+
+# The URL other services can reach the API at
+#
+# This is mainly used for Steam logins, so if you need that, specify `http.port`
+# so this URL is valid.
+public-url = 'http://127.0.0.1:0'
+
+# The timeout (in seconds) for HTTP request handlers
+#
+# Requests taking longer than this timeout will be cancelled and result in
+# a `500 Internal Server Error` response.
+handler-timeout = 90
+
+# The timeout (in seconds) for graceful shutdown
+#
+# When shutting down, the API will give all running tasks some time to perform
+# cleanup logic. If they exceed this timeout, they will be shutdown forcefully.
+shutdown-timeout = 10
+
+# The duration (in seconds) after which authentication sessions will expire
+session-duration = 1209600 # 2 weeks
+
+[http.cors]
+# List of origins to include in `Access-Control-Allow-Origin`
+allowed-origins = [
+  'https://cs2kz.org',
+  'https://dashboard.cs2kz.org',
+  'https://docs.cs2kz.org',
+  'https://forum.cs2kz.org',
+]
+
+# Default values for HTTP cookies
+[http.cookies]
+# The default value for the `Domain` field
+#
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#domaindomain-value
+domain = '.cs2kz.org'
+
+# The default value for the `Max-Age` field (in seconds)
+#
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#max-agenumber
+max-age = 54432000 # 3 months
+
+# The same as the `max_age` field, but for authentication cookies
+max-age-auth = 604800 # 1 week
+
+[steam]
+# Your Steam WebAPI key
+#
+# https://steamcommunity.com/dev/apikey
+api-key = ''
+
+[access-keys]
+# The name of the key used for publishing new releases of `cs2kz-metamod` via
+# GitHub Actions.
+cs2kz-metamod-release-key = 'github:cs2kz-metamod:release'
+
+[depot-downloader]
+# Path to the `DepotDownloader` executable
+exe-path = 'DepotDownloader'
+
+# The directory where files downloaded by `DepotDownloader` should be stored
+out-dir = '/var/lib/cs2kz-api/workshop'
+
+# If this section is omitted the server monitor will be disabled.
+# [server-monitor]
+# # The timeout (in seconds) for the initial handshake with connecting servers
+# handshake-timeout = 30
+#
+# # The timeout (in seconds) for the servers to send heartbeat pings
+# heartbeat-timeout = 30
+
+# If this section is omitted the discord bot will be disabled
+# [discord]
+# # Your application's bot token
+# #
+# # https://discord.com/developers/applications/<application-id>/bot
+# token = ''
+#
+# # The ID of your testing server
+# guild-id = 0
+#
+# # The ID of log channel on your testing server
+# log-channel-id = 0
+#
+# # List of user IDs considered bot owners
+# owners = []
+#
+# # IDs of roles the bot will assign to users
+# [discord.roles]
+# # The "mapper" role
+# mapper = 0
+#
+# # The "server owner" role
+# server-owner = 0
