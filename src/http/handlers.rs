@@ -509,6 +509,7 @@ pub(crate) struct CreateMapRequest
 {
 	workshop_id: WorkshopId,
 	description: Option<MapDescription>,
+	game: Game,
 
 	#[serde(deserialize_with = "cs2kz_api::serde::de::non_empty")]
 	courses: BTreeMap<CourseLocalId, CreateCourseRequest>,
@@ -523,46 +524,26 @@ pub(crate) struct CreateCourseRequest
 	#[serde(deserialize_with = "cs2kz_api::serde::de::non_empty")]
 	mappers: BTreeSet<UserId>,
 
-	#[serde(deserialize_with = "CreateCourseRequest::deserialize_filters")]
 	filters: CreateFiltersRequest,
 }
 
-impl CreateCourseRequest
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(tag = "game", rename_all = "lowercase")]
+pub(crate) enum CreateFiltersRequest
 {
-	fn deserialize_filters<'de, D>(deserializer: D) -> Result<CreateFiltersRequest, D::Error>
-	where
-		D: serde::Deserializer<'de>,
+	CS2
 	{
-		let filters = CreateFiltersRequest::deserialize(deserializer)?;
+		vnl: CreateFilterRequest,
+		ckz: CreateFilterRequest,
+	},
 
-		if filters.csgo.is_none() && filters.cs2.is_none() {
-			return Err(serde::de::Error::custom("every course must have filters"));
-		}
-
-		Ok(filters)
-	}
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub(crate) struct CreateFiltersRequest
-{
-	cs2: Option<CreateCS2FiltersRequest>,
-	csgo: Option<CreateCSGOFiltersRequest>,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub(crate) struct CreateCS2FiltersRequest
-{
-	vnl: CreateFilterRequest,
-	ckz: CreateFilterRequest,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub(crate) struct CreateCSGOFiltersRequest
-{
-	kzt: CreateFilterRequest,
-	skz: CreateFilterRequest,
-	vnl: CreateFilterRequest,
+	#[allow(clippy::upper_case_acronyms)]
+	CSGO
+	{
+		kzt: CreateFilterRequest,
+		skz: CreateFilterRequest,
+		vnl: CreateFilterRequest,
+	},
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -611,12 +592,23 @@ pub(crate) async fn create_map(
 	State(database): State<Database>,
 	State(steam_api_client): State<steam::api::Client>,
 	session: auth::Session,
-	Json(CreateMapRequest { workshop_id, description, courses }): Json<CreateMapRequest>,
+	Json(CreateMapRequest { workshop_id, description, game, courses }): Json<CreateMapRequest>,
 ) -> HandlerResult<Created<CreateMapResponse>>
 {
 	if !session.user_info().permissions().contains(&Permission::CreateMaps) {
 		tracing::debug!("user does not have permissions");
 		return Err(HandlerError::Unauthorized);
+	}
+
+	for filters in courses.values().map(|course| &course.filters) {
+		match (game, filters) {
+			(Game::CS2, CreateFiltersRequest::CS2 { .. })
+			| (Game::CSGO, CreateFiltersRequest::CSGO { .. }) => { /* ok */ },
+			_ => {
+				tracing::debug!("invalid filters");
+				return Err(ProblemDetails::new(ProblemType::InvalidFilterForGame).into());
+			},
+		}
 	}
 
 	let map_metadata = workshop::get_map_metadata(&steam_api_client, workshop_id)
@@ -694,55 +686,61 @@ pub(crate) async fn create_map(
 			}
 
 			let courses = courses.into_iter().map(|(local_id, course)| {
-				let csgo_filters = course.filters.csgo.map(|filters| {
-					NewCSGOFilters::builder()
-						.kzt({
-							NewFilter::builder()
-								.nub_tier(filters.kzt.nub_tier)
-								.pro_tier(filters.kzt.pro_tier)
-								.ranked(filters.kzt.ranked)
-								.maybe_notes(filters.kzt.notes)
-								.build()
-						})
-						.skz({
-							NewFilter::builder()
-								.nub_tier(filters.skz.nub_tier)
-								.pro_tier(filters.skz.pro_tier)
-								.ranked(filters.skz.ranked)
-								.maybe_notes(filters.skz.notes)
-								.build()
-						})
-						.vnl({
-							NewFilter::builder()
-								.nub_tier(filters.vnl.nub_tier)
-								.pro_tier(filters.vnl.pro_tier)
-								.ranked(filters.vnl.ranked)
-								.maybe_notes(filters.vnl.notes)
-								.build()
-						})
-						.build()
-				});
+				let (cs2_filters, csgo_filters) = match (game, course.filters) {
+					(Game::CS2, CreateFiltersRequest::CS2 { vnl, ckz }) => {
+						let cs2_filters = NewCS2Filters::builder()
+							.vnl({
+								NewFilter::builder()
+									.nub_tier(vnl.nub_tier)
+									.pro_tier(vnl.pro_tier)
+									.ranked(vnl.ranked)
+									.maybe_notes(vnl.notes)
+									.build()
+							})
+							.ckz({
+								NewFilter::builder()
+									.nub_tier(ckz.nub_tier)
+									.pro_tier(ckz.pro_tier)
+									.ranked(ckz.ranked)
+									.maybe_notes(ckz.notes)
+									.build()
+							})
+							.build();
 
-				let cs2_filters = course.filters.cs2.map(|filters| {
-					NewCS2Filters::builder()
-						.vnl({
-							NewFilter::builder()
-								.nub_tier(filters.vnl.nub_tier)
-								.pro_tier(filters.vnl.pro_tier)
-								.ranked(filters.vnl.ranked)
-								.maybe_notes(filters.vnl.notes)
-								.build()
-						})
-						.ckz({
-							NewFilter::builder()
-								.nub_tier(filters.ckz.nub_tier)
-								.pro_tier(filters.ckz.pro_tier)
-								.ranked(filters.ckz.ranked)
-								.maybe_notes(filters.ckz.notes)
-								.build()
-						})
-						.build()
-				});
+						(Some(cs2_filters), None)
+					},
+					(Game::CSGO, CreateFiltersRequest::CSGO { kzt, skz, vnl }) => {
+						let csgo_filters = NewCSGOFilters::builder()
+							.kzt({
+								NewFilter::builder()
+									.nub_tier(kzt.nub_tier)
+									.pro_tier(kzt.pro_tier)
+									.ranked(kzt.ranked)
+									.maybe_notes(kzt.notes)
+									.build()
+							})
+							.skz({
+								NewFilter::builder()
+									.nub_tier(skz.nub_tier)
+									.pro_tier(skz.pro_tier)
+									.ranked(skz.ranked)
+									.maybe_notes(skz.notes)
+									.build()
+							})
+							.vnl({
+								NewFilter::builder()
+									.nub_tier(vnl.nub_tier)
+									.pro_tier(vnl.pro_tier)
+									.ranked(vnl.ranked)
+									.maybe_notes(vnl.notes)
+									.build()
+							})
+							.build();
+
+						(None, Some(csgo_filters))
+					},
+					_ => unreachable!("we validated filters earlier"),
+				};
 
 				let filters = NewFilters::builder()
 					.maybe_csgo(csgo_filters)
@@ -760,6 +758,7 @@ pub(crate) async fn create_map(
 			maps::create(workshop_id)
 				.name(map_name)
 				.maybe_description(description)
+				.game(game)
 				.state(MapState::WIP)
 				.checksum(vpk_checksum)
 				.created_by(session.user_info().id())
@@ -782,6 +781,11 @@ pub(crate) struct GetMapsQuery
 	/// close their actual name matches the given value.
 	name: Option<Box<str>>,
 
+	/// Only include maps made for this game
+	#[serde(default = "GetMapsQuery::default_game")]
+	#[param(default = GetMapsQuery::default_game)]
+	game: Game,
+
 	/// Only include maps in this state
 	#[serde(default = "GetMapsQuery::default_state")]
 	#[param(default = GetMapsQuery::default_state)]
@@ -798,6 +802,11 @@ pub(crate) struct GetMapsQuery
 
 impl GetMapsQuery
 {
+	fn default_game() -> Game
+	{
+		Game::CS2
+	}
+
 	fn default_state() -> MapState
 	{
 		MapState::Approved
@@ -810,7 +819,7 @@ impl GetMapsQuery
 #[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
-	path = "/maps",
+	path = "/maps/{game}",
 	tag = "Maps",
 	params(GetMapsQuery),
 	responses(
@@ -820,19 +829,19 @@ impl GetMapsQuery
 )]
 pub(crate) async fn get_maps(
 	State(database): State<Database>,
-	Query(GetMapsQuery { name, state, offset, limit }): Query<GetMapsQuery>,
+	Query(GetMapsQuery { name, game, state, offset, limit }): Query<GetMapsQuery>,
 ) -> HandlerResult<Json<PaginationResponse<Map>>>
 {
 	let mut conn = database.acquire_connection().await?;
 	let mut response = PaginationResponse::new({
-		maps::count()
+		maps::count(game)
 			.maybe_name(name.as_deref())
 			.state(state)
 			.exec(&mut conn)
 			.await?
 	});
 
-	maps::get()
+	maps::get(game)
 		.maybe_name(name.as_deref())
 		.state(state)
 		.offset(offset.value())

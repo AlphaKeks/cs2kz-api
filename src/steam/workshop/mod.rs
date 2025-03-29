@@ -2,10 +2,10 @@ mod id;
 
 use std::{error::Error, io, path::Path, process::Stdio, time::Duration};
 
-use futures_util::{StreamExt, stream};
+use futures_util::{StreamExt, TryFutureExt, stream};
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap};
 use steam_id::SteamId;
-use tokio::{process::Command, task};
+use tokio::{process::Command, sync::Semaphore, task};
 use tokio_util::{
 	codec::{FramedRead, LinesCodec},
 	time::FutureExt,
@@ -16,6 +16,8 @@ pub use self::id::WorkshopId;
 use crate::steam;
 
 const URL: &str = "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1";
+
+static DEPOT_DOWNLOADER_PERMITS: Semaphore = Semaphore::const_new(32);
 
 #[derive(Debug)]
 pub struct MapMetadata
@@ -67,12 +69,14 @@ pub async fn download(
 	out_dir: &Path,
 ) -> io::Result<Box<Path>>
 {
-	tracing::debug!(
-		target: "cs2kz_api::depot_downloader",
-		exe_path = %depot_downloader_path.display(),
-		out_dir = %out_dir.display(),
-		"spawning DepotDownloader process",
-	);
+	tracing::trace!(target: "cs2kz_api::depot_downloader", "acquiring permit");
+
+	let Ok(permit) = DEPOT_DOWNLOADER_PERMITS
+		.acquire()
+		.map_err(|err| panic!("static semaphore dropped? {err}"))
+		.await;
+
+	tracing::debug!(target: "cs2kz_api::depot_downloader", "spawning DepotDownloader process");
 
 	let mut process = Command::new(depot_downloader_path)
 		.args(["-app", "730", "-pubfile"])
@@ -124,6 +128,8 @@ pub async fn download(
 		tracing::error!(error = &error as &dyn Error);
 		return Err(error);
 	}
+
+	drop(permit);
 
 	let timeout = Duration::from_secs(3);
 

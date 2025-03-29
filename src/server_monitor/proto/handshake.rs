@@ -183,7 +183,7 @@ where
 					.await?;
 
 				let map = {
-					pin!(maps::get().name(&hello.current_map).limit(1).exec(&mut *conn))
+					pin!(maps::get(game).name(&hello.current_map).limit(1).exec(&mut *conn))
 						.try_next()
 						.await?
 				}

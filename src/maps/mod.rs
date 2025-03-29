@@ -41,6 +41,7 @@ use crate::{
 	checksum::Checksum,
 	database::{DatabaseConnection, DatabaseError, DatabaseResult},
 	event_queue::{self, Event},
+	game::Game,
 	mode::Mode,
 	steam::{self, workshop::WorkshopId},
 	stream::StreamExt as _,
@@ -55,6 +56,7 @@ pub struct Map
 	pub workshop_id: WorkshopId,
 	pub name: MapName,
 	pub description: Option<MapDescription>,
+	pub game: Game,
 	pub state: MapState,
 
 	/// A checksum of the map's `.vpk` file
@@ -132,6 +134,7 @@ pub struct Filter
 #[tracing::instrument(skip(conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn count(
+	#[builder(start_fn)] game: Game,
 	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
 	name: Option<&str>,
 	#[builder(default = MapState::Approved)] state: MapState,
@@ -140,8 +143,10 @@ pub async fn count(
 	sqlx::query_scalar!(
 		"SELECT COUNT(*)
 		 FROM Maps
-		 WHERE state = ?
+		 WHERE game = ?
+		 AND state = ?
 		 AND name LIKE COALESCE(?, name)",
+		game,
 		state,
 		name.map(|name| format!("%{name}%")),
 	)
@@ -154,6 +159,7 @@ pub async fn count(
 #[tracing::instrument(skip(conn))]
 #[builder(finish_fn = exec)]
 pub fn get(
+	#[builder(start_fn)] game: Game,
 	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
 	name: Option<&str>,
 	#[builder(default = MapState::Approved)] state: MapState,
@@ -165,8 +171,9 @@ pub fn get(
 		"WITH RelevantMaps AS (
 		   SELECT *, MATCH (name) AGAINST (?) AS name_score
 		   FROM Maps
-		   WHERE name LIKE COALESCE(?, name)
+		   WHERE game = ?
 		   AND state = ?
+		   AND name LIKE COALESCE(?, name)
 		   ORDER BY name_score DESC, id DESC
 		   LIMIT ?, ?
 		 )
@@ -175,6 +182,7 @@ pub fn get(
 		   m.workshop_id AS `workshop_id: WorkshopId`,
 		   m.name AS `name: MapName`,
 		   m.description AS `description: MapDescription`,
+		   m.game AS `game: Game`,
 		   m.state AS `state: MapState`,
 		   m.checksum AS `checksum: Checksum`,
 		   m.created_at AS `created_at: Timestamp`,
@@ -200,8 +208,9 @@ pub fn get(
 		 INNER JOIN Filters AS f ON f.course_id = c.id
 		 ORDER BY m.name_score DESC, m.id DESC, ma.id ASC, c.id ASC, cma.id ASC, f.mode ASC",
 		name,
-		name.map(|name| format!("%{name}%")),
+		game,
 		state,
+		name.map(|name| format!("%{name}%")),
 		offset,
 		limit,
 	)
@@ -226,6 +235,7 @@ pub async fn get_by_id(
 		   m.workshop_id AS `workshop_id: WorkshopId`,
 		   m.name AS `name: MapName`,
 		   m.description AS `description: MapDescription`,
+		   m.game AS `game: Game`,
 		   m.state AS `state: MapState`,
 		   m.checksum AS `checksum: Checksum`,
 		   m.created_at AS `created_at: Timestamp`,
@@ -275,6 +285,7 @@ pub async fn get_by_name(
 		   m.workshop_id AS `workshop_id: WorkshopId`,
 		   m.name AS `name: MapName`,
 		   m.description AS `description: MapDescription`,
+		   m.game AS `game: Game`,
 		   m.state AS `state: MapState`,
 		   m.checksum AS `checksum: Checksum`,
 		   m.created_at AS `created_at: Timestamp`,
@@ -498,6 +509,7 @@ pub async fn create<I, CourseMappers>(
 	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
 	name: MapName,
 	description: Option<MapDescription>,
+	game: Game,
 	#[builder(default = MapState::WIP)] state: MapState,
 	checksum: Checksum,
 	created_by: UserId,
@@ -507,7 +519,7 @@ where
 	I: IntoIterator<Item = NewCourse<CourseMappers>> + fmt::Debug,
 	CourseMappers: IntoIterator<Item = UserId> + fmt::Debug,
 {
-	match self::invalidate(&name)
+	match self::invalidate(&name, game)
 		.check_created_by(created_by)
 		.exec(&mut *conn)
 		.await?
@@ -676,6 +688,7 @@ async fn create_filter(
 #[builder(finish_fn = exec)]
 async fn invalidate(
 	#[builder(start_fn)] name: &MapName,
+	#[builder(start_fn)] game: Game,
 	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
 	check_created_by: UserId,
 ) -> Result<u64, CreateMapError>
@@ -686,8 +699,10 @@ async fn invalidate(
 		   state AS `state: MapState`,
 		   created_by AS `created_by: UserId`
 		 FROM Maps
-		 WHERE name = ?",
+		 WHERE name = ?
+		 AND game = ?",
 		name,
+		game,
 	)
 	.fetch(conn.as_raw())
 	.map_ok(|row| (row.id, row.state, row.created_by))

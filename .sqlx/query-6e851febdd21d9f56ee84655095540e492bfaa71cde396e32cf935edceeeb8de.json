@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT\n\t\t   m.id AS `id: MapId`,\n\t\t   m.workshop_id AS `workshop_id: WorkshopId`,\n\t\t   m.name AS `name: MapName`,\n\t\t   m.description AS `description: MapDescription`,\n\t\t   m.state AS `state: MapState`,\n\t\t   m.checksum AS `checksum: Checksum`,\n\t\t   m.created_at AS `created_at: Timestamp`,\n\t\t   ma.id AS `mapper_id: UserId`,\n\t\t   ma.name AS `mapper_name: Username`,\n\t\t   c.id AS `course_id: CourseId`,\n\t\t   c.local_id AS `course_local_id: CourseLocalId`,\n\t\t   c.name AS `course_name: CourseName`,\n\t\t   c.description AS `course_description: CourseDescription`,\n\t\t   cma.id AS `course_mapper_id: UserId`,\n\t\t   cma.name AS `course_mapper_name: Username`,\n\t\t   f.id AS `filter_id: FilterId`,\n\t\t   f.mode AS `filter_mode: Mode`,\n\t\t   f.nub_tier AS `filter_nub_tier: Tier`,\n\t\t   f.pro_tier AS `filter_pro_tier: Tier`,\n\t\t   f.ranked AS `filter_ranked: bool`,\n\t\t   f.notes AS `filter_notes: FilterNotes`\n\t\t FROM Maps AS m\n\t\t INNER JOIN Users AS ma ON ma.id = m.created_by\n\t\t INNER JOIN Courses AS c ON c.map_id = m.id\n\t\t INNER JOIN CourseMappers ON CourseMappers.course_id = c.id\n\t\t INNER JOIN Users AS cma ON cma.id = CourseMappers.user_id\n\t\t INNER JOIN Filters AS f ON f.course_id = c.id\n\t\t WHERE m.id = ?\n\t\t AND m.state != -1\n\t\t ORDER BY m.id DESC, ma.id ASC, c.id ASC, cma.id ASC, f.mode ASC",
+  "query": "SELECT\n\t\t   m.id AS `id: MapId`,\n\t\t   m.workshop_id AS `workshop_id: WorkshopId`,\n\t\t   m.name AS `name: MapName`,\n\t\t   m.description AS `description: MapDescription`,\n\t\t   m.game AS `game: Game`,\n\t\t   m.state AS `state: MapState`,\n\t\t   m.checksum AS `checksum: Checksum`,\n\t\t   m.created_at AS `created_at: Timestamp`,\n\t\t   ma.id AS `mapper_id: UserId`,\n\t\t   ma.name AS `mapper_name: Username`,\n\t\t   c.id AS `course_id: CourseId`,\n\t\t   c.local_id AS `course_local_id: CourseLocalId`,\n\t\t   c.name AS `course_name: CourseName`,\n\t\t   c.description AS `course_description: CourseDescription`,\n\t\t   cma.id AS `course_mapper_id: UserId`,\n\t\t   cma.name AS `course_mapper_name: Username`,\n\t\t   f.id AS `filter_id: FilterId`,\n\t\t   f.mode AS `filter_mode: Mode`,\n\t\t   f.nub_tier AS `filter_nub_tier: Tier`,\n\t\t   f.pro_tier AS `filter_pro_tier: Tier`,\n\t\t   f.ranked AS `filter_ranked: bool`,\n\t\t   f.notes AS `filter_notes: FilterNotes`\n\t\t FROM Maps AS m\n\t\t INNER JOIN Users AS ma ON ma.id = m.created_by\n\t\t INNER JOIN Courses AS c ON c.map_id = m.id\n\t\t INNER JOIN CourseMappers ON CourseMappers.course_id = c.id\n\t\t INNER JOIN Users AS cma ON cma.id = CourseMappers.user_id\n\t\t INNER JOIN Filters AS f ON f.course_id = c.id\n\t\t WHERE m.id = ?\n\t\t AND m.state != -1\n\t\t ORDER BY m.id DESC, ma.id ASC, c.id ASC, cma.id ASC, f.mode ASC",
   "describe": {
     "columns": [
       {
@@ -41,6 +41,15 @@
       },
       {
         "ordinal": 4,
+        "name": "game: Game",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED | NO_DEFAULT_VALUE",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 5,
         "name": "state: MapState",
         "type_info": {
           "type": "Tiny",
@@ -49,7 +58,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "checksum: Checksum",
         "type_info": {
           "type": "String",
@@ -58,7 +67,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "created_at: Timestamp",
         "type_info": {
           "type": "Timestamp",
@@ -67,7 +76,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "mapper_id: UserId",
         "type_info": {
           "type": "LongLong",
@@ -76,7 +85,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "mapper_name: Username",
         "type_info": {
           "type": "VarString",
@@ -85,7 +94,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "course_id: CourseId",
         "type_info": {
           "type": "Short",
@@ -94,7 +103,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "course_local_id: CourseLocalId",
         "type_info": {
           "type": "Short",
@@ -103,7 +112,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "course_name: CourseName",
         "type_info": {
           "type": "VarString",
@@ -112,7 +121,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "course_description: CourseDescription",
         "type_info": {
           "type": "Blob",
@@ -121,7 +130,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "course_mapper_id: UserId",
         "type_info": {
           "type": "LongLong",
@@ -130,7 +139,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "course_mapper_name: Username",
         "type_info": {
           "type": "VarString",
@@ -139,7 +148,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "filter_id: FilterId",
         "type_info": {
           "type": "Short",
@@ -148,7 +157,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "filter_mode: Mode",
         "type_info": {
           "type": "Tiny",
@@ -157,7 +166,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "filter_nub_tier: Tier",
         "type_info": {
           "type": "Tiny",
@@ -166,7 +175,7 @@
         }
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "filter_pro_tier: Tier",
         "type_info": {
           "type": "Tiny",
@@ -175,7 +184,7 @@
         }
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "filter_ranked: bool",
         "type_info": {
           "type": "Tiny",
@@ -184,7 +193,7 @@
         }
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "filter_notes: FilterNotes",
         "type_info": {
           "type": "Blob",
@@ -209,6 +218,7 @@
       false,
       false,
       false,
+      false,
       true,
       false,
       false,
@@ -220,5 +230,5 @@
       true
     ]
   },
-  "hash": "e9fb86156d5fd1cdef18bf21e7efd6e24758eb75af2ee2fae4678356327a2b41"
+  "hash": "6e851febdd21d9f56ee84655095540e492bfaa71cde396e32cf935edceeeb8de"
 }

@@ -136,6 +136,7 @@ macro parse_row($row:expr) {{
 		workshop_id: $row.workshop_id,
 		name: $row.name,
 		description: $row.description,
+		game: $row.game,
 		state: $row.state,
 		checksum: $row.checksum,
 		courses: BTreeMap::from_iter([($row.course_id, Course {

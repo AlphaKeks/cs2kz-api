@@ -341,6 +341,8 @@ async fn create_maps(
 			.ok_or_eyre("no mapper specified and no users in database")
 			.suggestion("generate some users")?;
 
+		let game = rng.random::<Game>();
+
 		let courses = (1_u16..=courses.map_or_else(|| rng.random_range(1..=3), NonZero::get))
 			.map(|raw| {
 				NonZero::new(raw)
@@ -390,40 +392,43 @@ async fn create_maps(
 						.build())
 				};
 
-				let (cs2_filters, csgo_filters) = if rng.random::<bool>() {
-					let cs2_filters = NewCS2Filters::builder()
-						.vnl(random_filter(rng)?)
-						.ckz(random_filter(rng)?)
-						.build();
+				let (cs2_filters, csgo_filters) = match game {
+					Game::CS2 => {
+						let cs2_filters = NewCS2Filters::builder()
+							.vnl(random_filter(rng)?)
+							.ckz(random_filter(rng)?)
+							.build();
 
-					let csgo_filters = (rng.random_range(0..100) < 10_u8)
-						.then(|| -> eyre::Result<_> {
-							Ok(NewCSGOFilters::builder()
-								.kzt(random_filter(rng)?)
-								.skz(random_filter(rng)?)
-								.vnl(random_filter(rng)?)
-								.build())
-						})
-						.transpose()?;
+						let csgo_filters = (rng.random_range(0..100) < 10_u8)
+							.then(|| -> eyre::Result<_> {
+								Ok(NewCSGOFilters::builder()
+									.kzt(random_filter(rng)?)
+									.skz(random_filter(rng)?)
+									.vnl(random_filter(rng)?)
+									.build())
+							})
+							.transpose()?;
 
-					(Some(cs2_filters), csgo_filters)
-				} else {
-					let cs2_filters = (rng.random_range(0..100) < 10_u8)
-						.then(|| -> eyre::Result<_> {
-							Ok(NewCS2Filters::builder()
-								.vnl(random_filter(rng)?)
-								.ckz(random_filter(rng)?)
-								.build())
-						})
-						.transpose()?;
+						(Some(cs2_filters), csgo_filters)
+					},
+					Game::CSGO => {
+						let cs2_filters = (rng.random_range(0..100) < 10_u8)
+							.then(|| -> eyre::Result<_> {
+								Ok(NewCS2Filters::builder()
+									.vnl(random_filter(rng)?)
+									.ckz(random_filter(rng)?)
+									.build())
+							})
+							.transpose()?;
 
-					let csgo_filters = NewCSGOFilters::builder()
-						.kzt(random_filter(rng)?)
-						.skz(random_filter(rng)?)
-						.vnl(random_filter(rng)?)
-						.build();
+						let csgo_filters = NewCSGOFilters::builder()
+							.kzt(random_filter(rng)?)
+							.skz(random_filter(rng)?)
+							.vnl(random_filter(rng)?)
+							.build();
 
-					(cs2_filters, Some(csgo_filters))
+						(cs2_filters, Some(csgo_filters))
+					},
 				};
 
 				let filters = NewFilters::builder()
@@ -443,6 +448,7 @@ async fn create_maps(
 		let id = maps::create(rng.random())
 			.name(name.clone())
 			.maybe_description(description)
+			.game(game)
 			.state(state.unwrap_or(MapState::Approved))
 			.checksum(rng.random())
 			.created_by(mapper)

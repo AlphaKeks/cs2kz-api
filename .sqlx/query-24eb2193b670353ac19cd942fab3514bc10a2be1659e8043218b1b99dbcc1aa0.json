@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT\n\t\t   id AS `id: MapId`,\n\t\t   state AS `state: MapState`,\n\t\t   created_by AS `created_by: UserId`\n\t\t FROM Maps\n\t\t WHERE name = ?",
+  "query": "SELECT\n\t\t   id AS `id: MapId`,\n\t\t   state AS `state: MapState`,\n\t\t   created_by AS `created_by: UserId`\n\t\t FROM Maps\n\t\t WHERE name = ?\n\t\t AND game = ?",
   "describe": {
     "columns": [
       {
@@ -32,7 +32,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -40,5 +40,5 @@
       false
     ]
   },
-  "hash": "7e7d740579b8a462f25107c0c17dd031f3cbc599154e8dac7c5077e4746d9c55"
+  "hash": "24eb2193b670353ac19cd942fab3514bc10a2be1659e8043218b1b99dbcc1aa0"
 }

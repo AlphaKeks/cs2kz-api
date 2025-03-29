@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS Maps (
   workshop_id INT4 UNSIGNED NOT NULL,
   name VARCHAR(27) NOT NULL CHECK(name != ''),
   description TEXT CHECK(description != ''),
+  game INT1 UNSIGNED NOT NULL,
   state INT1 NOT NULL,
   checksum BINARY(16) NOT NULL,
   created_by INT8 UNSIGNED NOT NULL REFERENCES Users(id),
