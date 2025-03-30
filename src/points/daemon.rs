@@ -17,17 +17,20 @@ use crate::{
 pub struct PointsDaemon
 {
 	database: Database,
-
-	/// Signal that at least one new record has been submitted
-	///
-	/// We wait on this in case there are no `FiltersToRecalculate` in the database.
-	record_submitted: Arc<Notify>,
+	notifications: Arc<Notifications>,
 }
 
 #[derive(Debug, Clone)]
 pub struct PointsDaemonHandle
 {
-	record_submitted: WeakArc<Notify>,
+	notifications: WeakArc<Notifications>,
+}
+
+#[derive(Debug, Default)]
+struct Notifications
+{
+	/// A new record has been submitted
+	record_submitted: Notify,
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -55,18 +58,18 @@ impl PointsDaemon
 {
 	pub fn new(database: Database) -> Self
 	{
-		Self { database, record_submitted: Arc::new(Notify::default()) }
+		Self { database, notifications: Arc::<Notifications>::default() }
 	}
 
 	pub fn handle(&self) -> PointsDaemonHandle
 	{
-		PointsDaemonHandle { record_submitted: Arc::downgrade(&self.record_submitted) }
+		PointsDaemonHandle { notifications: Arc::downgrade(&self.notifications) }
 	}
 
 	#[tracing::instrument(skip(self, cancellation_token), err)]
 	pub async fn run(self, cancellation_token: CancellationToken) -> Result<(), PointsDaemonError>
 	{
-		let Self { ref database, ref record_submitted } = self;
+		let Self { database, notifications } = self;
 		let mut conn = database.acquire_connection().await?;
 
 		while !cancellation_token.is_cancelled() {
@@ -81,7 +84,7 @@ impl PointsDaemon
 					() = cancellation_token.cancelled() => break,
 
 					// we were notified of a new record -> retry `find_filter_to_recalculate`
-					() = record_submitted.notified() => continue,
+					() = notifications.record_submitted.notified() => continue,
 				};
 			};
 
@@ -271,9 +274,9 @@ impl PointsDaemonHandle
 	#[tracing::instrument(level = "trace", ret(level = "trace"))]
 	pub fn notify_record_submitted(&self) -> bool
 	{
-		self.record_submitted
+		self.notifications
 			.upgrade()
-			.map(|signal| signal.notify_waiters())
+			.map(|notifications| notifications.record_submitted.notify_waiters())
 			.is_some()
 	}
 }

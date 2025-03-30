@@ -71,6 +71,7 @@ pub async fn download(
 {
 	tracing::trace!(target: "cs2kz_api::depot_downloader", "acquiring permit");
 
+	// TODO: timeout?
 	let Ok(permit) = DEPOT_DOWNLOADER_PERMITS
 		.acquire()
 		.map_err(|err| panic!("static semaphore dropped? {err}"))
