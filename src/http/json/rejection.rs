@@ -1,11 +1,11 @@
-use std::{any::type_name, marker::PhantomData};
-
-use axum::{
-	extract::rejection::BytesRejection,
-	response::{IntoResponse, Response},
+use {
+	crate::http::problem_details::{ProblemDetails, ProblemType},
+	axum::{
+		extract::rejection::BytesRejection,
+		response::{IntoResponse, Response},
+	},
+	std::{any::type_name, marker::PhantomData},
 };
-
-use crate::http::problem_details::{ProblemDetails, ProblemType};
 
 #[derive(Debug, Display)]
 #[display("failed to extract json body of type `{}`: {}", type_name::<T>(), inner)]
@@ -30,18 +30,12 @@ impl<T> JsonRejection<T>
 {
 	pub(super) fn missing_content_type() -> Self
 	{
-		Self {
-			inner: JsonRejectionInner::MissingContentType,
-			ty: PhantomData,
-		}
+		Self { inner: JsonRejectionInner::MissingContentType, ty: PhantomData }
 	}
 
 	pub(super) fn deserialize(error: serde_json::Error) -> Self
 	{
-		Self {
-			inner: JsonRejectionInner::Deserialize(error),
-			ty: PhantomData,
-		}
+		Self { inner: JsonRejectionInner::Deserialize(error), ty: PhantomData }
 	}
 }
 
@@ -49,10 +43,7 @@ impl<T> From<BytesRejection> for JsonRejection<T>
 {
 	fn from(rejection: BytesRejection) -> Self
 	{
-		Self {
-			inner: JsonRejectionInner::BufferBody(rejection),
-			ty: PhantomData,
-		}
+		Self { inner: JsonRejectionInner::BufferBody(rejection), ty: PhantomData }
 	}
 }
 

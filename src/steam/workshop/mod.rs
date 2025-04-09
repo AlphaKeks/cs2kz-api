@@ -1,19 +1,19 @@
-mod id;
-
-use std::{error::Error, io, path::Path, process::Stdio, time::Duration};
-
-use futures_util::{StreamExt, TryFutureExt, stream};
-use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap};
-use steam_id::SteamId;
-use tokio::{process::Command, sync::Semaphore, task};
-use tokio_util::{
-	codec::{FramedRead, LinesCodec},
-	time::FutureExt,
-};
-use tracing::Instrument;
-
 pub use self::id::WorkshopId;
-use crate::steam;
+use {
+	crate::steam,
+	futures_util::{StreamExt, TryFutureExt, stream},
+	serde::{Deserialize, Serialize, Serializer, ser::SerializeMap},
+	std::{error::Error, io, path::Path, process::Stdio, time::Duration},
+	steam_id::SteamId,
+	tokio::{process::Command, sync::Semaphore, task},
+	tokio_util::{
+		codec::{FramedRead, LinesCodec},
+		time::FutureExt,
+	},
+	tracing::Instrument,
+};
+
+mod id;
 
 const URL: &str = "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1";
 
@@ -26,7 +26,7 @@ pub struct MapMetadata
 	pub creator_id: SteamId,
 }
 
-#[tracing::instrument(skip(api_client), ret(level = "debug"), err(level = "debug"))]
+#[instrument(skip(api_client), ret(level = "debug"), err(level = "debug"))]
 pub async fn get_map_metadata(
 	api_client: &steam::api::Client,
 	id: WorkshopId,
@@ -62,14 +62,14 @@ pub async fn get_map_metadata(
 	})
 }
 
-#[tracing::instrument(ret(level = "debug"), err(level = "debug"))]
+#[instrument(ret(level = "debug"), err(level = "debug"))]
 pub async fn download(
 	id: WorkshopId,
 	depot_downloader_path: &Path,
 	out_dir: &Path,
 ) -> io::Result<Box<Path>>
 {
-	tracing::trace!(target: "cs2kz_api::depot_downloader", "acquiring permit");
+	trace!(target: "cs2kz_api::depot_downloader", "acquiring permit");
 
 	// TODO: timeout?
 	let Ok(permit) = DEPOT_DOWNLOADER_PERMITS
@@ -77,7 +77,7 @@ pub async fn download(
 		.map_err(|err| panic!("static semaphore dropped? {err}"))
 		.await;
 
-	tracing::debug!(target: "cs2kz_api::depot_downloader", "spawning DepotDownloader process");
+	debug!(target: "cs2kz_api::depot_downloader", "spawning DepotDownloader process");
 
 	let mut process = Command::new(depot_downloader_path)
 		.args(["-app", "730", "-pubfile"])
@@ -108,10 +108,10 @@ pub async fn download(
 			while let Some((maybe_line, source)) = output.next().await {
 				match maybe_line {
 					Ok(line) => {
-						tracing::debug!(target: "cs2kz_api::depot_downloader", source, "{line}");
+						debug!(target: "cs2kz_api::depot_downloader", source, "{line}");
 					},
 					Err(error) => {
-						tracing::error!(
+						error!(
 							error = &error as &dyn Error,
 							"failed to read line from DepotDownloader's stdout",
 						);
@@ -119,14 +119,14 @@ pub async fn download(
 				}
 			}
 
-			tracing::info!("DepotDownloader exited");
+			info!("DepotDownloader exited");
 		}
 		.in_current_span()
 	});
 
 	if !process.wait().await?.success() {
 		let error = io::Error::other("DepotDownloader did not exit successfully");
-		tracing::error!(error = &error as &dyn Error);
+		error!(error = &error as &dyn Error);
 		return Err(error);
 	}
 
@@ -135,7 +135,7 @@ pub async fn download(
 	let timeout = Duration::from_secs(3);
 
 	if let Err(_) = output_task.timeout(timeout).await {
-		tracing::warn!(?timeout, "DepotDownloader output task did not exit within timeout");
+		warn!(?timeout, "DepotDownloader output task did not exit within timeout");
 	}
 
 	Ok(out_dir.join(format!("{id}.vpk")).into_boxed_path())

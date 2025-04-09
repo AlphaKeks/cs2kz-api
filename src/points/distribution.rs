@@ -1,14 +1,18 @@
-use futures_util::TryFutureExt;
-use pyo3::types::{PyAnyMethods, PyList, PyTuple};
-
-use crate::{
-	database::{DatabaseConnection, DatabaseError, DatabaseResult, QueryBuilder},
-	maps::FilterId,
-	points::LeaderboardPortion,
-	python::PyState,
-	records::Leaderboard,
+use {
+	crate::{
+		database::{self, DatabaseError, DatabaseResult},
+		maps::FilterId,
+		points::LeaderboardPortion,
+		python::PyState,
+		records::Leaderboard,
+	},
+	futures_util::TryFutureExt,
+	pyo3::types::{PyAnyMethods, PyList, PyTuple},
 };
 
+/// Parameters for a [Normal Inverse Gaussian distribution][norminvgauss]
+///
+/// [norminvgauss]: https://en.wikipedia.org/wiki/Normal-inverse_Gaussian_distribution
 #[derive(Debug, Clone, Copy, sqlx::FromRow)]
 pub struct Distribution
 {
@@ -46,39 +50,44 @@ impl From<pyo3::DowncastIntoError<'_>> for DistributionError
 #[bon::bon]
 impl Distribution
 {
-	#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+	/// Returns the cached distribution parameters for the given filter and
+	/// leaderboard.
+	#[instrument(skip(db_conn), ret(level = "debug"), err)]
 	#[builder(finish_fn = exec)]
-	pub async fn get_cached(
+	pub(crate) async fn get_cached(
 		#[builder(start_fn)] filter_id: FilterId,
 		#[builder(start_fn)] leaderboard: Leaderboard,
-		#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+		#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	) -> DatabaseResult<Option<Self>>
 	{
-		let mut query = QueryBuilder::new("SELECT a, b, loc, scale, top_scale FROM");
+		let (conn, query) = db_conn.parts();
+		query.reset();
 
-		query.push(match leaderboard {
-			Leaderboard::NUB => " DistributionParameters ",
-			Leaderboard::PRO => " ProDistributionParameters ",
+		query.push(format_args! {
+			"SELECT a, b, loc, scale, top_scale
+			 FROM {leaderboard}
+			 WHERE filter_id = ?",
+			leaderboard = match leaderboard {
+				Leaderboard::NUB => "DistributionParameters",
+				Leaderboard::PRO => "ProDistributionParameters",
+			},
 		});
-
-		query.push("WHERE filter_id = ?");
 
 		query
 			.build_query_as::<Self>()
 			.bind(filter_id)
-			.fetch_optional(conn.as_raw())
+			.fetch_optional(conn)
 			.map_err(DatabaseError::from)
 			.await
 	}
 
-	/// Calculates the distribution parameters by fitting the given input
-	/// `data`.
+	/// Calculates the distribution parameters by fitting the given input `data`.
 	///
 	/// # Panics
 	///
 	/// This function will panic if `data` is empty.
 	#[track_caller]
-	#[tracing::instrument(skip(py_state, data, as_f64), fields(data.size = data.len()), ret(level = "debug"), err)]
+	#[instrument(skip_all, fields(data.size = data.len()), ret(level = "debug"), err)]
 	pub fn fit<T, F>(
 		py_state: &PyState<'_>,
 		data: &[T],
@@ -87,20 +96,20 @@ impl Distribution
 	where
 		F: FnMut(&T) -> f64,
 	{
+		assert!(!data.is_empty(), "`data` passed to `Distribution::fit()` is empty");
+
 		let norminvgauss = py_state
 			.python()
 			.import("scipy.stats")
-			.inspect_err(|error| tracing::error!(%error, "failed to import scipy.stats"))?
+			.inspect_err(|error| error!(%error, "failed to import scipy.stats"))?
 			.getattr("norminvgauss")
-			.inspect_err(|error| tracing::error!(%error, "failed to import norminvgauss"))?;
+			.inspect_err(|error| error!(%error, "failed to import norminvgauss"))?;
 
 		let fit = norminvgauss
 			.getattr("fit")
-			.inspect_err(|error| tracing::error!(%error, "failed to import fit"))?;
+			.inspect_err(|error| error!(%error, "failed to import fit"))?;
 
-		let top_value = data.first().map(&mut as_f64).unwrap_or_else(|| {
-			panic!("`data` passed to `Distribution::fit()` is empty");
-		});
+		let top_value = as_f64(&data[0]);
 
 		if cfg!(debug_assertions) {
 			data[1..].iter().map(&mut as_f64).for_each(|value| {
@@ -110,39 +119,39 @@ impl Distribution
 
 		let data =
 			PyList::new(py_state.python(), data.iter().map(as_f64)).inspect_err(|error| {
-				tracing::error!(%error, "failed to create PyList from input data");
+				error!(%error, "failed to create PyList from input data");
 			})?;
 
 		let (a, b, loc, scale) = fit
 			.call1((data,))
-			.inspect_err(|error| tracing::error!(%error, "failed to call fit"))?
+			.inspect_err(|error| error!(%error, "failed to call fit"))?
 			.downcast_into::<PyTuple>()
-			.inspect_err(|error| tracing::error!(%error, "fit result is not a tuple"))?
+			.inspect_err(|error| error!(%error, "fit result is not a tuple"))?
 			.extract::<(f64, f64, f64, f64)>()
 			.inspect_err(|error| {
-				tracing::error!(%error, "fit result is not a tuple of 4 floats");
+				error!(%error, "fit result is not a tuple of 4 floats");
 			})?;
 
 		let top_scale = norminvgauss
 			.call1((a, b, loc, scale))
 			.inspect_err(|error| {
-				tracing::error!(%error, a, b, loc, scale, "failed to call norminvgauss");
+				error!(%error, a, b, loc, scale, "failed to call norminvgauss");
 			})?
 			.getattr("sf")
-			.inspect_err(|error| tracing::error!(%error, "failed to get sf"))?
+			.inspect_err(|error| error!(%error, "failed to get sf"))?
 			.call1((top_value,))
-			.inspect_err(|error| tracing::error!(%error, input = top_value, "failed to call sf"))?
+			.inspect_err(|error| error!(%error, input = top_value, "failed to call sf"))?
 			.extract::<f64>()
 			.map(LeaderboardPortion)
 			.inspect_err(|error| {
-				tracing::error!(%error, input = top_value, "sf result is not a float");
+				error!(%error, input = top_value, "sf result is not a float");
 			})?;
 
 		Ok(Self { a, b, loc, scale, top_scale })
 	}
 
 	/// Calls the distribution's survival function with the given `value` as the input.
-	#[tracing::instrument(level = "trace", skip(py_state), ret(level = "trace"), err)]
+	#[instrument(level = "trace", skip(py_state), ret(level = "trace"), err)]
 	pub fn sf(&self, py_state: &PyState<'_>, value: f64) -> Result<f64, DistributionError>
 	{
 		let Distribution { a, b, loc, scale, .. } = *self;
@@ -150,20 +159,20 @@ impl Distribution
 		py_state
 			.python()
 			.import("scipy.stats")
-			.inspect_err(|error| tracing::error!(%error, "failed to import scipy.stats"))?
+			.inspect_err(|error| error!(%error, "failed to import scipy.stats"))?
 			.getattr("norminvgauss")
-			.inspect_err(|error| tracing::error!(%error, "failed to import norminvgauss"))?
+			.inspect_err(|error| error!(%error, "failed to import norminvgauss"))?
 			.call1((a, b, loc, scale))
 			.inspect_err(|error| {
-				tracing::error!(%error, a, b, loc, scale, "failed to call norminvgauss");
+				error!(%error, a, b, loc, scale, "failed to call norminvgauss");
 			})?
 			.getattr("sf")
-			.inspect_err(|error| tracing::error!(%error, "failed to get sf"))?
+			.inspect_err(|error| error!(%error, "failed to get sf"))?
 			.call1((value,))
-			.inspect_err(|error| tracing::error!(%error, input = value, "failed to call sf"))?
+			.inspect_err(|error| error!(%error, input = value, "failed to call sf"))?
 			.extract::<f64>()
 			.inspect_err(|error| {
-				tracing::error!(%error, input = value, "sf result is not a float");
+				error!(%error, input = value, "sf result is not a float");
 			})
 			.map_err(DistributionError::from)
 	}
@@ -173,8 +182,8 @@ impl Distribution
 	{
 		values
 			.into_iter()
-			.inspect(|&value| tracing::trace!(value, "before scale"))
+			.inspect(|&value| trace!(value, "before scale"))
 			.map(|value| (value - self.loc) / self.scale)
-			.inspect(|&value| tracing::trace!(value, "after scale"))
+			.inspect(|&value| trace!(value, "after scale"))
 	}
 }

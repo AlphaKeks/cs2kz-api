@@ -1,10 +1,10 @@
-use std::{any::type_name, error::Error, fmt, marker::PhantomData};
-
-use axum::response::{IntoResponse, Response};
-
-use crate::{
-	http::problem_details::{ProblemDetails, ProblemType},
-	runtime,
+use {
+	crate::{
+		http::problem_details::{ProblemDetails, ProblemType},
+		runtime,
+	},
+	axum::response::{IntoResponse, Response},
+	std::{any::type_name, error::Error, fmt, marker::PhantomData},
 };
 
 pub(crate) struct HeaderRejection<T: headers::Header>

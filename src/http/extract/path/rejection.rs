@@ -1,8 +1,8 @@
-use std::{any::type_name, error::Error, marker::PhantomData};
-
-use axum::response::{IntoResponse, Response};
-
-use crate::http::problem_details::{ProblemDetails, ProblemType};
+use {
+	crate::http::problem_details::{ProblemDetails, ProblemType},
+	axum::response::{IntoResponse, Response},
+	std::{any::type_name, error::Error, marker::PhantomData},
+};
 
 #[derive(Debug, Display)]
 #[display("failed to extract path parameter of type `{}`: {}", type_name::<T>(), inner)]
@@ -31,7 +31,7 @@ impl<T> IntoResponse for PathRejection<T>
 		let error = match self.inner {
 			axum::extract::rejection::PathRejection::FailedToDeserializePathParams(error) => error,
 			error @ (axum::extract::rejection::PathRejection::MissingPathParams(_) | _) => {
-				tracing::error!(
+				error!(
 					error = &error as &dyn Error,
 					"type" = type_name::<T>(),
 					"failed to deserialize path parameter(s)",
@@ -45,7 +45,7 @@ impl<T> IntoResponse for PathRejection<T>
 
 		match error.kind() {
 			ErrorKind::WrongNumberOfParameters { got, expected } => {
-				tracing::error!(
+				error!(
 					error = &error as &dyn Error,
 					got,
 					expected,
@@ -76,7 +76,7 @@ impl<T> IntoResponse for PathRejection<T>
 					.set_detail(format!("failed to parse parameter {key:?}: invalid UTF-8"));
 			},
 			ErrorKind::UnsupportedType { name } => {
-				tracing::error!(
+				error!(
 					error = &error as &dyn Error,
 					name,
 					"type" = type_name::<T>(),
@@ -86,20 +86,15 @@ impl<T> IntoResponse for PathRejection<T>
 				return http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
 			},
 			ErrorKind::DeserializeError { key, message, .. } => {
-				problem_details
-					.set_detail(format!("failed to parse parameter {key:?}: {message}",));
+				problem_details.set_detail(format!("failed to parse parameter {key:?}: {message}"));
 			},
 			ErrorKind::Message(message) => {
-				tracing::error!(
-					error = &error as &dyn Error,
-					"type" = type_name::<T>(),
-					"{message}",
-				);
+				error!(error = &error as &dyn Error, "type" = type_name::<T>(), "{message}");
 
 				return http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
 			},
 			_ => {
-				tracing::error!(
+				error!(
 					error = &error as &dyn Error,
 					"type" = type_name::<T>(),
 					"failed to deserialize path parameter(s)"

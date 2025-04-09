@@ -1,8 +1,9 @@
-use std::{fmt, ops};
-
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de, ser::SerializeSeq};
-use utoipa::ToSchema;
-use zerocopy::{Immutable, IntoBytes, KnownLayout, TryFromBytes, try_transmute_ref};
+use {
+	serde::{Deserialize, Deserializer, Serialize, Serializer, de, ser::SerializeSeq},
+	std::{fmt, ops},
+	utoipa::ToSchema,
+	zerocopy::{Immutable, IntoBytes, KnownLayout, TryFromBytes, try_transmute_ref},
+};
 
 const CREATE_MAPS: u64 = 1_u64 << 0;
 const UPDATE_MAPS: u64 = 1_u64 << 1;

@@ -1,8 +1,9 @@
-use serde::{Deserialize, Serialize};
-use steam_id::SteamId;
-use url::Url;
-
-use crate::steam;
+use {
+	crate::steam,
+	serde::{Deserialize, Serialize},
+	steam_id::SteamId,
+	url::Url,
+};
 
 const URL: &str = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002";
 
@@ -19,7 +20,7 @@ pub struct User
 	pub avatar_url: Url,
 }
 
-#[tracing::instrument(skip(api_client), ret(level = "debug"), err(level = "debug"))]
+#[instrument(skip(api_client), ret(level = "debug"), err(level = "debug"))]
 pub async fn get(
 	api_client: &steam::api::Client,
 	user_id: SteamId,

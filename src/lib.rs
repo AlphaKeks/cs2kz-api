@@ -1,4 +1,5 @@
 #![feature(array_try_from_fn)]
+#![feature(assert_matches)]
 #![feature(debug_closure_helpers)]
 #![feature(decl_macro)]
 #![feature(extend_one)]
@@ -17,13 +18,16 @@ extern crate bon as _;
 #[macro_use(pin_project)]
 extern crate pin_project as _;
 
+#[macro_use(instrument, trace, debug, info, warn, error)]
+extern crate tracing as _;
+
 #[macro_use(select)]
 extern crate tokio as _;
 
 #[macro_use]
 mod macros;
 
-pub mod access_key;
+pub mod access_keys;
 pub mod checksum;
 pub mod database;
 pub mod discord;
@@ -49,3 +53,5 @@ pub mod plugin;
 pub mod records;
 pub mod servers;
 pub mod users;
+
+mod util;

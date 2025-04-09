@@ -1,62 +1,76 @@
+use {
+	self::{
+		handshake::HandshakeError,
+		message::{Message, MessageId},
+	},
+	crate::{
+		checksum::Checksum,
+		database::{self, DatabaseResult},
+		event_queue::{self, Event},
+		game::Game,
+		maps::{self, CS2Filters, CSGOFilters, Filters, Map},
+		mode::Mode,
+		players::{self, PlayerId, PlayerIp, PlayerName, PlayerPreferences},
+		plugin::PluginVersionId,
+		points::PointsDaemonHandle,
+		records,
+		server_monitor::{Config, ServerMessage},
+		servers::{self, ServerId, ServerSessionId},
+		styles::{Style, Styles},
+	},
+	axum_tws::WebSocketError,
+	color_eyre::eyre::{self, Context},
+	futures_util::{Sink, SinkExt, Stream, StreamExt},
+	serde::Serialize,
+	std::{
+		collections::{
+			HashMap,
+			btree_map::{self, BTreeMap},
+		},
+		error::Error,
+		ops::ControlFlow,
+		pin::pin,
+	},
+	tokio::{
+		sync::mpsc,
+		time::{Instant, sleep},
+	},
+	tokio_websockets::{CloseCode, Message as RawMessage},
+};
+
 mod handshake;
 mod message;
 
-use std::{
-	collections::btree_map::{self, BTreeMap},
-	io,
-	ops::ControlFlow,
-	pin::{Pin, pin},
-};
-
-use futures_util::{Sink, SinkExt, Stream, StreamExt, TryFutureExt};
-use tokio::{
-	sync::mpsc,
-	time::{Instant, sleep},
-};
-use tokio_util::sync::CancellationToken;
-use tokio_websockets::proto::{CloseCode, Message as RawMessage};
-
-use self::message::{EncodeMessageError, Message};
-use super::{ServerMessage, ServerMonitorConfig};
-use crate::{
-	checksum::Checksum,
-	database::{Database, DatabaseConnection, DatabaseError, DatabaseResult},
-	event_queue::{self, Event},
-	game::Game,
-	maps::{self, Map},
-	mode::Mode,
-	players::{self, PlayerId, PlayerIp, PlayerName, PlayerPreferences},
-	records::{self, CreatedRecord},
-	servers::{self, ServerId, ServerSessionId},
-	styles::Style,
-};
+type WebSocketResult<T> = Result<T, WebSocketError>;
+type OnSocketMessageResult = ControlFlow<WebSocketResult<()>, Option<RawMessage>>;
 
 #[derive(Debug)]
 struct ConnectionState
 {
-	/// The server's ID
+	/// ID of the connected server
 	server_id: ServerId,
+
+	/// ID of the plugin version the server is currently running
+	#[expect(dead_code, reason = "captured by tracing")]
+	version_id: PluginVersionId,
+
+	/// The game the server is currently running
+	game: Game,
 
 	/// ID of this connection session
 	session_id: ServerSessionId,
 
-	#[debug(skip)]
-	database: Database,
-
-	/// The game the server is running
-	game: Game,
-
-	/// "map" from checksums to modes
-	mode_checksums: Box<[(Checksum, Mode)]>,
-
-	/// "map" from checksums to styles
-	style_checksums: Box<[(Checksum, Style)]>,
-
 	/// The map the server is currently hosting
-	map: CurrentMap,
+	current_map: CurrentMap,
 
-	/// Players currently playing on the server
+	/// The players currently connected to the server
 	players: BTreeMap<PlayerId, ConnectedPlayer>,
+
+	/// Checksums of the modes relevant for this connection
+	mode_checksums: HashMap<Checksum, Mode>,
+
+	/// Checksums of the styles relevant for this connection
+	style_checksums: HashMap<Checksum, Style>,
 }
 
 impl ConnectionState
@@ -64,17 +78,14 @@ impl ConnectionState
 	fn connection_info(&self) -> servers::ConnectionInfo
 	{
 		servers::ConnectionInfo {
-			current_map: match self.map {
-				CurrentMap::Global(ref map) => map.name.as_str().into(),
-				CurrentMap::NonGlobal { ref name } => name.clone(),
+			current_map: match self.current_map {
+				CurrentMap::Known(ref map) => map.name.as_str().into(),
+				CurrentMap::Unknown { ref name } => name.clone(),
 			},
 			connected_players: self
 				.players
-				.values()
-				.map(|player| servers::ConnectedPlayerInfo {
-					id: player.id,
-					name: player.name.clone(),
-				})
+				.iter()
+				.map(|(&id, player)| servers::ConnectedPlayerInfo { id, name: player.name.clone() })
 				.collect(),
 		}
 	}
@@ -83,469 +94,442 @@ impl ConnectionState
 #[derive(Debug)]
 enum CurrentMap
 {
-	Global(Map),
-	NonGlobal
+	/// The API knows about the map
+	Known(Map),
+
+	/// The API does not know about the map
+	Unknown
 	{
+		/// The map's name according to the server
 		name: Box<str>,
 	},
 }
 
-impl CurrentMap
-{
-	fn as_global(&self) -> Option<&Map>
-	{
-		match *self {
-			CurrentMap::Global(ref map) => Some(map),
-			CurrentMap::NonGlobal { .. } => None,
-		}
-	}
-
-	fn from_maybe_global(map: Option<Map>, name: Box<str>) -> Self
-	{
-		map.map_or_else(|| Self::NonGlobal { name }, Self::Global)
-	}
-}
-
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct ConnectedPlayer
 {
-	id: PlayerId,
+	/// The player's name when they joined the server
+	#[serde(skip_serializing)]
 	name: PlayerName,
+
+	/// The player's IP address
+	#[serde(skip_serializing)]
+	#[expect(dead_code, reason = "captured by tracing")]
 	ip_address: PlayerIp,
-	is_banned: bool,
+
+	/// The player's in-game preferences
 	preferences: PlayerPreferences,
+
+	/// Whether the player is currently banned
+	is_banned: bool,
 }
 
-#[derive(Debug, Display, Error, From)]
-pub(super) enum ServerTaskError
-{
-	#[from]
-	Io(io::Error),
-
-	#[from]
-	EncodeMessage(EncodeMessageError),
-
-	#[from(DatabaseError, sqlx::Error)]
-	Database(DatabaseError),
-}
-
-#[tracing::instrument(skip(socket, database, cancellation_token, command_rx), err)]
-pub(super) async fn main_loop<S>(
-	mut socket: Pin<&mut S>,
+#[instrument(skip(socket, rx), err)]
+pub(in crate::server_monitor) async fn serve_connection<S>(
+	socket: S,
+	mut rx: mpsc::Receiver<ServerMessage>,
+	config: Config,
+	database: database::ConnectionPool,
+	points_daemon: PointsDaemonHandle,
 	server_id: ServerId,
-	database: Database,
-	cancellation_token: CancellationToken,
-	config: ServerMonitorConfig,
-	mut command_rx: mpsc::Receiver<ServerMessage>,
-) -> Result<(), ServerTaskError>
+) -> WebSocketResult<()>
 where
-	S: Stream<Item = io::Result<RawMessage>>,
-	S: Sink<RawMessage, Error = io::Error>,
+	S: Stream<Item = WebSocketResult<RawMessage>> + Sink<RawMessage, Error = WebSocketError>,
 {
-	let ControlFlow::Continue(mut state) = handshake::perform(
-		socket.as_mut(),
-		server_id,
-		database,
-		&cancellation_token,
-		config.handshake_timeout,
-	)
-	.await?
-	else {
-		return Ok(());
+	let mut socket = pin!(socket);
+	let mut heartbeat_timeout = pin!(sleep(config.heartbeat_interval));
+	let mut state = match handshake::perform(socket.as_mut(), &config, &database, server_id).await {
+		Ok(state) => state,
+		Err(HandshakeError::Io(err)) => return Err(err),
+		Err(HandshakeError::DatabaseError(err)) => {
+			error!(error = &err as &dyn Error, "encountered database error during handshake");
+			return socket
+				.send(RawMessage::close(
+					Some(CloseCode::INTERNAL_SERVER_ERROR),
+					"something went wrong",
+				))
+				.await;
+		},
+		Err(HandshakeError::ClientClosedConnection) => return Ok(()),
+		Err(
+			err @ (HandshakeError::DecodeHello(_)
+			| HandshakeError::EncodeHelloAck(_)
+			| HandshakeError::TimeoutExceeded { .. }
+			| HandshakeError::InvalidPluginVersion),
+		) => {
+			return socket
+				.send(RawMessage::close(Some(CloseCode::POLICY_VIOLATION), &err.to_string()))
+				.await;
+		},
 	};
 
-	event_queue::dispatch(Event::ServerConnected(state.connection_info()));
+	heartbeat_timeout
+		.as_mut()
+		.reset(Instant::now() + config.heartbeat_interval);
 
-	let mut heartbeat_timeout = pin!(sleep(config.heartbeat_interval));
+	event_queue::dispatch(Event::ServerConnected {
+		id: state.server_id,
+		connection_info: state.connection_info(),
+	});
 
 	loop {
 		select! {
-			() = cancellation_token.cancelled() => {
-				tracing::debug!("closing connection due to server shutdown");
-				socket.as_mut().send(shutdown_message()).await?;
-				break Ok(());
-			},
-
 			() = &mut heartbeat_timeout => {
-				tracing::debug!("closing connection due to timeout");
-				socket.as_mut().send(timeout_message()).await?;
-				break Ok(());
+				debug!("exceeded heartbeat timeout");
+				return socket
+					.send(RawMessage::close(Some(CloseCode::POLICY_VIOLATION), "exceeded heartbeat timeout"))
+					.await;
 			},
 
-			Some(recv_result) = socket.next() => {
-				heartbeat_timeout
-					.as_mut()
-					.reset(Instant::now() + config.heartbeat_interval);
+			Some(message) = rx.recv() => match message {
+				ServerMessage::Disconnect { response_tx } => {
+					let _guard = crate::util::drop_guard(move || {
+						let _ = response_tx.send(true);
+					});
 
-				match recv_result {
-					Ok(message) => {
-						if let Some(message) = decode_message(socket.as_mut(), message).await? {
-							handle_message(socket.as_mut(), &mut state, message).await?;
+					socket
+						.send(RawMessage::close(Some(CloseCode::NORMAL_CLOSURE), ""))
+						.await?;
+
+					break Ok(());
+				},
+
+				ServerMessage::WantConnectionInfo { response_tx } => {
+					let _ = response_tx.send(Some(state.connection_info()));
+				},
+
+				ServerMessage::BroadcastMessage { message, response_tx } => 'scope: {
+					let message = Message::new(message::Outgoing::BroadcastMessage {
+						message: &message,
+					});
+
+					let Some(message) = message.encode_lossy() else {
+						let _ = response_tx.send(false);
+						break 'scope;
+					};
+
+					match socket.feed(message).await {
+						Ok(()) => {
+							let _ = response_tx.send(true);
+						},
+						Err(err) => {
+							let _ = response_tx.send(false);
+							return Err(err);
+						},
+					}
+				},
+			},
+
+			Some(message) = socket.next() => {
+				heartbeat_timeout.as_mut().reset(Instant::now() + config.heartbeat_interval);
+
+				match on_socket_message(&database, &points_daemon, &mut state, message?).await {
+					OnSocketMessageResult::Break(res) => break res,
+					OnSocketMessageResult::Continue(maybe_reply) => {
+						if let Some(reply) = maybe_reply {
+							socket.feed(reply).await?;
 						}
 					},
-					Err(err) => return Err(err.into()),
-				}
-			},
-
-			Some(command) = command_rx.recv() => {
-				if handle_command(socket.as_mut(), &state, command).await?.is_break() {
-					break Ok(());
 				}
 			},
 		};
 
-		// Make sure all `socket.feed(…)`'ed messages are actually sent
-		socket.as_mut().flush().await?;
+		socket.flush().await?;
 	}
 }
 
-/// Decodes an incoming message.
-///
-/// Messages that could not be decoded into something useful are handled
-/// appropriately by this function.
-#[tracing::instrument(level = "debug", skip(socket), ret(level = "debug"), err)]
-async fn decode_message<S>(
-	mut socket: Pin<&mut S>,
-	message: RawMessage,
-) -> Result<Option<Message<message::Incoming>>, ServerTaskError>
-where
-	S: Sink<RawMessage, Error = io::Error>,
-{
-	if message.is_ping() {
-		tracing::debug!(payload.size = message.as_payload().len(), "ping");
-		Ok(None)
-	} else if message.is_pong() {
-		tracing::debug!(payload.size = message.as_payload().len(), "pong?");
-		Ok(None)
-	} else if let Some((code, reason)) = message.as_close() {
-		tracing::debug!(code = u16::from(code), reason, "client closed the connection");
-		Ok(None)
-	} else {
-		tracing::debug!(
-			payload.size = message.as_payload().len(),
-			text = message.is_text(),
-			"decoding message",
-		);
-
-		match Message::<message::Incoming>::decode(&message) {
-			Ok(message) => Ok(Some(message)),
-			Err(err) => {
-				socket
-					.send(Message::error(0, &err).encode()?)
-					.map_ok(|()| None)
-					.map_err(ServerTaskError::from)
-					.await
-			},
-		}
-	}
-}
-
-/// Handles an incoming message.
-#[tracing::instrument(level = "debug", skip(socket), err)]
-async fn handle_message<S>(
-	mut socket: Pin<&mut S>,
+/// Callback for receiving a WebSocket message
+#[instrument(skip(database), ret(level = "debug"))]
+async fn on_socket_message(
+	database: &database::ConnectionPool,
+	points_daemon: &PointsDaemonHandle,
 	state: &mut ConnectionState,
-	message: Message<message::Incoming>,
-) -> Result<(), ServerTaskError>
-where
-	S: Sink<RawMessage, Error = io::Error>,
+	message: RawMessage,
+) -> OnSocketMessageResult
 {
-	let (message_id, payload) = message.into_parts();
+	let payload = message.as_payload();
 
+	if message.is_ping() {
+		trace!(payload.size = payload.len(), "ping");
+		return OnSocketMessageResult::Continue(None);
+	}
+
+	if message.is_pong() {
+		trace!(payload.size = payload.len(), "pong");
+		return OnSocketMessageResult::Continue(None);
+	}
+
+	if let Some((code, reason)) = message.as_close() {
+		trace!(?code, reason, "client closed the connection");
+		return OnSocketMessageResult::Break(Ok(()));
+	}
+
+	trace!(payload.size = payload.len(), "decoding message");
+
+	OnSocketMessageResult::Continue(match Message::<message::Incoming>::decode(&payload[..]) {
+		Ok(message) => {
+			let (message_id, payload) = message.into_parts();
+			debug!(id = message_id.as_u64(), ?payload, "decoded message");
+
+			match handle_incoming_payload(database, points_daemon, state, message_id, payload).await
+			{
+				Ok(maybe_reply) => maybe_reply,
+				Err(err) => {
+					tracing::error!(err = format_args!("{err:#}"));
+					let reply = Message::reply(message_id, message::Outgoing::Error {
+						error: err.as_ref(),
+					});
+
+					reply.encode_lossy()
+				},
+			}
+		},
+		Err(err) => Message::<message::Outgoing<'_>>::from(&err).encode_lossy(),
+	})
+}
+
+#[instrument(skip(database), ret(level = "debug"))]
+async fn handle_incoming_payload(
+	database: &database::ConnectionPool,
+	points_daemon: &PointsDaemonHandle,
+	state: &mut ConnectionState,
+	message_id: MessageId,
+	payload: message::Incoming,
+) -> eyre::Result<Option<RawMessage>>
+{
 	match payload {
-		message::Incoming::MapChange { name } => {
-			tracing::debug!(map = &*name, "server changed map");
+		message::Incoming::MapChanged { name } => {
+			debug!(name, "changed map");
 
-			let map = {
-				let mut conn = state.database.acquire_connection().await?;
-				maps::get_by_name(&*name).exec(&mut conn).await?
+			state.current_map = {
+				let mut db_conn = database.acquire().await?;
+
+				match maps::get_by_name(&name).exec(&mut db_conn).await? {
+					Some(map) => CurrentMap::Known(map),
+					None => CurrentMap::Unknown { name },
+				}
 			};
 
-			let message =
-				Message::new(message_id, message::Outgoing::MapChangeAck { map: map.as_ref() });
+			let reply = Message::reply(message_id, message::Outgoing::MapChangedAck {
+				map_info: match state.current_map {
+					CurrentMap::Known(ref map) => Some(map),
+					CurrentMap::Unknown { .. } => None,
+				},
+			});
 
-			socket.feed(message.encode()?).await?;
-			state.map = CurrentMap::from_maybe_global(map, name);
+			Ok(reply.encode_lossy())
 		},
 
 		message::Incoming::PlayerJoin { id, name, ip_address } => {
-			tracing::debug!(%id, %name, "player joined");
-
-			let player = state
-				.database
+			let player = database
 				.in_transaction(async |conn| {
-					on_player_join(id)
+					on_player_join(id, state.game)
 						.name(name)
 						.ip_address(ip_address)
-						.exec(&*state, conn)
+						.exec(conn)
 						.await
 				})
-				.await?;
+				.await
+				.wrap_err("`on_player_join` failed")?;
+
+			event_queue::dispatch(Event::PlayerJoin {
+				server_id: state.server_id,
+				player: servers::ConnectedPlayerInfo { id, name: player.name.clone() },
+			});
 
 			match state.players.entry(id) {
 				btree_map::Entry::Vacant(entry) => {
-					let player = &*entry.insert(player);
-					let reply = Message::new(message_id, message::Outgoing::PlayerJoinAck {
-						player_id: player.id,
-						is_banned: player.is_banned,
+					let player = entry.insert(player);
+					debug!(%id, name = %player.name, "player joined the server");
+
+					let reply = Message::reply(message_id, message::Outgoing::PlayerJoinAck {
 						preferences: &player.preferences,
+						is_banned: player.is_banned,
 					});
 
-					socket.as_mut().feed(reply.encode()?).await?;
+					Ok(reply.encode_lossy())
 				},
-				btree_map::Entry::Occupied(entry) => {
-					tracing::warn!(
-						old_player = ?entry.get(),
-						"received player-join event while player was still in cache",
+				btree_map::Entry::Occupied(mut entry) => {
+					let old = entry.insert(player);
+					let new = entry.get();
+					warn!(
+						%id,
+						old.name = %old.name,
+						new.name = %new.name,
+						"player joined the server but is still in state map",
 					);
+
+					let reply = Message::reply(message_id, message::Outgoing::PlayerJoinAck {
+						preferences: &new.preferences,
+						is_banned: new.is_banned,
+					});
+
+					Ok(reply.encode_lossy())
 				},
 			}
 		},
 
 		message::Incoming::PlayerLeave { id, name, preferences } => {
-			tracing::debug!(%id, %name, "player left");
+			database
+				.in_transaction(async |conn| {
+					on_player_leave(id, state.game)
+						.name(&name)
+						.preferences(&preferences)
+						.exec(conn)
+						.await
+				})
+				.await?;
 
-			if let Some(player) = state.players.remove(&id) {
-				state
-					.database
-					.in_transaction(async |conn| {
-						on_player_leave(id)
-							.name(name)
-							.ip_address(player.ip_address)
-							.preferences(preferences)
-							.exec(&*state, conn)
-							.await
-					})
-					.await?;
+			event_queue::dispatch(Event::PlayerLeave { server_id: state.server_id, player_id: id });
+
+			if let Some(old) = state.players.remove(&id) {
+				debug!(%id, old_name = %old.name, new_name = %name, "player left the server");
 			} else {
-				tracing::warn!(
-					%id,
-					%name,
-					"received player-leave event while player was not in cache",
-				);
+				warn!(%id, %name, "player left the server but not in state map");
 			}
+
+			Ok(None)
 		},
 
-		message::Incoming::NewRecord {
-			player_id,
-			course_id,
+		message::Incoming::SubmitRecord {
+			course_local_id,
 			mode_checksum,
-			style_checksums,
+			player_id,
 			time,
 			teleports,
+			style_checksums,
 		} => {
-			let Some(filter_id) = state.map.as_global().and_then(|map| {
-				let filters = map.courses.get(&course_id).map(|course| &course.filters)?;
-				let filter = state
-					.mode_checksums
-					.iter()
-					.find(|&&(checksum, _)| checksum == mode_checksum)
-					.and_then(|&(_, mode)| match mode {
-						Mode::Vanilla => filters.cs2.as_ref().map(|filters| &filters.vnl),
-						Mode::Classic => filters.cs2.as_ref().map(|filters| &filters.ckz),
-						Mode::KZTimer => filters.csgo.as_ref().map(|filters| &filters.kzt),
-						Mode::SimpleKZ => filters.csgo.as_ref().map(|filters| &filters.skz),
-						Mode::VanillaCSGO => filters.csgo.as_ref().map(|filters| &filters.vnl),
-					})?;
+			let CurrentMap::Known(ref current_map) = state.current_map else {
+				let reply = Message::reply(message_id, message::Outgoing::Error {
+					error: &{
+						#[derive(Debug, Display, Error)]
+						#[display("cannot submit record on non-global map")]
+						struct RecordSubmittedOnNonGlobalMap;
+						RecordSubmittedOnNonGlobalMap
+					},
+				});
 
-				Some(filter.id)
-			}) else {
-				#[derive(Debug, Display, Error)]
-				#[display("cannot submit record on invalid filter")]
-				struct InvalidFilter;
-
-				let message = Message::error(message_id, &InvalidFilter);
-				socket.feed(message.encode()?).await?;
-				return Ok(());
+				return Ok(reply.encode_lossy());
 			};
 
-			let styles = style_checksums.iter().filter_map(|&style_checksum| {
-				state
-					.style_checksums
-					.iter()
-					.find(|&&(checksum, _)| checksum == style_checksum)
-					.map(|&(_, style)| style)
-			});
+			let Some(course) = current_map
+				.courses
+				.values()
+				.find(|course| course.local_id == course_local_id)
+			else {
+				let reply = Message::reply(message_id, message::Outgoing::Error {
+					error: &{
+						#[derive(Debug, Display, Error)]
+						#[display("invalid course local ID")]
+						struct InvalidCourseError;
+						InvalidCourseError
+					},
+				});
 
-			match state
-				.database
+				return Ok(reply.encode_lossy());
+			};
+
+			let Some(&mode) = state.mode_checksums.get(&mode_checksum) else {
+				let reply = Message::reply(message_id, message::Outgoing::Error {
+					error: &{
+						#[derive(Debug, Display, Error)]
+						#[display("invalid mode")]
+						struct InvalidModeError;
+						InvalidModeError
+					},
+				});
+
+				return Ok(reply.encode_lossy());
+			};
+
+			debug_assert_eq!(state.game, mode.game());
+
+			let filter = match (&course.filters, mode) {
+				(Filters { cs2: Some(CS2Filters { vnl, .. }), .. }, Mode::VanillaCS2)
+				| (Filters { csgo: Some(CSGOFilters { vnl, .. }), .. }, Mode::VanillaCSGO) => vnl,
+				(Filters { cs2: Some(CS2Filters { ckz, .. }), .. }, Mode::Classic) => ckz,
+				(Filters { csgo: Some(CSGOFilters { kzt, .. }), .. }, Mode::KZTimer) => kzt,
+				(Filters { csgo: Some(CSGOFilters { skz, .. }), .. }, Mode::SimpleKZ) => skz,
+				(filters, _) => unreachable!("{filters:#?}"),
+			};
+
+			let styles = style_checksums
+				.iter()
+				.filter_map(|checksum| state.style_checksums.get(checksum))
+				.collect::<Styles>();
+
+			let created_record = database
 				.in_transaction(async |conn| {
-					records::create(filter_id, player_id)
+					records::create(filter.id, player_id)
 						.session_id(state.session_id)
 						.time(time)
 						.teleports(teleports)
-						.styles(styles.collect())
+						.styles(styles)
 						.exec(conn)
 						.await
 				})
 				.await
-			{
-				Ok(CreatedRecord { id, ranked_data }) => {
-					event_queue::dispatch(Event::RecordSubmitted { record_id: id });
+				.wrap_err("failed to create record")?;
 
-					let message = Message::new(message_id, message::Outgoing::NewRecordAck {
-						record_id: id,
-						ranked_data: ranked_data.as_ref(),
-					});
+			points_daemon.notify_record_submitted();
+			event_queue::dispatch(Event::RecordSubmitted { record_id: created_record.id });
 
-					socket.feed(message.encode()?).await?;
-				},
-				Err(err) => {
-					let message = Message::error(message_id, &err);
+			let reply = Message::reply(message_id, message::Outgoing::SubmitRecordAck {
+				record_id: created_record.id,
+				ranked_data: created_record.ranked_data.as_ref(),
+			});
 
-					socket.feed(message.encode()?).await?;
-				},
-			}
+			Ok(reply.encode_lossy())
 		},
 	}
-
-	Ok(())
 }
 
-/// Handles a command from the [`ServerMonitor`].
-#[tracing::instrument(level = "debug", skip(socket), err)]
-async fn handle_command<S>(
-	mut socket: Pin<&mut S>,
-	state: &ConnectionState,
-	command: ServerMessage,
-) -> Result<ControlFlow<()>, ServerTaskError>
-where
-	S: Sink<RawMessage, Error = io::Error>,
-{
-	match command {
-		ServerMessage::Disconnect => {
-			tracing::warn!("disconnecting");
-
-			return socket
-				.send(disconnect_message())
-				.map_ok(ControlFlow::Break)
-				.map_err(ServerTaskError::from)
-				.await;
-		},
-		ServerMessage::WantConnectionInfo { response_tx } => {
-			tracing::trace!("transmitting connection info");
-
-			let _ = response_tx.send(Some(state.connection_info()));
-		},
-
-		ServerMessage::BroadcastChatMessage { message, response_tx } => {
-			tracing::trace!("telling server to broadcast message");
-
-			if let Err(err) = try {
-				let message =
-					Message::new(0, message::Outgoing::BroadcastChatMessage { message: &message });
-
-				socket.as_mut().feed(message.encode()?).await?
-			} {
-				let _ = response_tx.send(false);
-				return Err(err);
-			}
-
-			let _ = response_tx.send(true);
-		},
-	}
-
-	Ok(ControlFlow::Continue(()))
-}
-
-/// Handles the [`PlayerJoin`] message.
-///
-/// [`PlayerJoin`]: message::Incoming::PlayerJoin
-#[tracing::instrument(level = "debug", skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 async fn on_player_join(
-	#[builder(start_fn)] id: PlayerId,
-	#[builder(finish_fn)] state: &ConnectionState,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(start_fn)] player_id: PlayerId,
+	#[builder(start_fn)] game: Game,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: PlayerName,
 	ip_address: PlayerIp,
 ) -> DatabaseResult<ConnectedPlayer>
 {
-	sqlx::query!(
-		"INSERT INTO Players (id, name, ip_address)
-		 VALUES (?, ?, ?)
-		 ON DUPLICATE KEY
-		 UPDATE name = VALUES(name),
-		        ip_address = VALUES(ip_address)",
-		id,
-		name,
-		ip_address,
-	)
-	.execute(conn.as_raw())
-	.await?;
+	players::create(player_id)
+		.name(&name)
+		.ip_address(ip_address)
+		.exec(db_conn)
+		.await?;
 
-	let is_banned = players::is_banned(id).exec(&mut *conn).await?;
-	let preferences = players::get_preferences(id)
-		.game(state.game)
-		.exec(conn)
+	let preferences = players::get_preferences(player_id)
+		.game(game)
+		.exec(db_conn)
 		.await?
-		.unwrap_or_else(|| {
-			tracing::warn!("`players::get_preferences()` returned `None` after creating player");
-			PlayerPreferences::default()
-		});
+		.unwrap_or_else(|| panic!("did not find player preferences after inserting player?"));
 
-	event_queue::dispatch(Event::PlayerJoin {
-		server_id: state.server_id,
-		player: servers::ConnectedPlayerInfo { id, name: name.clone() },
-	});
+	let is_banned = players::is_banned(player_id).exec(db_conn).await?;
 
-	Ok(ConnectedPlayer { id, name, ip_address, is_banned, preferences })
+	Ok(ConnectedPlayer { name, ip_address, preferences, is_banned })
 }
 
-/// Handles the [`PlayerLeave`] message.
-///
-/// [`PlayerLeave`]: message::Incoming::PlayerLeave
-#[tracing::instrument(level = "debug", skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 async fn on_player_leave(
-	#[builder(start_fn)] id: PlayerId,
-	#[builder(finish_fn)] state: &ConnectionState,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
-	name: PlayerName,
-	ip_address: PlayerIp,
-	preferences: PlayerPreferences,
+	#[builder(start_fn)] player_id: PlayerId,
+	#[builder(start_fn)] game: Game,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
+	name: &PlayerName,
+	preferences: &PlayerPreferences,
 ) -> DatabaseResult<()>
 {
-	let (conn, query) = conn.as_parts();
+	let updated = players::update(player_id)
+		.name(name)
+		.preferences((preferences, game))
+		.exec(db_conn)
+		.await?;
 
-	query.reset();
-	query.push("UPDATE Players SET name = ");
-	query.push_bind(name);
-	query.push(", ip_address = ");
-	query.push_bind(ip_address);
-	query.push(", ");
-	query.push(match state.game {
-		Game::CS2 => "cs2_preferences",
-		Game::CSGO => "csgo_preferences",
-	});
-	query.push(" = ");
-	query.push_bind(preferences);
-	query.push(" WHERE id = ");
-	query.push(id);
-
-	query.build().execute(conn).await?;
-
-	event_queue::dispatch(Event::PlayerLeave { server_id: state.server_id, player_id: id });
+	if !updated {
+		warn!(id = %player_id, %name, "updated unknown player?");
+	}
 
 	Ok(())
-}
-
-pub(super) fn internal_server_error() -> RawMessage
-{
-	RawMessage::close(Some(CloseCode::INTERNAL_SERVER_ERROR), "server encountered an error")
-}
-
-fn shutdown_message() -> RawMessage
-{
-	RawMessage::close(Some(CloseCode::GOING_AWAY), "server shutting down")
-}
-
-fn timeout_message() -> RawMessage
-{
-	RawMessage::close(Some(CloseCode::POLICY_VIOLATION), "exceeded heartbeat timeout")
-}
-
-fn disconnect_message() -> RawMessage
-{
-	RawMessage::close(Some(CloseCode::NORMAL_CLOSURE), "")
 }

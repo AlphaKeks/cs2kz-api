@@ -1,16 +1,16 @@
-use std::{error::Error, panic::Location};
-
-use axum::response::{IntoResponse, Response};
-use cs2kz_api::{
-	bans::{CreateBanError, RevertBanError, UpdateBanError},
-	database::DatabaseError,
-	maps::{CreateMapError, MapState, UpdateMapError},
-	plugin::CreatePluginVersionError,
-	servers::{CreateServerError, UpdateServerError},
-	steam,
+use {
+	crate::http::problem_details::{ProblemDetails, ProblemType},
+	axum::response::{IntoResponse, Response},
+	cs2kz_api::{
+		bans::{CreateBanError, RevertBanError, UpdateBanError},
+		database::DatabaseError,
+		maps::{CreateMapError, MapState, UpdateMapError},
+		plugin::CreatePluginVersionError,
+		servers::{CreateServerError, UpdateServerError},
+		steam,
+	},
+	std::{error::Error, panic::Location},
 };
-
-use crate::http::problem_details::{ProblemDetails, ProblemType};
 
 pub(crate) type HandlerResult<T> = Result<T, HandlerError>;
 
@@ -53,7 +53,7 @@ impl From<DatabaseError> for HandlerError
 	#[track_caller]
 	fn from(error: DatabaseError) -> Self
 	{
-		tracing::error!(loc = %Location::caller(), error = &error as &dyn Error);
+		error!(loc = %Location::caller(), error = &error as &dyn Error);
 		Self::Internal
 	}
 }
@@ -65,18 +65,18 @@ impl From<steam::ApiError> for HandlerError
 		match error {
 			steam::ApiError::Http(ref error) => {
 				if error.status().is_some_and(|status| status.is_client_error()) {
-					tracing::debug!(error = error as &dyn Error);
+					debug!(error = error as &dyn Error);
 					HandlerError::Internal
 				} else {
 					ProblemDetails::new(ProblemType::SteamApiError).into()
 				}
 			},
 			steam::ApiError::BufferResponseBody { ref error, ref response } => {
-				tracing::error!(error = error as &dyn Error, res.status = response.status.as_u16());
+				error!(error = error as &dyn Error, res.status = response.status.as_u16());
 				ProblemDetails::new(ProblemType::SteamApiError).into()
 			},
 			steam::ApiError::DeserializeResponse { ref error, ref response } => {
-				tracing::debug!(
+				debug!(
 					res.status = response.status().as_u16(),
 					res.body = str::from_utf8(response.body()).unwrap_or("<invalid utf-8>"),
 					error = error as &dyn Error,
@@ -155,7 +155,7 @@ impl From<CreateMapError> for HandlerError
 				problem_details.into()
 			},
 			CreateMapError::NotTheMapper => Self::Unauthorized,
-			CreateMapError::Database(database_error) => database_error.into(),
+			CreateMapError::DatabaseError(database_error) => database_error.into(),
 		}
 	}
 }
@@ -217,7 +217,7 @@ impl From<RevertBanError> for HandlerError
 				ProblemDetails::new(ProblemType::BanAlreadyReverted).into()
 			},
 			RevertBanError::InvalidBanId => Self::NotFound,
-			RevertBanError::Database(database_error) => database_error.into(),
+			RevertBanError::DatabaseError(database_error) => database_error.into(),
 		}
 	}
 }

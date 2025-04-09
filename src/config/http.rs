@@ -1,16 +1,16 @@
-use std::{
-	borrow::Cow,
-	fmt::{self, Write},
-	net::{IpAddr, Ipv4Addr, SocketAddr},
-	time::Duration,
+use {
+	crate::runtime,
+	cookie::{CookieBuilder, SameSite},
+	cs2kz_api::time::DurationExt,
+	serde::{Deserialize, Deserializer, de},
+	std::{
+		borrow::Cow,
+		fmt::{self, Write},
+		net::{IpAddr, Ipv4Addr, SocketAddr},
+		time::Duration,
+	},
+	url::Url,
 };
-
-use cookie::{CookieBuilder, SameSite};
-use cs2kz_api::time::DurationExt;
-use serde::{Deserialize, Deserializer, de};
-use url::Url;
-
-use crate::runtime;
 
 #[derive(Debug, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
@@ -25,22 +25,13 @@ pub(crate) struct HttpConfig
 	#[debug("{:?}", public_url.as_str())]
 	pub public_url: Url,
 
-	#[serde(
-		default = "default_handler_timeout",
-		deserialize_with = "deserialize_duration"
-	)]
+	#[serde(default = "default_handler_timeout", deserialize_with = "deserialize_duration")]
 	pub handler_timeout: Duration,
 
-	#[serde(
-		default = "default_shutdown_timeout",
-		deserialize_with = "deserialize_duration"
-	)]
+	#[serde(default = "default_shutdown_timeout", deserialize_with = "deserialize_duration")]
 	pub shutdown_timeout: Duration,
 
-	#[serde(
-		default = "default_session_duration",
-		deserialize_with = "deserialize_duration"
-	)]
+	#[serde(default = "default_session_duration", deserialize_with = "deserialize_duration")]
 	pub session_duration: Duration,
 	pub cors: CorsConfig,
 	pub cookies: CookieConfig,
@@ -50,10 +41,7 @@ pub(crate) struct HttpConfig
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub(crate) struct CorsConfig
 {
-	#[serde(
-		default = "default_allowed_origins",
-		deserialize_with = "deserialize_allowed_origins"
-	)]
+	#[serde(default = "default_allowed_origins", deserialize_with = "deserialize_allowed_origins")]
 	pub allowed_origins: Box<[http::HeaderValue]>,
 }
 
@@ -78,10 +66,7 @@ pub(crate) struct CookieConfig
 	///
 	/// [`max_age`]: Cookies::max_age
 	#[debug("{max_age_auth}")]
-	#[serde(
-		default = "default_max_age_auth",
-		deserialize_with = "deserialize_max_age"
-	)]
+	#[serde(default = "default_max_age_auth", deserialize_with = "deserialize_max_age")]
 	pub max_age_auth: time::Duration,
 }
 

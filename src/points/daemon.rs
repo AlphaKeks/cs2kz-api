@@ -1,22 +1,42 @@
-use std::sync::{Arc, Weak as WeakArc};
+//! This module contains the [`PointsDaemon`].
+//!
+//! It is responsible for watching leaderboards and recalculating points. When
+//! leaderboards exceed the [`SMALL_LEADERBOARD_THRESHOLD`] we fit it into a
+//! [Normal Inverse Gaussian distribution][norminvgauss], caching the computed
+//! parameters in the database. We can then use these paramters to calculate
+//! points for newly submitted records. Over time these parameters will become
+//! inaccurate, as reality drifts from the previously fitted curve. This is why
+//! the points daemon exists: to re-fit the curve and then re-calculate points
+//! for all leaderboards.
+//!
+//! [`SMALL_LEADERBOARD_THRESHOLD`]: super::SMALL_LEADERBOARD_THRESHOLD
+//! [norminvgauss]: https://en.wikipedia.org/wiki/Normal-inverse_Gaussian_distribution
 
-use futures_util::{TryFutureExt, TryStreamExt};
-use pyo3::PyResult;
-use tokio::sync::Notify;
-use tokio_util::sync::CancellationToken;
-
-use crate::{
-	database::{Database, DatabaseConnection, DatabaseError, DatabaseResult, QueryBuilder},
-	maps::{FilterId, Tier},
-	points::{self, DistributionError, Points},
-	python::{self, PyState, PythonError},
-	records::{self, Leaderboard, LeaderboardEntry},
+use {
+	crate::{
+		database::{self, DatabaseError, DatabaseResult, QueryBuilder},
+		maps::{FilterId, Tier},
+		points::{self, DistributionError, Points},
+		python::{self, PyState, PythonError},
+		records::{self, Leaderboard, LeaderboardEntry},
+	},
+	futures_util::{TryFutureExt, TryStreamExt},
+	pyo3::PyResult,
+	std::sync::{Arc, Weak as WeakArc},
+	tokio::sync::Notify,
+	tokio_util::sync::CancellationToken,
 };
 
+/// A background task for re-calculating distribution parameters and
+/// leaderboard points.
+///
+/// See the [module-level documentation] for more information.
+///
+/// [module-level documentation]: crate::points::daemon
 #[derive(Debug)]
 pub struct PointsDaemon
 {
-	database: Database,
+	database: database::ConnectionPool,
 	notifications: Arc<Notifications>,
 }
 
@@ -37,10 +57,10 @@ struct Notifications
 pub enum PointsDaemonError
 {
 	#[display("{_0}")]
-	Database(DatabaseError),
+	DatabaseError(DatabaseError),
 
 	#[display("{_0}")]
-	Python(PythonError),
+	PythonError(PythonError),
 
 	#[display("failed to calculate distribution: {_0}")]
 	CalculateDistribution(DistributionError),
@@ -56,29 +76,39 @@ pub enum PointsDaemonError
 
 impl PointsDaemon
 {
-	pub fn new(database: Database) -> Self
+	/// Creates a new [`PointsDaemon`].
+	pub fn new(database: database::ConnectionPool) -> Self
 	{
 		Self { database, notifications: Arc::<Notifications>::default() }
 	}
 
+	/// Returns a [handle] to this [`PointsDaemon`].
+	///
+	/// [handle]: PointsDaemonHandle
 	pub fn handle(&self) -> PointsDaemonHandle
 	{
 		PointsDaemonHandle { notifications: Arc::downgrade(&self.notifications) }
 	}
 
-	#[tracing::instrument(skip(self, cancellation_token), err)]
+	/// Runs the daemon.
+	#[instrument(skip(self, cancellation_token), err)]
 	pub async fn run(self, cancellation_token: CancellationToken) -> Result<(), PointsDaemonError>
 	{
 		let Self { database, notifications } = self;
-		let mut conn = database.acquire_connection().await?;
+		let mut db_conn;
 
 		while !cancellation_token.is_cancelled() {
-			// step 1: determine the next filter to recalculate
-			let Some(filter_to_recalculate) = find_filter_to_recalculate(&mut conn).await? else {
-				tracing::debug!("waiting for new records to be submitted...");
+			db_conn = database.acquire().await?;
 
-				// Wait until we either get cancelled or notified that a new
+			// step 1: determine the next filter to recalculate
+			let Some(filter_to_recalculate) = find_filter_to_recalculate(&mut db_conn).await?
+			else {
+				// allow other tasks to use this connection while we wait
+				drop(db_conn);
+
+				// wait until we either get cancelled or notified that a new
 				// record has been submitted
+				debug!("waiting for new records to be submitted...");
 				select! {
 					// we got cancelled -> we're done
 					() = cancellation_token.cancelled() => break,
@@ -92,13 +122,13 @@ impl PointsDaemon
 
 			let nub_leaderboard =
 				records::get_leaderboard(filter_to_recalculate.id, Leaderboard::NUB)
-					.exec(&mut conn)
+					.exec(&mut db_conn)
 					.try_collect::<Vec<_>>()
 					.await?;
 
 			let pro_leaderboard =
 				records::get_leaderboard(filter_to_recalculate.id, Leaderboard::PRO)
-					.exec(&mut conn)
+					.exec(&mut db_conn)
 					.try_collect::<Vec<_>>()
 					.await?;
 
@@ -123,9 +153,9 @@ impl PointsDaemon
 				if nub_leaderboard_is_small && pro_leaderboard_is_small {
 					(nub_leaderboard, None, pro_leaderboard, None)
 				} else {
-					// If fitting takes a long amount of time we want to allow other
-					// tasks to use this connection in the meantime.
-					drop(conn);
+					// allow other tasks to use this connection while we fit the
+					// distribution
+					drop(db_conn);
 
 					let (nub_leaderboard, nub_distribution, pro_leaderboard, pro_distribution) =
 						python::execute({
@@ -141,41 +171,39 @@ impl PointsDaemon
 								let nub_distribution = if nub_leaderboard_is_small {
 									None
 								} else {
-									Some(
-										tracing::debug_span!(
-											"calculate_nub_distribution",
-											leaderboard_size = nub_leaderboard.len(),
-										)
-										.in_scope(|| {
-											tracing::debug!("calculating nub distribution");
-											points::Distribution::fit(
-												py_state,
-												&nub_leaderboard,
-												extract_time,
-											)
-											.inspect(|distribution| tracing::debug!(?distribution))
-										})?,
+									tracing::debug_span!(
+										"calculate_nub_distribution",
+										leaderboard_size = nub_leaderboard.len(),
 									)
+									.in_scope(|| {
+										debug!("calculating nub distribution");
+										points::Distribution::fit(
+											py_state,
+											&nub_leaderboard[..],
+											extract_time,
+										)
+										.inspect(|distribution| debug!(?distribution))
+										.map(Some)
+									})?
 								};
 
 								let pro_distribution = if pro_leaderboard_is_small {
 									None
 								} else {
-									Some(
-										tracing::debug_span!(
-											"calculate_pro_distribution",
-											leaderboard_size = pro_leaderboard.len(),
-										)
-										.in_scope(|| {
-											tracing::debug!("calculating pro distribution");
-											points::Distribution::fit(
-												py_state,
-												&pro_leaderboard,
-												extract_time,
-											)
-											.inspect(|distribution| tracing::debug!(?distribution))
-										})?,
+									tracing::debug_span!(
+										"calculate_pro_distribution",
+										leaderboard_size = pro_leaderboard.len(),
 									)
+									.in_scope(|| {
+										debug!("calculating pro distribution");
+										points::Distribution::fit(
+											py_state,
+											&pro_leaderboard[..],
+											extract_time,
+										)
+										.inspect(|distribution| debug!(?distribution))
+										.map(Some)
+									})?
 								};
 
 								Ok((
@@ -188,7 +216,9 @@ impl PointsDaemon
 						})
 						.await??;
 
-					conn = database.acquire_connection().await?;
+					// re-acquire a connection for the rest of the loop
+					// iteration
+					db_conn = database.acquire().await?;
 
 					(nub_leaderboard, nub_distribution, pro_leaderboard, pro_distribution)
 				};
@@ -198,14 +228,14 @@ impl PointsDaemon
 			if let Some(ref nub_distribution) = nub_distribution {
 				update_distribution_parameter_cache(filter_to_recalculate.id, Leaderboard::NUB)
 					.distribution(nub_distribution)
-					.exec(&mut conn)
+					.exec(&mut db_conn)
 					.await?;
 			}
 
 			if let Some(ref pro_distribution) = pro_distribution {
 				update_distribution_parameter_cache(filter_to_recalculate.id, Leaderboard::PRO)
 					.distribution(pro_distribution)
-					.exec(&mut conn)
+					.exec(&mut db_conn)
 					.await?;
 			}
 
@@ -222,7 +252,7 @@ impl PointsDaemon
 
 					let nub_leaderboard =
 						tracing::debug_span!("recalculate_nub_points").in_scope(|| {
-							tracing::debug!("calculating points for nub leaderboard");
+							debug!("calculating points for nub leaderboard");
 							recalculate_points(nub_leaderboard, Leaderboard::NUB)
 								.tier(filter_to_recalculate.nub_tier)
 								.maybe_distribution(nub_distribution.as_ref())
@@ -235,7 +265,7 @@ impl PointsDaemon
 
 					let pro_leaderboard =
 						tracing::debug_span!("recalculate_pro_points").in_scope(|| {
-							tracing::debug!("calculating points for pro leaderboard");
+							debug!("calculating points for pro leaderboard");
 							recalculate_points(pro_leaderboard, Leaderboard::PRO)
 								.tier(filter_to_recalculate.pro_tier)
 								.maybe_distribution(pro_distribution.as_ref())
@@ -256,11 +286,11 @@ impl PointsDaemon
 			update_points(filter_to_recalculate.id)
 				.nub_leaderboard(nub_leaderboard)
 				.pro_leaderboard(pro_leaderboard)
-				.exec(&mut conn)
+				.exec(&mut db_conn)
 				.await?;
 		}
 
-		tracing::info!("points daemon shutting down");
+		info!("points daemon shutting down");
 
 		Ok(())
 	}
@@ -271,7 +301,7 @@ impl PointsDaemonHandle
 	/// Notifies the points daemon that a new record has been submitted.
 	///
 	/// Returns whether the points daemon is still active.
-	#[tracing::instrument(level = "trace", ret(level = "trace"))]
+	#[instrument(level = "trace", ret(level = "trace"))]
 	pub fn notify_record_submitted(&self) -> bool
 	{
 		self.notifications
@@ -290,13 +320,13 @@ struct FilterInfo
 }
 
 /// Returns the ID of the next filter to recalculate.
-#[tracing::instrument(level = "debug", skip(conn), ret(level = "debug"), err)]
+#[instrument(level = "debug", skip(db_conn), ret(level = "debug"), err)]
 async fn find_filter_to_recalculate(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<FilterInfo>>
 {
 	sqlx::query!("LOCK TABLES Filters READ LOCAL, FiltersToRecalculate WRITE")
-		.execute(conn.as_raw())
+		.execute(db_conn.raw_mut())
 		.await?;
 
 	let maybe_filter = sqlx::query_as!(
@@ -314,7 +344,7 @@ async fn find_filter_to_recalculate(
 		   LIMIT 1
 		 )",
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.await?;
 
@@ -325,35 +355,27 @@ async fn find_filter_to_recalculate(
 			 WHERE filter_id = ?",
 			id,
 		)
-		.execute(conn.as_raw())
+		.execute(db_conn.raw_mut())
 		.await?;
 	}
 
-	sqlx::query!("UNLOCK TABLES").execute(conn.as_raw()).await?;
+	sqlx::query!("UNLOCK TABLES").execute(db_conn.raw_mut()).await?;
 
 	Ok(maybe_filter)
 }
 
 /// Updates the `DistributionParameters` table for the given filter.
-#[tracing::instrument(level = "debug", skip(conn), err)]
+#[instrument(level = "debug", skip(db_conn), err)]
 #[builder(finish_fn = exec)]
 async fn update_distribution_parameter_cache(
 	#[builder(start_fn)] filter_id: FilterId,
 	#[builder(start_fn)] leaderboard: Leaderboard,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	distribution: &points::Distribution,
 ) -> DatabaseResult<()>
 {
-	let (conn, query) = conn.as_parts();
-
-	query.reset();
-	query.push("INSERT INTO");
-	query.push(match leaderboard {
-		Leaderboard::NUB => " DistributionParameters ",
-		Leaderboard::PRO => " ProDistributionParameters ",
-	});
-	query.push({
-		"(
+	sqlx::query(&format! {
+		"INSERT INTO {distribution_table} (
 		   filter_id,
 		   a,
 		   b,
@@ -373,26 +395,27 @@ async fn update_distribution_parameter_cache(
 		        b = VALUES(b),
 		        loc = VALUES(loc),
 		        scale = VALUES(scale),
-		        top_scale = VALUES(top_scale)"
-	});
-
-	query
-		.build()
-		.bind(filter_id)
-		.bind(distribution.a)
-		.bind(distribution.b)
-		.bind(distribution.loc)
-		.bind(distribution.scale)
-		.bind(distribution.top_scale)
-		.execute(conn)
-		.await?;
+		        top_scale = VALUES(top_scale)",
+		distribution_table = match leaderboard {
+			Leaderboard::NUB => "DistributionParameters",
+			Leaderboard::PRO => "ProDistributionParameters",
+		},
+	})
+	.bind(filter_id)
+	.bind(distribution.a)
+	.bind(distribution.b)
+	.bind(distribution.loc)
+	.bind(distribution.scale)
+	.bind(distribution.top_scale)
+	.execute(db_conn.raw_mut())
+	.await?;
 
 	Ok(())
 }
 
 /// Recalculates points for both leaderboards on the given filter and updates
 /// the `BestRecords` / `BestProRecords` tables with the results.
-#[tracing::instrument(level = "debug", skip(py_state), fields(records = records.len()))]
+#[instrument(level = "debug", skip(py_state), fields(records = records.len()))]
 #[builder(finish_fn = calculate)]
 fn recalculate_points(
 	#[builder(start_fn)] records: Vec<LeaderboardEntry>,
@@ -411,10 +434,6 @@ fn recalculate_points(
 	let scaled_times = distribution.map_or_else(Vec::default, |distribution| {
 		distribution
 			.scale(records.iter().map(|record| record.time.as_f64()))
-			// .map(|scaled| {
-			// 	records::Time::try_from(scaled)
-			// 		.unwrap_or_else(|err| panic!("produced invalid scaled time value: {err}"))
-			// })
 			.collect()
 	});
 
@@ -422,16 +441,20 @@ fn recalculate_points(
 		let rank = records::Rank(rank);
 		let rank_portion = points::RankPortion::new(rank);
 		let leaderboard_portion = if let Some(distribution) = distribution {
-			points::LeaderboardPortion::incremental(distribution)
+			let result = points::LeaderboardPortion::incremental(distribution)
 				.scaled_times(&scaled_times[..])
 				.results_so_far(&results[..])
 				.rank(rank)
-				.calculate(py_state)
-				.inspect(|&result| results.push(result))
-				.map(|result| (result.as_f64() / distribution.top_scale.as_f64()).min(1.0))
-				.map(points::LeaderboardPortion)?
+				.calculate(py_state)?;
+
+			results.push(result);
+
+			points::LeaderboardPortion((result.as_f64() / distribution.top_scale.as_f64()).min(1.0))
 		} else {
-			let top_time = top_time.unwrap_or_else(|| unreachable!());
+			let top_time = top_time.unwrap_or_else(|| {
+				unreachable!("`top_time` was taken from `records`, which we currently iterate over")
+			});
+
 			points::LeaderboardPortion::for_small_leaderboard(tier, top_time, record.time)
 		};
 
@@ -440,95 +463,99 @@ fn recalculate_points(
 }
 
 /// Updates the `BestRecords` / `BestProRecords` tables.
-#[tracing::instrument(level = "debug", skip(conn, nub_leaderboard, pro_leaderboard), err)]
+#[instrument(level = "debug", skip(db_conn, nub_leaderboard, pro_leaderboard), err)]
 #[builder(finish_fn = exec)]
 async fn update_points(
 	#[builder(start_fn)] filter_id: FilterId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	nub_leaderboard: impl IntoIterator<Item = (LeaderboardEntry, Points)>,
 	pro_leaderboard: impl IntoIterator<Item = (LeaderboardEntry, Points)>,
 ) -> DatabaseResult<()>
 {
-	// This limit is fairly arbitrary and can be adjusted; we just don't want to
-	// exceed any query length limits.
+	// We don't want to exceed any query length limits.
 	const MAX_CHUNK_SIZE: usize = 1000;
 
 	let mut nub_leaderboard = nub_leaderboard.into_iter();
 	let mut pro_leaderboard = pro_leaderboard.into_iter();
 
-	conn.in_transaction(async move |conn| {
-		let mut nub_query = QueryBuilder::new({
-			"INSERT INTO BestRecords (
-               filter_id,
-               player_id,
-               record_id,
-               points
-             )"
-		});
+	db_conn
+		.in_transaction(async move |db_conn| {
+			let mut nub_query = QueryBuilder::new({
+				"INSERT INTO BestRecords (
+				   filter_id,
+				   player_id,
+				   record_id,
+				   points
+				 )"
+			});
 
-		let mut pro_query = QueryBuilder::new({
-			"INSERT INTO BestProRecords (
-               filter_id,
-               player_id,
-               record_id,
-               points
-             )"
-		});
+			let mut pro_query = QueryBuilder::new({
+				"INSERT INTO BestProRecords (
+				   filter_id,
+				   player_id,
+				   record_id,
+				   points
+				 )"
+			});
 
-		let mut has_nub_records = true;
-		let mut has_pro_records = true;
+			let mut has_nub_records = true;
+			let mut has_pro_records = true;
 
-		while has_nub_records || has_pro_records {
-			has_nub_records = false;
+			while has_nub_records || has_pro_records {
+				if has_nub_records {
+					has_nub_records = false;
 
-			nub_query.reset();
-			nub_query.push_values(
-				nub_leaderboard.by_ref().take(MAX_CHUNK_SIZE),
-				|mut query, (record, points)| {
-					query.push_bind(filter_id);
-					query.push_bind(record.player_id);
-					query.push_bind(record.id);
-					query.push_bind(points);
+					nub_query.reset();
+					nub_query.push_values(
+						nub_leaderboard.by_ref().take(MAX_CHUNK_SIZE),
+						|mut query, (record, points)| {
+							query.push_bind(filter_id);
+							query.push_bind(record.player_id);
+							query.push_bind(record.id);
+							query.push_bind(points);
 
-					has_nub_records = true;
-				},
-			);
+							has_nub_records = true;
+						},
+					);
 
-			if has_nub_records {
-				nub_query.push({
-					"ON DUPLICATE KEY
-				 	 UPDATE points = VALUES(points)"
-				});
+					if has_nub_records {
+						nub_query.push({
+							"ON DUPLICATE KEY
+							 UPDATE points = VALUES(points)"
+						});
 
-				nub_query.build().persistent(false).execute(conn.as_raw()).await?;
+						nub_query.build().persistent(false).execute(db_conn.raw_mut()).await?;
+					}
+				}
+
+				if has_pro_records {
+					has_pro_records = false;
+
+					pro_query.reset();
+					pro_query.push_values(
+						pro_leaderboard.by_ref().take(MAX_CHUNK_SIZE),
+						|mut query, (record, points)| {
+							query.push_bind(filter_id);
+							query.push_bind(record.player_id);
+							query.push_bind(record.id);
+							query.push_bind(points);
+
+							has_pro_records = true;
+						},
+					);
+
+					if has_pro_records {
+						pro_query.push({
+							"ON DUPLICATE KEY
+							 UPDATE points = VALUES(points)"
+						});
+
+						pro_query.build().persistent(false).execute(db_conn.raw_mut()).await?;
+					}
+				}
 			}
 
-			has_pro_records = false;
-
-			pro_query.reset();
-			pro_query.push_values(
-				pro_leaderboard.by_ref().take(MAX_CHUNK_SIZE),
-				|mut query, (record, points)| {
-					query.push_bind(filter_id);
-					query.push_bind(record.player_id);
-					query.push_bind(record.id);
-					query.push_bind(points);
-
-					has_pro_records = true;
-				},
-			);
-
-			if has_pro_records {
-				pro_query.push({
-					"ON DUPLICATE KEY
-					 UPDATE points = VALUES(points)"
-				});
-
-				pro_query.build().persistent(false).execute(conn.as_raw()).await?;
-			}
-		}
-
-		Ok(())
-	})
-	.await
+			Ok(())
+		})
+		.await
 }

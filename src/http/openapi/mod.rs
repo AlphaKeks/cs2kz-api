@@ -1,8 +1,4 @@
-use std::sync::OnceLock;
-
-use utoipa::openapi::OpenApi;
-
-use self::modifiers::SecurityAddon;
+use {self::modifiers::SecurityAddon, std::sync::OnceLock, utoipa::openapi::OpenApi};
 
 mod modifiers;
 

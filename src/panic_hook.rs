@@ -1,9 +1,10 @@
-use std::{
-	backtrace::{Backtrace, BacktraceStatus},
-	panic,
+use {
+	crate::runtime::{self, Environment},
+	std::{
+		backtrace::{Backtrace, BacktraceStatus},
+		panic,
+	},
 };
-
-use crate::runtime::{self, Environment};
 
 pub(crate) fn install()
 {
@@ -14,7 +15,7 @@ pub(crate) fn install()
 
 		match (location, payload, runtime_environment) {
 			(None, None, Environment::Development) => {
-				tracing::error!(
+				error!(
 					target: "cs2kz_api::panics",
 					backtrace = %Backtrace::force_capture(),
 					"thread panicked",
@@ -24,13 +25,13 @@ pub(crate) fn install()
 				let backtrace = Backtrace::capture();
 
 				if backtrace.status() == BacktraceStatus::Captured {
-					tracing::error!(target: "cs2kz_api::panics", %backtrace, "thread panicked");
+					error!(target: "cs2kz_api::panics", %backtrace, "thread panicked");
 				} else {
-					tracing::error!(target: "cs2kz_api::panics", "thread panicked");
+					error!(target: "cs2kz_api::panics", "thread panicked");
 				}
 			},
 			(None, Some(panic_message), Environment::Development) => {
-				tracing::error!(
+				error!(
 					target: "cs2kz_api::panics",
 					backtrace = %Backtrace::force_capture(),
 					"thread panicked: {panic_message}",
@@ -40,20 +41,20 @@ pub(crate) fn install()
 				let backtrace = Backtrace::capture();
 
 				if backtrace.status() == BacktraceStatus::Captured {
-					tracing::error!(
+					error!(
 						target: "cs2kz_api::panics",
 						%backtrace,
 						"thread panicked: {panic_message}",
 					);
 				} else {
-					tracing::error!(
+					error!(
 						target: "cs2kz_api::panics",
 						"thread panicked: {panic_message}",
 					);
 				}
 			},
 			(Some(location), None, Environment::Development) => {
-				tracing::error!(
+				error!(
 					target: "cs2kz_api::panics",
 					%location,
 					backtrace = %Backtrace::force_capture(),
@@ -64,14 +65,14 @@ pub(crate) fn install()
 				let backtrace = Backtrace::capture();
 
 				if backtrace.status() == BacktraceStatus::Captured {
-					tracing::error!(
+					error!(
 						target: "cs2kz_api::panics",
 						%location,
 						%backtrace,
 						"thread panicked",
 					);
 				} else {
-					tracing::error!(
+					error!(
 						target: "cs2kz_api::panics",
 						%location,
 						"thread panicked",
@@ -79,7 +80,7 @@ pub(crate) fn install()
 				}
 			},
 			(Some(location), Some(panic_message), Environment::Development) => {
-				tracing::error!(
+				error!(
 					target: "cs2kz_api::panics",
 					%location,
 					backtrace = %Backtrace::force_capture(),
@@ -94,14 +95,14 @@ pub(crate) fn install()
 				let backtrace = Backtrace::capture();
 
 				if backtrace.status() == BacktraceStatus::Captured {
-					tracing::error!(
+					error!(
 						target: "cs2kz_api::panics",
 						%location,
 						%backtrace,
 						"thread panicked: {panic_message}",
 					);
 				} else {
-					tracing::error!(
+					error!(
 						target: "cs2kz_api::panics",
 						%location,
 						"thread panicked: {panic_message}",

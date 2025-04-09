@@ -1,60 +1,76 @@
-use futures_util::TryFutureExt;
-use sqlx::{MySql, MySqlConnection, pool::maybe::MaybePoolConnection};
-
-use super::{DatabaseError, QueryBuilder};
+use {
+	super::{DatabaseError, QueryBuilder},
+	futures_util::TryFutureExt,
+	sqlx::{MySql, MySqlConnection, pool::maybe::MaybePoolConnection},
+	std::{fmt, mem},
+};
 
 /// A live database connection
 #[must_use]
 #[derive(Debug)]
-pub struct DatabaseConnection<'c, 'args>
+pub struct Connection<'c, 'q>
 {
 	#[debug(ignore)]
-	inner: MaybePoolConnection<'c, MySql>,
+	raw: MaybePoolConnection<'c, MySql>,
 
 	#[debug("{:?}", query.sql())]
-	query: QueryBuilder<'args>,
+	query: QueryBuilder<'q>,
 }
 
-impl<'c, 'args> DatabaseConnection<'c, 'args>
+impl<'c, 'q> Connection<'c, 'q>
 {
-	pub(super) fn new(raw: impl Into<MaybePoolConnection<'c, MySql>>) -> Self
+	pub(super) fn from_raw(raw: impl Into<MaybePoolConnection<'c, MySql>>) -> Self
 	{
-		Self { inner: raw.into(), query: QueryBuilder::new("") }
+		Self { raw: raw.into(), query: QueryBuilder::default() }
 	}
 
 	#[must_use]
-	pub(crate) fn as_raw(&mut self) -> &mut MySqlConnection
+	pub(crate) fn raw_mut(&mut self) -> &mut MySqlConnection
 	{
-		&mut self.inner
+		&mut self.raw
 	}
 
 	#[must_use]
-	pub(crate) fn as_parts(&mut self) -> (&mut MySqlConnection, &mut QueryBuilder<'args>)
+	pub(crate) fn parts(&mut self) -> (&mut MySqlConnection, &mut QueryBuilder<'q>)
 	{
-		(&mut self.inner, &mut self.query)
+		(&mut self.raw, &mut self.query)
 	}
 
-	/// Executes the given closure `f` inside the context of a transaction.
-	#[tracing::instrument(level = "trace", skip_all)]
+	/// Executes an `async` closure `f` inside the context of a transaction.
+	///
+	/// If the closure returns `Ok` the transaction is committed.
+	/// If the closure returns `Err` the transaction is rolled back.
+	#[instrument(level = "trace", skip_all, err(level = "debug"))]
 	pub async fn in_transaction<F, T, E>(&mut self, f: F) -> Result<T, E>
 	where
-		F: AsyncFnOnce(&mut DatabaseConnection<'_, '_>) -> Result<T, E>,
+		F: AsyncFnOnce(&mut Connection<'_, '_>) -> Result<T, E>,
+		E: fmt::Display,
 		DatabaseError: Into<E>,
 	{
-		let mut txn = sqlx::Connection::begin(&mut *self.inner)
+		let mut txn = sqlx::Connection::begin(&mut *self.raw)
 			.map_err(DatabaseError::from)
 			.map_err(Into::<E>::into)
 			.await?;
 
-		match f(&mut DatabaseConnection::new(&mut *txn)).await {
+		let mut conn = Connection {
+			raw: MaybePoolConnection::Connection(&mut *txn),
+			query: mem::take(&mut self.query),
+		};
+
+		let result = f(&mut conn).await;
+		let Connection { query, .. } = conn;
+
+		self.query = query;
+
+		match result {
 			Ok(value) => {
-				tracing::trace!("committing transaction");
+				trace!("committing transaction");
 				txn.commit().map_err(DatabaseError::from).map_err(Into::<E>::into).await?;
 
 				Ok(value)
 			},
 			Err(error) => {
-				tracing::trace!("rolling back transaction");
+				trace!("rolling back transaction");
 				txn.rollback()
 					.map_err(DatabaseError::from)
 					.map_err(Into::<E>::into)

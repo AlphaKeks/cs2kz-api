@@ -1,104 +1,113 @@
+//! Facade to the database driver
+//!
+//! The API uses [MariaDB] as its backing database. The types in this module
+//! serve as handles to connections, connection pools, transactions, etc. and
+//! are passed into various functions in this crate.
+
+pub use self::{
+	connection::Connection,
+	error::{DatabaseError, DatabaseResult},
+};
+use {
+	futures_util::TryFutureExt,
+	sqlx::{
+		MySql,
+		mysql::{MySqlPool, MySqlPoolOptions},
+	},
+	std::{fmt, num::NonZero},
+	url::Url,
+};
+
 mod connection;
 mod error;
 
-use std::num::NonZero;
-
-use futures_util::TryFutureExt;
-use sqlx::{
-	MySql,
-	mysql::{MySqlPool, MySqlPoolOptions},
-};
-use tracing::{Instrument, trace_span};
-use url::Url;
-
-pub use self::{
-	connection::DatabaseConnection,
-	error::{DatabaseError, DatabaseResult},
-};
-
 pub(crate) type QueryBuilder<'args> = sqlx::QueryBuilder<'args, MySql>;
 
-/// A handle to the database
+/// A pool of [`Connection`]s
 ///
-/// This can be used to [acquire connections], which are then passed to other
-/// functions in this crate.
+/// This can be used to [acquire individual connections], which are then passed
+/// to other functions in this crate.
 ///
-/// [acquire connections]: Database::acquire_connection()
+/// [acquire connections]: ConnectionPool::acquire()
 #[must_use]
-#[derive(Debug, Clone)]
-#[debug("Database(..)")]
-pub struct Database
+#[derive(Clone)]
+pub struct ConnectionPool
 {
-	connection_pool: MySqlPool,
+	inner: MySqlPool,
 }
 
-/// Configuration options for [connecting] to the database
-///
-/// [connecting]: Database::connect()
-#[derive(Debug, Builder)]
-pub struct ConnectOptions<'a>
-{
-	/// The URL of the database we should connect to
-	url: &'a Url,
-
-	/// The minimum number of connections to keep in the pool
-	#[builder(default = NonZero::<u32>::MIN)]
-	min_connections: NonZero<u32>,
-
-	/// The maximum number of connections to keep in the pool
-	max_connections: Option<NonZero<u32>>,
-}
-
-impl Database
+#[bon::bon]
+impl ConnectionPool
 {
 	/// Attempts to establish a database connection.
-	pub async fn connect(connect_options: ConnectOptions<'_>) -> DatabaseResult<Self>
-	{
-		let pool_options =
-			MySqlPoolOptions::default().min_connections(connect_options.min_connections.get());
+	#[builder]
+	pub fn new(
+		/// The URL of the database we should connect to
+		url: &Url,
 
-		let pool_options = match connect_options.max_connections {
+		/// The minimum number of connections to keep in the pool
+		#[builder(default = NonZero::<u32>::MIN)]
+		min_connections: NonZero<u32>,
+
+		/// The maximum number of connections to keep in the pool
+		max_connections: Option<NonZero<u32>>,
+	) -> impl Future<Output = DatabaseResult<Self>>
+	{
+		let pool_options = MySqlPoolOptions::default().min_connections(min_connections.get());
+		let pool_options = match max_connections {
 			None => pool_options,
 			Some(n) => pool_options.max_connections(n.get()),
 		};
 
 		pool_options
-			.connect(connect_options.url.as_str())
-			.map_ok(|connection_pool| Self { connection_pool })
+			.connect(url.as_str())
+			.map_ok(|connection_pool| Self { inner: connection_pool })
 			.map_err(DatabaseError::from)
-			.await
 	}
 
-	/// Returns a handle to a connection owned by the pool.
-	pub async fn acquire_connection<'c, 'args>(
-		&self,
-	) -> DatabaseResult<DatabaseConnection<'c, 'args>>
+	/// Acquires a handle to a connection in the pool.
+	///
+	/// Because the handle is owned, the `'c` lifetime may be chosen freely[^c].
+	///
+	///
+	/// [^c]: usually `'c` will be `'static` but making it generic helps
+	///       with type inference
+	#[instrument(level = "trace", skip(self), err(level = "warn"))]
+	pub async fn acquire<'c, 'env>(&self) -> DatabaseResult<Connection<'c, 'env>>
 	{
-		self.connection_pool
+		self.inner
 			.acquire()
-			.map_ok(DatabaseConnection::new)
+			.map_ok(Connection::from_raw)
 			.map_err(DatabaseError::from)
-			.instrument(trace_span!("acquire_connection"))
 			.await
 	}
 
-	/// Executes the given closure `f` inside the context of a transaction.
+	/// Executes an `async` closure `f` inside the context of a transaction.
+	///
+	/// If the closure returns `Ok` the transaction is committed.
+	/// If the closure returns `Err` the transaction is rolled back.
+	#[instrument(level = "trace", skip_all, err(level = "debug"))]
 	pub async fn in_transaction<F, T, E>(&self, f: F) -> Result<T, E>
 	where
-		F: AsyncFnOnce(&mut DatabaseConnection<'_, '_>) -> Result<T, E>,
+		F: AsyncFnOnce(&mut Connection<'_, '_>) -> Result<T, E>,
+		E: fmt::Display,
 		DatabaseError: Into<E>,
 	{
-		self.acquire_connection()
-			.map_err(Into::<E>::into)
-			.await?
-			.in_transaction(f)
-			.await
+		self.acquire().map_err(Into::<E>::into).await?.in_transaction(f).await
 	}
 
 	/// Closes all open database connections.
-	#[tracing::instrument(level = "trace")]
+	#[instrument(level = "trace")]
 	pub async fn shutdown(self)
 	{
-		self.connection_pool.close().await;
+		self.inner.close().await;
+	}
+}
+
+impl fmt::Debug for ConnectionPool
+{
+	fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result
+	{
+		fmt.debug_tuple("ConnectionPool").finish_non_exhaustive()
 	}
 }

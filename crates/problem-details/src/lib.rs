@@ -10,16 +10,15 @@
 #![feature(non_exhaustive_omitted_patterns_lint)]
 #![feature(unqualified_local_imports)]
 
-pub mod extension_members;
-
-mod problem_type;
-
-use std::{any::type_name, borrow::Cow, fmt};
-
-use mime::Mime;
-use serde::ser::{Serialize, SerializeMap, Serializer};
-
 pub use self::{extension_members::ExtensionMembers, problem_type::ProblemType};
+use {
+	mime::Mime,
+	serde::ser::{Serialize, SerializeMap, Serializer},
+	std::{any::type_name, borrow::Cow, fmt},
+};
+
+pub mod extension_members;
+mod problem_type;
 
 /// Returns the [`Content-Type`] value used in responses.
 ///
@@ -229,20 +228,20 @@ impl<T: ProblemType> axum_core::response::IntoResponse for ProblemDetails<T>
 #[cfg(feature = "utoipa")]
 mod utoipa_impls
 {
-	use std::borrow::Cow;
-
-	use serde_json::json;
-	use utoipa::{
-		PartialSchema,
-		ToSchema,
-		openapi::{
-			RefOr,
-			SchemaFormat,
-			schema::{self, AdditionalProperties, Object, Schema},
+	use {
+		crate::{ProblemDetails, ProblemType},
+		serde_json::json,
+		std::borrow::Cow,
+		utoipa::{
+			PartialSchema,
+			ToSchema,
+			openapi::{
+				RefOr,
+				SchemaFormat,
+				schema::{self, AdditionalProperties, Object, Schema},
+			},
 		},
 	};
-
-	use crate::{ProblemDetails, ProblemType};
 
 	impl<T: ProblemType + PartialSchema> ToSchema for ProblemDetails<T>
 	{

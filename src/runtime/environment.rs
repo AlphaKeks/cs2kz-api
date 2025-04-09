@@ -1,6 +1,4 @@
-use std::sync::OnceLock;
-
-use serde::Deserialize;
+use {serde::Deserialize, std::sync::OnceLock};
 
 static CURRENT: OnceLock<Environment> = OnceLock::new();
 

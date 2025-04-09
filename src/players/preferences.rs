@@ -1,7 +1,8 @@
-use std::sync::Arc;
-
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use {
+	serde::{Deserialize, Serialize},
+	std::sync::Arc,
+	utoipa::ToSchema,
+};
 
 type Object = serde_json::Map<String, serde_json::Value>;
 

@@ -1,11 +1,15 @@
-use std::{error::Error, time::Duration};
-
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use utoipa::ToSchema;
+use {
+	serde::{Deserialize, Deserializer, Serialize, Serializer},
+	std::{error::Error, time::Duration},
+	utoipa::ToSchema,
+};
 
 /// A wrapper around [`Duration`] that ensures encoding/decoding always happens
 /// in terms of seconds
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, From, Into, ToSchema)]
+#[derive(
+	Debug, Display, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, From, Into, ToSchema,
+)]
+#[display("{:.2}s", _0.as_secs_f64())]
 #[schema(value_type = f64, description = "A duration in seconds")]
 pub struct Seconds(pub Duration);
 

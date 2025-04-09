@@ -17,8 +17,40 @@ extern crate bon as _;
 #[macro_use(pin_project)]
 extern crate pin_project as _;
 
+#[macro_use(instrument, trace, debug, info, warn, error)]
+extern crate tracing as _;
+
 #[macro_use(select)]
 extern crate tokio as _;
+
+use {
+	self::{config::Config, task_manager::TaskManager},
+	axum::{Router, ServiceExt, extract::FromRef, handler::Handler, response::Redirect, routing},
+	axum_server::{Handle as ServerHandle, Server},
+	color_eyre::{
+		eyre::{self, WrapErr, eyre},
+		owo_colors::OwoColorize,
+	},
+	cs2kz_api::{
+		database,
+		discord,
+		points::{PointsDaemon, PointsDaemonHandle},
+		server_monitor::{ServerMonitor, ServerMonitorHandle},
+		steam,
+	},
+	futures_util::FutureExt as _,
+	std::{
+		env,
+		error::Error,
+		future,
+		net::{IpAddr, SocketAddr},
+		path::Path,
+		sync::Arc,
+	},
+	tokio_util::time::FutureExt as _,
+	tower::ServiceBuilder,
+	uuid::Uuid,
+};
 
 mod cli;
 mod config;
@@ -28,35 +60,6 @@ mod runtime;
 mod signal;
 mod task_manager;
 mod telemetry;
-
-use std::{
-	env,
-	error::Error,
-	future,
-	net::{IpAddr, SocketAddr},
-	path::Path,
-	sync::Arc,
-};
-
-use axum::{Router, ServiceExt, extract::FromRef, handler::Handler, response::Redirect, routing};
-use axum_server::{Handle as ServerHandle, Server};
-use color_eyre::{
-	eyre::{self, WrapErr, eyre},
-	owo_colors::OwoColorize,
-};
-use cs2kz_api::{
-	database::Database,
-	discord,
-	points::{PointsDaemon, PointsDaemonHandle},
-	server_monitor::{ServerMonitor, ServerMonitorHandle},
-	steam,
-};
-use futures_util::FutureExt as _;
-use tokio_util::time::FutureExt as _;
-use tower::ServiceBuilder;
-use uuid::Uuid;
-
-use self::{config::Config, task_manager::TaskManager};
 
 fn main() -> eyre::Result<()>
 {
@@ -73,13 +76,9 @@ fn main() -> eyre::Result<()>
 	}
 
 	match cli::args() {
-		cli::Args::Serve {
-			config_path,
-			environment,
-			depot_downloader_path,
-			ip_addr,
-			port,
-		} => serve(&*config_path, environment, depot_downloader_path, ip_addr, port),
+		cli::Args::Serve { config_path, environment, depot_downloader_path, ip_addr, port } => {
+			serve(&*config_path, environment, depot_downloader_path, ip_addr, port)
+		},
 		cli::Args::GenerateOpenApiSchema => generate_openapi_schema(),
 	}
 }
@@ -118,7 +117,7 @@ fn serve(
 		},
 		Err(env::VarError::NotPresent) => {},
 		Err(env::VarError::NotUnicode(raw)) => {
-			tracing::warn!(?raw, "`DATABASE_URL` is set but ignored because it is invalid");
+			warn!(?raw, "`DATABASE_URL` is set but ignored because it is invalid");
 		},
 	}
 
@@ -128,8 +127,8 @@ fn serve(
 		self::telemetry::init(&config.tracing).wrap_err("failed to initialize tracing")?;
 
 	match self::runtime::environment::set(config.runtime.environment) {
-		Ok(env) => tracing::debug!(?env),
-		Err(current) => tracing::warn!(?current, "runtime environment was already set elsewhere?"),
+		Ok(env) => debug!(?env),
+		Err(current) => warn!(?current, "runtime environment was already set elsewhere?"),
 	}
 
 	self::runtime::build(&config.runtime)
@@ -149,7 +148,7 @@ fn generate_openapi_schema() -> eyre::Result<()>
 	Ok(())
 }
 
-#[tracing::instrument(skip(config, discord_tracing_layer_handle))]
+#[instrument(skip(config, discord_tracing_layer_handle))]
 async fn run(
 	execution_id: Uuid,
 	config: Config,
@@ -159,13 +158,17 @@ async fn run(
 	>,
 ) -> eyre::Result<()>
 {
-	tracing::info!(?config, "starting up");
+	info!(?config, "starting up");
 
 	let config = Arc::new(config);
 	let task_manager = TaskManager::default();
 	let server_handle = ServerHandle::default();
 
-	let database = Database::connect(config.database.connect_options())
+	let database = database::ConnectionPool::builder()
+		.url(&config.database.url)
+		.maybe_min_connections(config.database.min_connections)
+		.maybe_max_connections(config.database.max_connections)
+		.build()
 		.await
 		.wrap_err("failed to connect to database")?;
 
@@ -177,36 +180,33 @@ async fn run(
 	task_manager
 		.spawn(points_daemon_span, async move |cancellation_token| {
 			if let Err(err) = points_daemon.run(cancellation_token).await {
-				tracing::error!(error = &err as &dyn Error, "points daemon encountered an error");
+				error!(error = &err as &dyn Error, "points daemon encountered an error");
 			}
 		})
 		.wrap_err("failed to spawn points daemon task")?;
 
 	let server_monitor_handle = if let Some(config) = config.server_monitor {
-		let server_monitor = ServerMonitor::new(database.clone(), config);
+		let server_monitor =
+			ServerMonitor::new(config, database.clone(), points_daemon_handle.clone());
 		let server_monitor_handle = server_monitor.handle();
 		let server_monitor_span = tracing::info_span!(parent: None, "server_monitor");
 
 		task_manager
 			.spawn(server_monitor_span, async move |cancellation_token| {
 				if let Err(err) = server_monitor.run(cancellation_token).await {
-					tracing::error!(
-						error = &err as &dyn Error,
-						"server monitor encountered an error"
-					);
+					error!(error = &err as &dyn Error, "server monitor encountered an error");
 				}
 			})
 			.wrap_err("failed to spawn server monitor task")?;
 
 		server_monitor_handle
 	} else {
-		tracing::warn!("server monitor is disabled due to missing config");
+		warn!("server monitor is disabled due to missing config");
 		ServerMonitorHandle::dangling()
 	};
 
 	if let Some(config) = config.discord.clone() {
 		let discord_bot = discord::Bot::new(config, database.clone())
-			.await
 			.wrap_err("failed to initialize discord bot")?;
 
 		discord_tracing_layer_handle
@@ -218,12 +218,12 @@ async fn run(
 		task_manager
 			.spawn(discord_bot_span, async move |cancellation_token| {
 				if let Err(err) = discord_bot.run(cancellation_token).await {
-					tracing::error!(error = &err as &dyn Error, "discord bot encountered an error");
+					error!(error = &err as &dyn Error, "discord bot encountered an error");
 				}
 			})
 			.wrap_err("failed to spawn discord bot task")?;
 	} else {
-		tracing::warn!("discord bot is disabled due to missing config");
+		warn!("discord bot is disabled due to missing config");
 	}
 
 	let mut router = Router::default().route("/", routing::get("(͡ ͡° ͜ つ ͡͡°)"));
@@ -398,7 +398,7 @@ async fn run(
 			struct State
 			{
 				config: Arc<Config>,
-				database: Database,
+				database: database::ConnectionPool,
 				task_manager: TaskManager,
 				steam_api_client: steam::api::Client,
 				points_daemon: PointsDaemonHandle,
@@ -435,7 +435,7 @@ async fn run(
 		.wrap_err("failed to spawn axum task")?;
 
 	if let Some(addr) = server_handle.listening().await {
-		tracing::info!("Listening on '{addr}'");
+		info!("Listening on '{addr}'");
 	} else {
 		let error = eyre!("server did not start up?");
 
@@ -449,18 +449,18 @@ async fn run(
 
 	select! {
 		() = self::signal::shutdown() => {
-			tracing::info!("shutting down");
+			info!("shutting down");
 
 			server_handle.graceful_shutdown(Some(config.http.shutdown_timeout));
 
 			match server_task.await {
-				Ok(Ok(())) => tracing::debug!("server task exited"),
-				Ok(Err(err)) => tracing::error!(error = &err as &dyn Error, "server task failed to run"),
+				Ok(Ok(())) => debug!("server task exited"),
+				Ok(Err(err)) => error!(error = &err as &dyn Error, "server task failed to run"),
 				Err(err) => {
 					if err.is_panic() {
-						tracing::error!(error = &err as &dyn Error, "server task panicked");
+						error!(error = &err as &dyn Error, "server task panicked");
 					} else {
-						tracing::error!(error = &err as &dyn Error, "server task was cancelled?");
+						error!(error = &err as &dyn Error, "server task was cancelled?");
 					}
 				},
 			}
@@ -468,13 +468,13 @@ async fn run(
 
 		serve_result = &mut server_task => {
 			match serve_result {
-				Ok(Ok(())) => tracing::warn!("server task exited prematurely"),
-				Ok(Err(err)) => tracing::error!(error = &err as &dyn Error, "server task failed to run"),
+				Ok(Ok(())) => warn!("server task exited prematurely"),
+				Ok(Err(err)) => error!(error = &err as &dyn Error, "server task failed to run"),
 				Err(err) => {
 					if err.is_panic() {
-						tracing::error!(error = &err as &dyn Error, "server task panicked");
+						error!(error = &err as &dyn Error, "server task panicked");
 					} else {
-						tracing::error!(error = &err as &dyn Error, "server task was cancelled?");
+						error!(error = &err as &dyn Error, "server task was cancelled?");
 					}
 				},
 			}
@@ -483,23 +483,23 @@ async fn run(
 
 	let shutdown_future = future::join![
 		async move {
-			tracing::debug!("cleaning up database connections");
+			debug!("cleaning up database connections");
 			database.shutdown().await
 		},
 		async move {
-			tracing::debug!("shutting down tasks");
+			debug!("shutting down tasks");
 			task_manager.shutdown().await
 		},
 		async move {
-			tracing::debug!("shutting down python thread");
+			debug!("shutting down python thread");
 			if let Err(err) = cs2kz_api::python::shutdown().await {
-				tracing::warn!(error = &err as &dyn Error, "failed to shutdown python thread");
+				warn!(error = &err as &dyn Error, "failed to shutdown python thread");
 			}
 		}
 	];
 
 	if let Err(_) = shutdown_future.timeout(config.http.shutdown_timeout).await {
-		tracing::warn!(timeout = ?config.http.shutdown_timeout, "failed to shutdown within timeout");
+		warn!(timeout = ?config.http.shutdown_timeout, "failed to shutdown within timeout");
 	}
 
 	Ok(())

@@ -1,8 +1,11 @@
+//! Various [`serde`] helpers
+
 pub mod ser
 {
-	use std::collections::BTreeMap;
-
-	use serde::{Serialize, Serializer, ser::SerializeSeq};
+	use {
+		serde::{Serialize, Serializer, ser::SerializeSeq},
+		std::collections::BTreeMap,
+	};
 
 	#[allow(private_bounds)]
 	trait Map
@@ -28,8 +31,9 @@ pub mod ser
 		}
 	}
 
+	/// Serializes only a map's values as a sequence.
 	#[allow(private_bounds)]
-	pub fn map_as_set<T, S>(map: &T, serializer: S) -> Result<S::Ok, S::Error>
+	pub fn map_values<T, S>(map: &T, serializer: S) -> Result<S::Ok, S::Error>
 	where
 		T: Map<Value: Serialize>,
 		S: Serializer,
@@ -45,9 +49,12 @@ pub mod ser
 
 	pub mod http
 	{
-		use http::StatusCode;
-		use serde::{Serialize, Serializer};
+		use {
+			http::StatusCode,
+			serde::{Serialize, Serializer},
+		};
 
+		/// Serializes an [`http::StatusCode`] as an integer.
 		pub fn status_code<S>(status_code: &StatusCode, serializer: S) -> Result<S::Ok, S::Error>
 		where
 			S: Serializer,
@@ -59,9 +66,10 @@ pub mod ser
 
 pub mod de
 {
-	use std::collections::{BTreeMap, BTreeSet};
-
-	use serde::{Deserialize, Deserializer, de};
+	use {
+		serde::{Deserialize, Deserializer, de},
+		std::collections::{BTreeMap, BTreeSet},
+	};
 
 	#[allow(private_bounds)]
 	trait IsEmpty
@@ -85,6 +93,7 @@ pub mod de
 		}
 	}
 
+	/// Deserializes a collection and ensures it is non-empty.
 	#[allow(private_bounds)]
 	pub fn non_empty<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 	where

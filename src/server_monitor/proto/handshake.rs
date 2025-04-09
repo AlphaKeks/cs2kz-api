@@ -1,292 +1,203 @@
-use std::{
-	collections::BTreeMap,
-	io,
-	ops::ControlFlow,
-	pin::{Pin, pin},
-	time::Duration,
+use {
+	super::{ConnectionState, CurrentMap, on_player_join},
+	crate::{
+		checksum::Checksum,
+		database::{self, DatabaseError},
+		maps::{self, Map},
+		mode::Mode,
+		players::{PlayerId, PlayerIp, PlayerName},
+		plugin,
+		server_monitor::Config,
+		servers::{self, ServerId},
+		styles::Style,
+	},
+	axum_tws::WebSocketError,
+	futures_util::{Sink, SinkExt, Stream, StreamExt, TryStreamExt},
+	serde::{Deserialize, Serialize},
+	std::{
+		collections::{BTreeMap, HashMap},
+		pin::{Pin, pin},
+		time::Duration,
+	},
+	tokio::time::sleep,
+	tokio_websockets::Message as RawMessage,
 };
 
-use futures_util::{Sink, SinkExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
-use serde::{Deserialize, Serialize};
-use tokio::time::sleep;
-use tokio_util::sync::CancellationToken;
-use tokio_websockets::proto::{CloseCode, Message as RawMessage};
-
-use super::{
-	ConnectionState,
-	CurrentMap,
-	ServerTaskError,
-	message::{EncodeMessageError, Message},
-	on_player_join,
-	shutdown_message,
-};
-use crate::{
-	checksum::Checksum,
-	database::Database,
-	game::Game,
-	maps::{self, Map},
-	players::{PlayerId, PlayerIp, PlayerName, PlayerPreferences},
-	plugin::{self, PluginVersionId},
-	servers::{self, ServerId},
-};
-
-/// First message sent by the client
-#[derive(Debug, Deserialize)]
-pub(super) struct Hello
+#[derive(Debug, Display, Error, From)]
+#[display("handshake error: {_variant}")]
+pub(super) enum HandshakeError
 {
-	plugin_version_checksum: Checksum,
+	#[from]
+	Io(WebSocketError),
+
+	#[from]
+	DatabaseError(DatabaseError),
+
+	#[display("client closed the connection")]
+	ClientClosedConnection,
+
+	#[display("exceeded {timeout:?} timeout")]
+	#[from(ignore)]
+	TimeoutExceeded
+	{
+		#[error(ignore)]
+		timeout: Duration,
+	},
+
+	#[display("failed to decode 'Hello' payload: {_0}")]
+	DecodeHello(serde_json::Error),
+
+	#[display("failed to encode 'HelloAck' payload: {_0}")]
+	EncodeHelloAck(serde_json::Error),
+
+	#[display("invalid plugin version")]
+	InvalidPluginVersion,
+}
+
+/// Payload sent by the client during the handshake
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "kebab-case")]
+struct Hello
+{
+	/// Checksum of the CS2KZ plugin binary the server is currently running
+	plugin_checksum: Checksum,
+
+	/// Name of the map the server is currently hosting
 	current_map: Box<str>,
-	current_players: Box<[AlreadyConnectedPlayer]>,
+
+	/// Players currently connected to the server
+	connected_players: BTreeMap<PlayerId, ConnectedPlayer>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct AlreadyConnectedPlayer
+struct ConnectedPlayer
 {
-	id: PlayerId,
 	name: PlayerName,
 	ip_address: PlayerIp,
 }
 
-/// Our response to [`Hello`]
+/// Payload sent by the server during the handshake
 #[derive(Debug, Serialize)]
-pub(super) struct HelloAck<'a>
+#[serde(tag = "type", rename_all = "kebab-case")]
+struct HelloAck<'a>
 {
+	/// Detailed information about the map the server is currently hosting
 	map_info: Option<&'a Map>,
-	players: BTreeMap<PlayerId, PlayerInfo<'a>>,
+
+	/// Detailed information about the [`connected_players`] the server told us
+	/// about
+	///
+	/// [`connected_players`]: Hello::connected_players
+	player_details: &'a BTreeMap<PlayerId, super::ConnectedPlayer>,
 }
 
-#[derive(Debug, Serialize)]
-pub(super) struct PlayerInfo<'a>
-{
-	is_banned: bool,
-	preferences: &'a PlayerPreferences,
-}
-
-/// Performs the handshake.
-///
-/// If `Ok(ControlFlow::Break(()))` is returned (e.g. because the given
-/// `timeout_after` was exceeded), the caller should consider the connection
-/// terminated.
-///
-/// If everything goes well, `Ok(ControlFlow::Continue(state))` is returned and
-/// the connection can be continued with that state.
-#[tracing::instrument(
-	level = "debug",
-	skip(socket, database, cancellation_token),
-	ret(level = "debug"),
-	err
-)]
+#[instrument(skip(socket, config, database), ret(level = "debug"), err(level = "debug"))]
 pub(super) async fn perform<S>(
 	mut socket: Pin<&mut S>,
+	config: &Config,
+	database: &database::ConnectionPool,
 	server_id: ServerId,
-	database: Database,
-	cancellation_token: &CancellationToken,
-	timeout_after: Duration,
-) -> Result<ControlFlow<(), ConnectionState>, ServerTaskError>
+) -> Result<ConnectionState, HandshakeError>
 where
-	S: Stream<Item = io::Result<RawMessage>>,
-	S: Sink<RawMessage, Error = io::Error>,
+	S: Stream<Item = Result<RawMessage, WebSocketError>> + Sink<RawMessage, Error = WebSocketError>,
 {
-	let mut timeout = pin!(sleep(timeout_after));
+	let mut timeout = pin!(sleep(config.handshake_timeout));
 
-	database
-		.in_transaction(async |conn| {
-			loop {
-				let hello = select! {
-					() = cancellation_token.cancelled() => {
-						tracing::debug!("closing connection due to server shutdown");
-						socket.as_mut().send(shutdown_message()).await?;
-						return Ok(ControlFlow::Break(()));
-					},
-
-					() = &mut timeout => {
-						tracing::debug!("closing connection due to timeout");
-						socket.as_mut().send(timeout_message()).await?;
-						return Ok(ControlFlow::Break(()));
-					},
-
-					Some(recv_result) = socket.next() => match recv_result {
-						Ok(message) => match decode_hello(socket.as_mut(), message).await? {
-							ControlFlow::Break(Some(hello)) => {
-								tracing::trace!("received hello message");
-								hello
-							},
-							ControlFlow::Break(None) => return Ok(ControlFlow::Break(())),
-							ControlFlow::Continue(()) => continue,
-						},
-						Err(err) => return Err(err.into()),
-					},
-				};
-
-				let Some((plugin_version_id, game, plugin_checksums)) = sqlx::query!(
-					"SELECT
-					   id AS `id: PluginVersionId`,
-					   game AS `game: Game`,
-					   linux_checksum AS `linux_checksum: Checksum`,
-					   windows_checksum AS `windows_checksum: Checksum`
-					 FROM PluginVersions
-					 WHERE (linux_checksum = ? OR windows_checksum = ?)",
-					hello.plugin_version_checksum,
-					hello.plugin_version_checksum,
-				)
-				.fetch_optional(conn.as_raw())
-				.map_ok(|maybe_row| {
-					maybe_row.map(|row| {
-						(row.id, row.game, plugin::Checksums {
-							linux: row.linux_checksum,
-							windows: row.windows_checksum,
-						})
-					})
-				})
-				.await?
-				else {
-					tracing::debug!("closing connection due to invalid plugin version");
-					socket.as_mut().send(unauthorized_message()).await?;
-					return Ok(ControlFlow::Break(()));
-				};
-
-				let session_id = servers::create_session(server_id)
-					.plugin_version_id(plugin_version_id)
-					.exec(&mut *conn)
-					.await?;
-
-				let mode_checksums = plugin::get_mode_checksums(plugin_version_id)
-					.exec(&mut *conn)
-					.map_ok(|(mode, checksums)| {
-						let checksum = if hello.plugin_version_checksum == plugin_checksums.linux {
-							checksums.linux
-						} else {
-							debug_assert_eq!(hello.plugin_version_checksum, plugin_checksums.windows);
-							checksums.windows
-						};
-
-						(checksum, mode)
-					})
-					.try_collect::<Vec<_>>()
-					.map_ok(Vec::into_boxed_slice)
-					.await?;
-
-				let style_checksums = plugin::get_style_checksums(plugin_version_id)
-					.exec(&mut *conn)
-					.map_ok(|(style, checksums)| {
-						let checksum = if hello.plugin_version_checksum == plugin_checksums.linux {
-							checksums.linux
-						} else {
-							debug_assert_eq!(hello.plugin_version_checksum, plugin_checksums.windows);
-							checksums.windows
-						};
-
-						(checksum, style)
-					})
-					.try_collect::<Vec<_>>()
-					.map_ok(Vec::into_boxed_slice)
-					.await?;
-
-				let map = {
-					pin!(maps::get(game).name(&hello.current_map).limit(1).exec(&mut *conn))
-						.try_next()
-						.await?
-				}
-				.map_or(CurrentMap::NonGlobal { name: hello.current_map }, CurrentMap::Global);
-
-				let mut state = ConnectionState {
-					server_id,
-					session_id,
-					database: database.clone(),
-					game,
-					mode_checksums,
-					style_checksums,
-					map,
-					players: BTreeMap::new(),
-				};
-
-				for player in hello.current_players {
-					let player = on_player_join(player.id)
-						.name(player.name)
-						.ip_address(player.ip_address)
-						.exec(&state, &mut *conn)
-						.await?;
-
-					state.players.insert(player.id, player);
-				}
-
-				let ack = serde_json::to_string(&HelloAck {
-					map_info: match state.map {
-						CurrentMap::Global(ref map) => Some(map),
-						CurrentMap::NonGlobal { .. } => None,
-					},
-					players: state
-						.players
-						.iter()
-						.map(|(&player_id, player)| {
-							(player_id, PlayerInfo {
-								is_banned: player.is_banned,
-								preferences: &player.preferences,
-							})
-						})
-						.collect(),
-				})
-				.map(RawMessage::text)
-				.map_err(EncodeMessageError::from)?;
-
-				socket.as_mut().send(ack).await?;
-				tracing::trace!("sent hello ack");
-
-				break Ok(ControlFlow::Continue(state));
-			}
-		})
-		.await
-}
-
-/// Decodes an incoming message as [`Hello`].
-///
-/// A return value of [`ControlFlow::Break`] indicates that we have received
-/// a message of the correct payload type, and whether a [`Hello`] was decoded
-/// successfully. [`ControlFlow::Continue`] indicates we got some other message
-/// (like ping) and should continue waiting.
-#[tracing::instrument(level = "debug", skip(socket), ret(level = "debug"), err)]
-async fn decode_hello<S>(
-	mut socket: Pin<&mut S>,
-	message: RawMessage,
-) -> Result<ControlFlow<Option<Hello>>, ServerTaskError>
-where
-	S: Sink<RawMessage, Error = io::Error>,
-{
-	if message.is_ping() {
-		tracing::debug!(payload.size = message.as_payload().len(), "ping");
-		Ok(ControlFlow::Continue(()))
-	} else if message.is_pong() {
-		tracing::debug!(payload.size = message.as_payload().len(), "pong?");
-		Ok(ControlFlow::Continue(()))
-	} else if let Some((code, reason)) = message.as_close() {
-		tracing::debug!(code = u16::from(code), reason, "client closed the connection");
-		Ok(ControlFlow::Break(None))
-	} else {
-		tracing::debug!(
-			payload.size = message.as_payload().len(),
-			text = message.is_text(),
-			"decoding message",
-		);
-
-		match serde_json::from_slice::<Hello>(&message.as_payload()[..]) {
-			Ok(hello) => Ok(ControlFlow::Break(Some(hello))),
-			Err(err) => {
-				socket
-					.send(Message::error(0, &err).encode()?)
-					.map_ok(ControlFlow::Continue)
-					.map_err(ServerTaskError::from)
-					.await
+	let Hello { plugin_checksum, current_map, connected_players } = loop {
+		select! {
+			() = &mut timeout => {
+				debug!("exceeded handshake timeout");
+				return Err(HandshakeError::TimeoutExceeded { timeout: config.handshake_timeout });
 			},
-		}
+
+			Some(message) = socket.next() => {
+				let message = message?;
+				let payload = message.as_payload();
+
+				if message.is_ping() {
+					trace!(payload.size = payload.len(), "ping");
+					continue;
+				}
+
+				if message.is_pong() {
+					trace!(payload.size = payload.len(), "pong");
+					continue;
+				}
+
+				if let Some((code, reason)) = message.as_close() {
+					trace!(?code, reason, "client closed the connection");
+					return Err(HandshakeError::ClientClosedConnection);
+				}
+
+				trace!(payload.size = payload.len(), "decoding message");
+
+				break serde_json::from_slice::<Hello>(&payload[..])
+					.map_err(HandshakeError::DecodeHello)?;
+			},
+		};
+	};
+
+	let mut db_conn = database.acquire().await?;
+
+	let (version_id, game, os) = plugin::validate_checksum(&plugin_checksum)
+		.exec(&mut db_conn)
+		.await?
+		.ok_or(HandshakeError::InvalidPluginVersion)?;
+
+	let session_id = servers::create_session(server_id)
+		.plugin_version_id(version_id)
+		.exec(&mut db_conn)
+		.await?;
+
+	let current_map = match maps::get_by_name(&current_map).exec(&mut db_conn).await? {
+		Some(map) => CurrentMap::Known(map),
+		None => CurrentMap::Unknown { name: current_map },
+	};
+
+	let mut players = BTreeMap::default();
+	for (player_id, ConnectedPlayer { name, ip_address }) in connected_players {
+		let player = on_player_join(player_id, game)
+			.name(name)
+			.ip_address(ip_address)
+			.exec(&mut db_conn)
+			.await?;
+
+		players.insert(player_id, player);
 	}
-}
 
-fn timeout_message() -> RawMessage
-{
-	RawMessage::close(Some(CloseCode::POLICY_VIOLATION), "exceeded handshake timeout")
-}
+	let ack = HelloAck {
+		map_info: match current_map {
+			CurrentMap::Known(ref map) => Some(map),
+			CurrentMap::Unknown { .. } => None,
+		},
+		player_details: &players,
+	};
 
-fn unauthorized_message() -> RawMessage
-{
-	RawMessage::close(Some(CloseCode::POLICY_VIOLATION), "unauthorized")
+	match serde_json::to_string(&ack).map(RawMessage::text) {
+		Ok(message) => socket.send(message).await?,
+		Err(err) => return Err(HandshakeError::EncodeHelloAck(err)),
+	}
+
+	let mode_checksums = plugin::get_mode_checksums(version_id)
+		.exec(&mut db_conn)
+		.map_ok(|(mode, checksums)| (checksums[os], mode))
+		.try_collect::<HashMap<Checksum, Mode>>()
+		.await?;
+
+	let style_checksums = plugin::get_style_checksums(version_id)
+		.exec(&mut db_conn)
+		.map_ok(|(style, checksums)| (checksums[os], style))
+		.try_collect::<HashMap<Checksum, Style>>()
+		.await?;
+
+	Ok(ConnectionState {
+		server_id,
+		version_id,
+		game,
+		session_id,
+		current_map,
+		players,
+		mode_checksums,
+		style_checksums,
+	})
 }

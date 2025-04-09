@@ -1,17 +1,18 @@
-use std::{
-	convert::Infallible,
-	sync::{
-		Arc,
-		atomic::{self, AtomicBool},
+use {
+	axum::{
+		extract::{FromRequestParts, OptionalFromRequestParts},
+		response::{IntoResponse, Response},
+	},
+	cs2kz_api::users::{Permissions, ServerBudget, UserId, Username, sessions::SessionId},
+	http::request,
+	std::{
+		convert::Infallible,
+		sync::{
+			Arc,
+			atomic::{self, AtomicBool},
+		},
 	},
 };
-
-use axum::{
-	extract::{FromRequestParts, OptionalFromRequestParts},
-	response::{IntoResponse, Response},
-};
-use cs2kz_api::users::{Permissions, ServerBudget, UserId, Username, sessions::SessionId};
-use http::request;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Session
@@ -80,7 +81,7 @@ where
 {
 	type Rejection = SessionRejection;
 
-	#[tracing::instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
+	#[instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
 	async fn from_request_parts(
 		parts: &mut request::Parts,
 		state: &S,
@@ -99,7 +100,7 @@ where
 {
 	type Rejection = Infallible;
 
-	#[tracing::instrument(level = "debug", skip_all, ret(level = "debug"))]
+	#[instrument(level = "debug", skip_all, ret(level = "debug"))]
 	async fn from_request_parts(
 		parts: &mut request::Parts,
 		_state: &S,

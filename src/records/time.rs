@@ -1,11 +1,13 @@
-use std::{cmp, num::FpCategory};
+use {
+	crate::time::Seconds,
+	serde::{Deserialize, Serialize},
+	std::{cmp, num::FpCategory},
+	utoipa::ToSchema,
+};
 
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
-
-use crate::time::Seconds;
-
-#[derive(Debug, Default, Clone, Copy, From, Into, Serialize, Deserialize, ToSchema, sqlx::Type)]
+#[derive(
+	Debug, Display, Default, Clone, Copy, From, Into, Serialize, Deserialize, ToSchema, sqlx::Type,
+)]
 #[debug("{_0:?}")]
 #[serde(transparent)]
 #[sqlx(transparent)]

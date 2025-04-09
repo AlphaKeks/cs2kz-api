@@ -1,10 +1,10 @@
-use std::{error::Error, num::NonZero};
-
-use serde::{Deserialize, Serialize};
-use steam_id::SteamId;
-use utoipa::ToSchema;
-
-use crate::{servers::ServerId, users::UserId};
+use {
+	crate::{servers::ServerId, users::UserId},
+	serde::{Deserialize, Serialize},
+	std::{error::Error, num::NonZero},
+	steam_id::SteamId,
+	utoipa::ToSchema,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, From, ToSchema)]
 #[serde(tag = "type", rename_all = "lowercase")]

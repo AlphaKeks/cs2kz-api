@@ -1,7 +1,8 @@
-use std::{cmp, num::FpCategory};
-
-use serde::Serialize;
-use utoipa::ToSchema;
+use {
+	serde::Serialize,
+	std::{cmp, num::FpCategory},
+	utoipa::ToSchema,
+};
 
 #[derive(Debug, Default, Clone, Copy, Serialize, sqlx::Type, ToSchema)]
 #[debug("{_0:?}")]

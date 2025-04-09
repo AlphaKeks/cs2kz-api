@@ -1,8 +1,8 @@
-use std::num::NonZero;
-
-use serde::{Deserialize, Deserializer};
-
-use crate::runtime;
+use {
+	crate::runtime,
+	serde::{Deserialize, Deserializer},
+	std::num::NonZero,
+};
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]

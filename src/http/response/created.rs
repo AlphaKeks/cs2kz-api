@@ -1,7 +1,8 @@
-use axum::response::{IntoResponse, Response};
-use serde::Serialize;
-
-use crate::http::json::Json;
+use {
+	crate::http::json::Json,
+	axum::response::{IntoResponse, Response},
+	serde::Serialize,
+};
 
 #[derive(Debug)]
 pub(crate) struct Created<T>(pub T)

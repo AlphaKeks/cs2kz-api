@@ -1,7 +1,8 @@
-use std::{error::Error, str::FromStr, sync::Arc};
-
-use serde::Serialize;
-use utoipa::ToSchema;
+use {
+	serde::Serialize,
+	std::{error::Error, str::FromStr, sync::Arc},
+	utoipa::ToSchema,
+};
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, ToSchema)]
 #[serde(transparent)]

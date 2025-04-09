@@ -1,8 +1,15 @@
-use std::{sync::LazyLock, thread};
+//! A persistent [`pyo3`] worker thread
+//!
+//! This module contains functions to interact with a lazily initialized,
+//! persistent worker thread holding python's GIL. It is used for calculating
+//! points.
 
-use futures_util::TryFutureExt;
-use pyo3::Python;
-use tokio::sync::{mpsc, oneshot};
+use {
+	futures_util::TryFutureExt,
+	pyo3::Python,
+	std::{sync::LazyLock, thread},
+	tokio::sync::{mpsc, oneshot},
+};
 
 enum Message
 {
@@ -19,12 +26,12 @@ static PYTHON_THREAD: LazyLock<mpsc::Sender<Message>> = LazyLock::new(|| {
 		Python::with_gil(|python| {
 			let state = PyState { python };
 
-			tracing::info!("waiting for jobs");
+			info!("waiting for jobs");
 			while let Some(message) = rx.blocking_recv() {
 				match message {
 					Message::Job(job) => job(&state),
 					Message::Shutdown(sender) => {
-						tracing::warn!("shutting down");
+						warn!("shutting down");
 						let _ = sender.send(());
 						break;
 					},
@@ -61,6 +68,7 @@ pub enum PythonError
 	Panic(oneshot::error::RecvError),
 }
 
+/// Executes a function on the python thread.
 pub async fn execute<T>(
 	job: impl for<'a, 'py> FnOnce(&'a PyState<'py>) -> T + Send + 'static,
 ) -> Result<T, PythonError>
@@ -78,7 +86,8 @@ where
 		.await
 }
 
-#[tracing::instrument(err)]
+/// Shuts down the python thread.
+#[instrument(err)]
 pub async fn shutdown() -> Result<(), PythonError>
 {
 	let (tx, rx) = oneshot::channel();

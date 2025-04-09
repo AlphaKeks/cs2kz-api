@@ -1,7 +1,4 @@
-use std::fmt;
-
-use ::problem_details::ProblemType as _;
-use serde::Serialize;
+use {::problem_details::ProblemType as _, serde::Serialize, std::fmt};
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "kebab-case")]

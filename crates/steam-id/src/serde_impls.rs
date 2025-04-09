@@ -1,9 +1,10 @@
-use serde::{
-	de::{self, Deserialize, Deserializer},
-	ser::{Serialize, Serializer},
+use {
+	crate::SteamId,
+	serde::{
+		de::{self, Deserialize, Deserializer},
+		ser::{Serialize, Serializer},
+	},
 };
-
-use crate::SteamId;
 
 impl Serialize for SteamId
 {

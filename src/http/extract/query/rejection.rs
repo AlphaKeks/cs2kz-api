@@ -1,8 +1,8 @@
-use std::{any::type_name, marker::PhantomData};
-
-use axum::response::{IntoResponse, Response};
-
-use crate::http::problem_details::{ProblemDetails, ProblemType};
+use {
+	crate::http::problem_details::{ProblemDetails, ProblemType},
+	axum::response::{IntoResponse, Response},
+	std::{any::type_name, marker::PhantomData},
+};
 
 #[derive(Debug, Display)]
 #[display("failed to extract query parameter of type `{}`: {}", type_name::<T>(), kind)]
@@ -24,10 +24,7 @@ impl<T> From<serde_html_form::de::Error> for QueryRejection<T>
 {
 	fn from(error: serde_html_form::de::Error) -> Self
 	{
-		Self {
-			kind: QueryRejectionKind::Deserialize(error),
-			ty: PhantomData,
-		}
+		Self { kind: QueryRejectionKind::Deserialize(error), ty: PhantomData }
 	}
 }
 

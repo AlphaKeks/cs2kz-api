@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT\n\t\t\t\t\t   id AS `id: PluginVersionId`,\n\t\t\t\t\t   game AS `game: Game`,\n\t\t\t\t\t   linux_checksum AS `linux_checksum: Checksum`,\n\t\t\t\t\t   windows_checksum AS `windows_checksum: Checksum`\n\t\t\t\t\t FROM PluginVersions\n\t\t\t\t\t WHERE (linux_checksum = ? OR windows_checksum = ?)",
+  "query": "SELECT\n\t\t   id AS `id: PluginVersionId`,\n\t\t   game AS `game: Game`,\n\t\t   (linux_checksum = ?) AS `is_linux!: bool`,\n\t\t   (windows_checksum = ?) AS `is_windows!: bool`\n\t\t FROM PluginVersions\n\t\t WHERE (linux_checksum = ? OR windows_checksum = ?)",
   "describe": {
     "columns": [
       {
@@ -23,32 +23,32 @@
       },
       {
         "ordinal": 2,
-        "name": "linux_checksum: Checksum",
+        "name": "is_linux!: bool",
         "type_info": {
-          "type": "String",
-          "flags": "NOT_NULL | BINARY | NO_DEFAULT_VALUE",
-          "max_size": 16
+          "type": "Long",
+          "flags": "BINARY",
+          "max_size": 1
         }
       },
       {
         "ordinal": 3,
-        "name": "windows_checksum: Checksum",
+        "name": "is_windows!: bool",
         "type_info": {
-          "type": "String",
-          "flags": "NOT_NULL | BINARY | NO_DEFAULT_VALUE",
-          "max_size": 16
+          "type": "Long",
+          "flags": "BINARY",
+          "max_size": 1
         }
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 4
     },
     "nullable": [
       false,
       false,
-      false,
-      false
+      true,
+      true
     ]
   },
-  "hash": "d869af34d5f94e30bb4a70582cd5caf63668c939aba84df003a2acd520002853"
+  "hash": "dde8e49723e610bb6de24c8615bf8e30a1e4dbd2963775eed380bba7e6365c93"
 }

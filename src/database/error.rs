@@ -2,7 +2,7 @@ use std::{error::Error, num::TryFromIntError};
 
 pub type DatabaseResult<T> = Result<T, DatabaseError>;
 
-/// An error returned from the database
+/// An error returned by the database
 #[derive(Debug, Display, Error, From)]
 #[display("database error: {_0}")]
 pub struct DatabaseError(sqlx::Error);

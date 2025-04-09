@@ -1,9 +1,9 @@
-use std::{cmp, time::Duration};
-
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
-
-use crate::time::DurationExt;
+use {
+	crate::time::DurationExt,
+	serde::{Deserialize, Serialize},
+	std::{cmp, time::Duration},
+	utoipa::ToSchema,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[serde(rename_all = "lowercase")]

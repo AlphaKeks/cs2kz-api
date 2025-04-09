@@ -1,9 +1,10 @@
-use std::{fmt, sync::Arc};
-
-use bytes::Bytes;
-use http_body_util::BodyExt;
-use reqwest::RequestBuilder;
-use serde::Deserialize;
+use {
+	bytes::Bytes,
+	http_body_util::BodyExt,
+	reqwest::RequestBuilder,
+	serde::Deserialize,
+	std::{fmt, sync::Arc},
+};
 
 pub(super) type Result<T> = std::result::Result<T, ApiError>;
 
@@ -44,10 +45,7 @@ impl Client
 {
 	pub fn new(api_key: impl Into<Arc<str>>) -> Self
 	{
-		Self {
-			http_client: reqwest::Client::default(),
-			api_key: api_key.into(),
-		}
+		Self { http_client: reqwest::Client::default(), api_key: api_key.into() }
 	}
 
 	pub(super) fn api_key(&self) -> &str
@@ -64,7 +62,7 @@ impl AsRef<reqwest::Client> for Client
 	}
 }
 
-#[tracing::instrument(level = "debug", ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(level = "debug", ret(level = "debug"), err(Debug, level = "debug"))]
 pub(super) async fn send_request<T>(request: RequestBuilder) -> Result<T>
 where
 	T: fmt::Debug + for<'de> Deserialize<'de>,

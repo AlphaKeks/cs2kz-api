@@ -1,14 +1,15 @@
-use axum::{extract::Request, middleware::Next, response::Response};
-
-use crate::{
-	http::response::{HandlerError, HandlerResult},
-	runtime::{self, Environment},
+use {
+	crate::{
+		http::response::{HandlerError, HandlerResult},
+		runtime::{self, Environment},
+	},
+	axum::{extract::Request, middleware::Next, response::Response},
 };
 
 /// Middleware to check if a given request is coming from localhost.
 ///
 /// This is used for private endpoints like `/metrics` and `/taskdump`.
-#[tracing::instrument(skip_all, err(Debug, level = "debug"))]
+#[instrument(skip_all, err(Debug, level = "debug"))]
 pub(crate) async fn is_localhost(request: Request, next: Next) -> HandlerResult<Response>
 {
 	match runtime::environment::get() {

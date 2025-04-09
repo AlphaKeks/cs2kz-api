@@ -1,8 +1,9 @@
-use std::{fmt, ops};
-
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de, ser::SerializeSeq};
-use utoipa::ToSchema;
-use zerocopy::{Immutable, IntoBytes, KnownLayout, TryFromBytes, try_transmute_ref};
+use {
+	serde::{Deserialize, Deserializer, Serialize, Serializer, de, ser::SerializeSeq},
+	std::{fmt, ops},
+	utoipa::ToSchema,
+	zerocopy::{Immutable, IntoBytes, KnownLayout, TryFromBytes, try_transmute_ref},
+};
 
 const AUTO_BHOP: u32 = 1_u32 << 0;
 
@@ -360,6 +361,16 @@ impl FromIterator<Style> for Styles
 		I: IntoIterator<Item = Style>,
 	{
 		iter.into_iter().fold(Self::default(), ops::BitOr::bitor)
+	}
+}
+
+impl<'a> FromIterator<&'a Style> for Styles
+{
+	fn from_iter<I>(iter: I) -> Self
+	where
+		I: IntoIterator<Item = &'a Style>,
+	{
+		iter.into_iter().copied().collect()
 	}
 }
 

@@ -2,56 +2,68 @@
 #![feature(non_exhaustive_omitted_patterns_lint)]
 #![feature(unqualified_local_imports)]
 
-mod cli;
+#[macro_use(info)]
+extern crate tracing as _;
 
-use std::{
-	cmp,
-	collections::hash_map::{self, HashMap},
-	env,
-	net::{IpAddr, Ipv4Addr},
-	num::NonZero,
-	time::Duration,
-};
-
-use color_eyre::{
-	Section,
-	eyre::{self, OptionExt, WrapErr, eyre},
-};
-use cs2kz_api::{
-	database::{self, Database, DatabaseConnection},
-	game::Game,
-	maps::{
-		self,
-		CourseDescription,
-		CourseLocalId,
-		CourseName,
-		FilterId,
-		FilterNotes,
-		MapDescription,
-		MapName,
-		MapState,
-		NewCS2Filters,
-		NewCSGOFilters,
-		NewCourse,
-		NewFilter,
-		NewFilters,
-		Tier,
+use {
+	color_eyre::{
+		Section,
+		eyre::{self, OptionExt, WrapErr, eyre},
 	},
-	mode::Mode,
-	players::{self, PlayerId, PlayerName},
-	plugin::{self, PluginVersion},
-	records::{self, CreatedRecord, Teleports, Time},
-	servers::{self, CreatedServer, ServerHost, ServerId, ServerName, ServerPort, ServerSessionId},
-	stream::TryStreamExt as _,
-	styles::{Style, Styles},
-	time::{DurationExt, Seconds},
-	users::{self, UserId, Username},
+	cs2kz_api::{
+		database,
+		game::Game,
+		maps::{
+			self,
+			CourseDescription,
+			CourseLocalId,
+			CourseName,
+			FilterId,
+			FilterNotes,
+			MapDescription,
+			MapName,
+			MapState,
+			NewCS2Filters,
+			NewCSGOFilters,
+			NewCourse,
+			NewFilter,
+			NewFilters,
+			Tier,
+		},
+		mode::Mode,
+		players::{self, PlayerId, PlayerName},
+		plugin::{self, PluginVersion},
+		records::{self, CreatedRecord, Teleports, Time},
+		servers::{
+			self,
+			CreatedServer,
+			ServerHost,
+			ServerId,
+			ServerName,
+			ServerPort,
+			ServerSessionId,
+		},
+		stream::TryStreamExt as _,
+		styles::{Style, Styles},
+		time::{DurationExt, Seconds},
+		users::{self, UserId, Username},
+	},
+	fake::Fake,
+	futures_util::{TryFutureExt, TryStreamExt as _},
+	rand::{Rng, rngs::ThreadRng, seq::IndexedRandom},
+	std::{
+		cmp,
+		collections::hash_map::{self, HashMap},
+		env,
+		net::{IpAddr, Ipv4Addr},
+		num::NonZero,
+		time::Duration,
+	},
+	tracing_subscriber::EnvFilter,
+	url::Url,
 };
-use fake::Fake;
-use futures_util::{TryFutureExt, TryStreamExt as _};
-use rand::{Rng, rngs::ThreadRng, seq::IndexedRandom};
-use tracing_subscriber::EnvFilter;
-use url::Url;
+
+mod cli;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()>
@@ -75,63 +87,68 @@ async fn main() -> eyre::Result<()>
 	})?;
 
 	let database_url = database_url.parse::<Url>().wrap_err("failed to parse `DATABASE_URL`")?;
-	let database =
-		Database::connect(database::ConnectOptions::builder().url(&database_url).build())
-			.await
-			.wrap_err("failed to connect to database")?;
+	let database = database::ConnectionPool::builder()
+		.url(&database_url)
+		.build()
+		.await
+		.wrap_err("failed to connect to database")?;
 
 	let mut rng = ThreadRng::default();
 
 	database
-		.in_transaction(async |conn| match args {
+		.in_transaction(async |db_conn| match args {
 			cli::Args::PluginVersions(cli::PluginVersions::Create { game, count }) => {
-				create_plugin_versions(conn, &mut rng, game, count).await
+				create_plugin_versions(db_conn, &mut rng, game, count).await
 			},
 			cli::Args::PluginVersions(cli::PluginVersions::Delete { count }) => {
-				delete_plugin_versions(conn, count).await
+				delete_plugin_versions(db_conn, count).await
 			},
 			cli::Args::Users(cli::Users::Create { count }) => {
-				create_users(conn, &mut rng, count).await
+				create_users(db_conn, &mut rng, count).await
 			},
-			cli::Args::Users(cli::Users::Delete { count }) => delete_users(conn, count).await,
+			cli::Args::Users(cli::Users::Delete { count }) => delete_users(db_conn, count).await,
 			cli::Args::Servers(cli::Servers::Create { owner, game, count }) => {
-				create_servers(conn, &mut rng, owner, game, count).await
+				create_servers(db_conn, &mut rng, owner, game, count).await
 			},
 			cli::Args::Servers(cli::Servers::Delete { owner, count }) => {
-				delete_servers(conn, owner, count).await
+				delete_servers(db_conn, owner, count).await
 			},
 			cli::Args::Maps(cli::Maps::Create { mapper, state, courses, count }) => {
-				create_maps(conn, &mut rng, mapper, state, courses, count).await
+				create_maps(db_conn, &mut rng, mapper, state, courses, count).await
 			},
 			cli::Args::Maps(cli::Maps::Delete { mapper, count }) => {
-				delete_maps(conn, mapper, count).await
+				delete_maps(db_conn, mapper, count).await
 			},
 			cli::Args::Players(cli::Players::Create { count }) => {
-				create_players(conn, &mut rng, count).await
+				create_players(db_conn, &mut rng, count).await
 			},
-			cli::Args::Players(cli::Players::Delete { count }) => delete_players(conn, count).await,
+			cli::Args::Players(cli::Players::Delete { count }) => {
+				delete_players(db_conn, count).await
+			},
 			cli::Args::Records(cli::Records::Create { filter, player, server, count }) => {
-				create_records(conn, &mut rng, filter, player, server, count).await
+				create_records(db_conn, &mut rng, filter, player, server, count).await
 			},
-			cli::Args::Records(cli::Records::Delete { count }) => delete_records(conn, count).await,
+			cli::Args::Records(cli::Records::Delete { count }) => {
+				delete_records(db_conn, count).await
+			},
 		})
 		.await
 }
 
 async fn create_plugin_versions(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	rng: &mut ThreadRng,
 	game: Option<Game>,
 	count: u64,
 ) -> eyre::Result<()>
 {
 	let latest_cs2 = plugin::get_latest_version(Game::CS2)
-		.exec(&mut *conn)
+		.exec(db_conn)
 		.await
 		.wrap_err("failed to get latest plugin version for cs2")?;
 
 	let latest_csgo = plugin::get_latest_version(Game::CSGO)
-		.exec(&mut *conn)
+		.exec(db_conn)
 		.await
 		.wrap_err("failed to get latest plugin version for csgo")?;
 
@@ -154,7 +171,7 @@ async fn create_plugin_versions(
 		let game = game.unwrap_or_else(|| rng.random());
 
 		let modes = match game {
-			Game::CS2 => &[Mode::Vanilla, Mode::Classic][..],
+			Game::CS2 => &[Mode::VanillaCS2, Mode::Classic][..],
 			Game::CSGO => &[Mode::KZTimer, Mode::SimpleKZ, Mode::VanillaCSGO][..],
 		}
 		.iter()
@@ -176,30 +193,30 @@ async fn create_plugin_versions(
 			.is_cutoff(rng.random_range(0..100) < 10_u8)
 			.modes(modes)
 			.styles(styles)
-			.exec(&mut *conn)
+			.exec(db_conn)
 			.await
 			.wrap_err("failed to create plugin version")?;
 
-		tracing::info!(version = %latest, "created plugin version");
+		info!(version = %latest, "created plugin version");
 	}
 
 	Ok(())
 }
 
 async fn delete_plugin_versions(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	count: u64,
 ) -> eyre::Result<()>
 {
 	plugin::delete_versions(count)
-		.exec(conn)
-		.map_ok(|amount| tracing::info!(amount, "deleted plugin versions"))
+		.exec(db_conn)
+		.map_ok(|amount| info!(amount, "deleted plugin versions"))
 		.await
 		.wrap_err("failed to delete plugin versions")
 }
 
 async fn create_users(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	rng: &mut ThreadRng,
 	count: u64,
 ) -> eyre::Result<()>
@@ -213,27 +230,27 @@ async fn create_users(
 
 		users::create(id)
 			.name(name.clone())
-			.exec(&mut *conn)
+			.exec(db_conn)
 			.await
 			.wrap_err("failed to create user")?;
 
-		tracing::info!(%id, %name, "created user");
+		info!(%id, %name, "created user");
 	}
 
 	Ok(())
 }
 
-async fn delete_users(conn: &mut DatabaseConnection<'_, '_>, count: u64) -> eyre::Result<()>
+async fn delete_users(db_conn: &mut database::Connection<'_, '_>, count: u64) -> eyre::Result<()>
 {
 	users::delete(count)
-		.exec(conn)
-		.map_ok(|amount| tracing::info!(amount, "deleted users"))
+		.exec(db_conn)
+		.map_ok(|amount| info!(amount, "deleted users"))
 		.await
 		.wrap_err("failed to delete users")
 }
 
 async fn create_servers(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	rng: &mut ThreadRng,
 	owner: Option<UserId>,
 	game: Option<Game>,
@@ -242,7 +259,7 @@ async fn create_servers(
 {
 	let potential_owners = users::get()
 		.limit(100)
-		.exec(&mut *conn)
+		.exec(db_conn)
 		.try_collect::<Vec<_>>()
 		.await
 		.wrap_err("failed to fetch potential server owners")?;
@@ -274,32 +291,32 @@ async fn create_servers(
 			.port(port)
 			.game(game)
 			.owned_by(owner)
-			.exec(&mut *conn)
+			.exec(db_conn)
 			.await
 			.wrap_err("failed to create server")?;
 
-		tracing::info!(%id, %name, "created server");
+		info!(%id, %name, "created server");
 	}
 
 	Ok(())
 }
 
 async fn delete_servers(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	owner: Option<UserId>,
 	count: u64,
 ) -> eyre::Result<()>
 {
 	servers::delete(count)
 		.maybe_owned_by(owner)
-		.exec(conn)
-		.map_ok(|amount| tracing::info!(amount, "deleted servers"))
+		.exec(db_conn)
+		.map_ok(|amount| info!(amount, "deleted servers"))
 		.await
 		.wrap_err("failed to delete servers")
 }
 
 async fn create_maps(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	rng: &mut ThreadRng,
 	mapper: Option<UserId>,
 	state: Option<MapState>,
@@ -309,7 +326,7 @@ async fn create_maps(
 {
 	let potential_mappers = users::get()
 		.limit(100)
-		.exec(&mut *conn)
+		.exec(db_conn)
 		.try_collect::<Vec<_>>()
 		.await
 		.wrap_err("failed to fetch potential mappers")?;
@@ -453,32 +470,32 @@ async fn create_maps(
 			.checksum(rng.random())
 			.created_by(mapper)
 			.courses(courses)
-			.exec(&mut *conn)
+			.exec(&mut *db_conn)
 			.await
 			.wrap_err("failed to create map")?;
 
-		tracing::info!(%id, %name, %mapper, "created map");
+		info!(%id, %name, %mapper, "created map");
 	}
 
 	Ok(())
 }
 
 async fn delete_maps(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	mapper: Option<UserId>,
 	count: u64,
 ) -> eyre::Result<()>
 {
 	maps::delete(count)
 		.maybe_created_by(mapper)
-		.exec(conn)
-		.map_ok(|amount| tracing::info!(amount, "deleted maps"))
+		.exec(db_conn)
+		.map_ok(|amount| info!(amount, "deleted maps"))
 		.await
 		.wrap_err("failed to delete maps")
 }
 
 async fn create_players(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	rng: &mut ThreadRng,
 	count: u64,
 ) -> eyre::Result<()>
@@ -491,29 +508,30 @@ async fn create_players(
 			.wrap_err("randomly generated an invalid player name")?;
 
 		players::create(id)
-			.name(name.clone())
+			.name(&name)
 			.ip_address(fake::faker::internet::en::IPv4().fake_with_rng::<Ipv4Addr, _>(rng))
-			.exec(&mut *conn)
+			.exec(&mut *db_conn)
 			.await
 			.wrap_err("failed to create player")?;
 
-		tracing::info!(%id, %name, "created player");
+		info!(%id, %name, "created player");
 	}
 
 	Ok(())
 }
 
-async fn delete_players(conn: &mut DatabaseConnection<'_, '_>, count: u64) -> eyre::Result<()>
+async fn delete_players(db_conn: &mut database::Connection<'_, '_>, count: u64)
+-> eyre::Result<()>
 {
 	players::delete(count)
-		.exec(conn)
-		.map_ok(|amount| tracing::info!(amount, "deleted players"))
+		.exec(db_conn)
+		.map_ok(|amount| info!(amount, "deleted players"))
 		.await
 		.wrap_err("failed to delete players")
 }
 
 async fn create_records(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	rng: &mut ThreadRng,
 	filter: Option<FilterId>,
 	player: Option<PlayerId>,
@@ -523,7 +541,7 @@ async fn create_records(
 {
 	let mode = if let Some(filter_id) = filter {
 		maps::get_mode_by_filter_id(filter_id)
-			.exec(&mut *conn)
+			.exec(&mut *db_conn)
 			.await
 			.wrap_err("failed to fetch filter information")?
 	} else {
@@ -532,33 +550,33 @@ async fn create_records(
 
 	let potential_filters = maps::get_filters()
 		.limit(u64::MAX)
-		.exec(&mut *conn)
+		.exec(&mut *db_conn)
 		.try_collect::<Vec<_>>()
 		.await
 		.wrap_err("failed to fetch potential filters")?;
 
 	let potential_players = players::get()
 		.limit(10000)
-		.exec(&mut *conn)
+		.exec(&mut *db_conn)
 		.try_collect::<Vec<_>>()
 		.await
 		.wrap_err("failed to fetch potential players")?;
 
 	let mut potential_servers = servers::get(Game::CS2)
 		.limit(1000)
-		.exec(&mut *conn)
+		.exec(&mut *db_conn)
 		.try_collect::<Vec<_>>()
 		.await
 		.wrap_err("failed to fetch potential servers")?;
 
 	servers::get(Game::CSGO)
 		.limit(1000)
-		.exec(&mut *conn)
+		.exec(&mut *db_conn)
 		.try_collect_into(&mut potential_servers)
 		.await?;
 
-	let latest_cs2_version = plugin::get_latest_version_id(Game::CS2).exec(&mut *conn).await?;
-	let latest_csgo_version = plugin::get_latest_version_id(Game::CSGO).exec(&mut *conn).await?;
+	let latest_cs2_version = plugin::get_latest_version_id(Game::CS2).exec(&mut *db_conn).await?;
+	let latest_csgo_version = plugin::get_latest_version_id(Game::CSGO).exec(&mut *db_conn).await?;
 
 	let mut sessions = HashMap::<ServerId, ServerSessionId>::new();
 	let mut modes = HashMap::<FilterId, Mode>::new();
@@ -584,7 +602,7 @@ async fn create_records(
 				hash_map::Entry::Occupied(entry) => *entry.get(),
 				hash_map::Entry::Vacant(entry) => {
 					let mode_to_game = |mode| match mode {
-						Mode::Vanilla | Mode::Classic => Game::CS2,
+						Mode::VanillaCS2 | Mode::Classic => Game::CS2,
 						Mode::KZTimer | Mode::SimpleKZ | Mode::VanillaCSGO => Game::CSGO,
 					};
 
@@ -594,7 +612,7 @@ async fn create_records(
 							hash_map::Entry::Occupied(entry) => *entry.get(),
 							hash_map::Entry::Vacant(entry) => {
 								let mode = maps::get_mode_by_filter_id(filter_id)
-									.exec(&mut *conn)
+									.exec(&mut *db_conn)
 									.await
 									.wrap_err("failed to fetch filter information")?
 									.ok_or_else(|| {
@@ -614,7 +632,7 @@ async fn create_records(
 
 					let session_id = servers::create_session(server_id)
 						.plugin_version_id(plugin_version_id)
-						.exec(&mut *conn)
+						.exec(&mut *db_conn)
 						.await
 						.wrap_err("failed to create fake server session")?;
 
@@ -642,21 +660,22 @@ async fn create_records(
 			.time(time)
 			.teleports(teleports)
 			.styles(Styles::default())
-			.exec(&mut *conn)
+			.exec(&mut *db_conn)
 			.await
 			.wrap_err("failed to create record")?;
 
-		tracing::info!(%id, "created record");
+		info!(%id, "created record");
 	}
 
 	Ok(())
 }
 
-async fn delete_records(conn: &mut DatabaseConnection<'_, '_>, count: u64) -> eyre::Result<()>
+async fn delete_records(db_conn: &mut database::Connection<'_, '_>, count: u64)
+-> eyre::Result<()>
 {
 	records::delete(count)
-		.exec(conn)
-		.map_ok(|amount| tracing::info!(amount, "deleted records"))
+		.exec(db_conn)
+		.map_ok(|amount| info!(amount, "deleted records"))
 		.await
 		.wrap_err("failed to delete records")
 }

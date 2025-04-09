@@ -1,14 +1,15 @@
-use std::borrow::Cow;
-
-use serde::{Deserialize, Deserializer, Serialize};
-use utoipa::{
-	PartialSchema,
-	ToSchema,
-	openapi::{
-		Object,
-		RefOr,
-		SchemaFormat,
-		schema::{self, KnownFormat, Schema},
+use {
+	serde::{Deserialize, Deserializer, Serialize},
+	std::borrow::Cow,
+	utoipa::{
+		PartialSchema,
+		ToSchema,
+		openapi::{
+			Object,
+			RefOr,
+			SchemaFormat,
+			schema::{self, KnownFormat, Schema},
+		},
 	},
 };
 

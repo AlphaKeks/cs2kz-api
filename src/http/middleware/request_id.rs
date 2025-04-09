@@ -1,18 +1,17 @@
-use cs2kz_api::error::ResultExt;
-use tower_http::request_id::{
-	MakeRequestId,
-	PropagateRequestIdLayer,
-	RequestId,
-	SetRequestIdLayer,
+use {
+	cs2kz_api::error::ResultExt,
+	tower_http::request_id::{
+		MakeRequestId,
+		PropagateRequestIdLayer,
+		RequestId,
+		SetRequestIdLayer,
+	},
+	uuid::Uuid,
 };
-use uuid::Uuid;
 
 pub(crate) fn layers() -> (SetRequestIdLayer<impl MakeRequestId + Clone>, PropagateRequestIdLayer)
 {
-	(
-		SetRequestIdLayer::x_request_id(MakeUuidv7RequestId),
-		PropagateRequestIdLayer::x_request_id(),
-	)
+	(SetRequestIdLayer::x_request_id(MakeUuidv7RequestId), PropagateRequestIdLayer::x_request_id())
 }
 
 #[derive(Debug, Clone)]
@@ -26,7 +25,7 @@ impl MakeRequestId for MakeUuidv7RequestId
 			.hyphenated()
 			.to_string()
 			.parse::<http::HeaderValue>()
-			.inspect_err_dyn(|error| tracing::warn!(error))
+			.inspect_err_dyn(|error| warn!(error))
 			.map(RequestId::new)
 			.ok()
 	}

@@ -16,9 +16,7 @@ impl Default for AccessKeys
 {
 	fn default() -> Self
 	{
-		Self {
-			cs2kz_metamod_release_key: default_cs2kz_metamod_release_key(),
-		}
+		Self { cs2kz_metamod_release_key: default_cs2kz_metamod_release_key() }
 	}
 }
 

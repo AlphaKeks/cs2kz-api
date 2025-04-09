@@ -1,14 +1,16 @@
-use std::{array, fmt, num::ParseIntError, ops::Deref, str::FromStr};
+use std::{array, fmt, num::ParseIntError, str::FromStr};
 
 const RAW_LEN: usize = 20_usize;
 const STR_LEN: usize = RAW_LEN * 2;
 
+/// A git revision stored as raw bytes
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GitRevision
 {
 	bytes: [u8; RAW_LEN],
 }
 
+/// Error for parsing strings into [`GitRevision`]s
 #[derive(Debug, Display, Error)]
 pub enum ParseGitRevisionError
 {
@@ -21,6 +23,14 @@ pub enum ParseGitRevisionError
 
 	#[display("failed to parse hex digit: {_0}")]
 	ParseHexDigit(ParseIntError),
+}
+
+impl GitRevision
+{
+	pub const fn as_bytes(&self) -> &[u8]
+	{
+		self.bytes.as_slice()
+	}
 }
 
 impl fmt::Debug for GitRevision
@@ -38,16 +48,6 @@ impl fmt::Display for GitRevision
 	fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result
 	{
 		self.bytes.iter().try_for_each(|byte| write!(fmt, "{byte:02x}"))
-	}
-}
-
-impl Deref for GitRevision
-{
-	type Target = [u8];
-
-	fn deref(&self) -> &Self::Target
-	{
-		&self.bytes[..]
 	}
 }
 
@@ -73,6 +73,8 @@ impl FromStr for GitRevision
 	}
 }
 
+impl_rand!(GitRevision => |rng| GitRevision { bytes: rng.random() });
+
 impl serde::Serialize for GitRevision
 {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -89,98 +91,58 @@ impl<'de> serde::Deserialize<'de> for GitRevision
 	where
 		D: serde::Deserializer<'de>,
 	{
-		if !deserializer.is_human_readable() {
-			return <[u8; RAW_LEN]>::deserialize(deserializer).map(|bytes| Self { bytes });
+		use serde::de;
+
+		struct GitRevisionVisitor;
+
+		impl de::Visitor<'_> for GitRevisionVisitor
+		{
+			type Value = GitRevision;
+
+			fn expecting(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result
+			{
+				fmt.write_str("a git revision")
+			}
+
+			fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+			where
+				E: de::Error,
+			{
+				value.parse().map_err(E::custom)
+			}
+
+			fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+			where
+				E: de::Error,
+			{
+				<[u8; RAW_LEN]>::try_from(value)
+					.map(|bytes| GitRevision { bytes })
+					.map_err(|_| E::invalid_length(value.len(), &self))
+			}
 		}
 
-		<String as serde::Deserialize<'de>>::deserialize(deserializer)?
-			.parse::<Self>()
-			.map_err(|err| match err {
-				ParseGitRevisionError::InvalidLength { got } => {
-					serde::de::Error::invalid_length(got, &"32 hex characters")
-				},
-				ParseGitRevisionError::ParseHexDigit(error) => serde::de::Error::custom(error),
-			})
+		if deserializer.is_human_readable() {
+			deserializer.deserialize_str(GitRevisionVisitor)
+		} else {
+			deserializer.deserialize_bytes(GitRevisionVisitor)
+		}
 	}
 }
 
-impl_rand!(GitRevision => |rng| GitRevision { bytes: rng.random() });
+impl_sqlx!(GitRevision => {
+	Type as [u8];
+	Encode<'q, 'a> as &'a [u8] = |checksum| checksum.as_bytes();
+	Decode<'r> as &'r [u8] = |bytes| {
+		<&[u8] as TryInto<[u8; RAW_LEN]>>::try_into(bytes)
+			.map(|bytes| GitRevision { bytes })
+	};
+});
 
-impl<DB> sqlx::Type<DB> for GitRevision
-where
-	DB: sqlx::Database,
-	[u8]: sqlx::Type<DB>,
-{
-	fn type_info() -> <DB as sqlx::Database>::TypeInfo
-	{
-		<[u8] as sqlx::Type<DB>>::type_info()
-	}
-
-	fn compatible(ty: &<DB as sqlx::Database>::TypeInfo) -> bool
-	{
-		<[u8] as sqlx::Type<DB>>::compatible(ty)
-	}
-}
-
-impl<'q, DB> sqlx::Encode<'q, DB> for GitRevision
-where
-	DB: sqlx::Database,
-	for<'a> &'a [u8]: sqlx::Encode<'q, DB>,
-{
-	fn encode_by_ref(
-		&self,
-		buf: &mut <DB as sqlx::Database>::ArgumentBuffer<'q>,
-	) -> Result<sqlx::encode::IsNull, Box<dyn std::error::Error + Send + Sync>>
-	{
-		(&&**self).encode(buf)
-	}
-
-	fn produces(&self) -> Option<<DB as sqlx::Database>::TypeInfo>
-	{
-		(&&**self).produces()
-	}
-
-	fn size_hint(&self) -> usize
-	{
-		(&&**self).size_hint()
-	}
-}
-
-impl<'r, DB> sqlx::Decode<'r, DB> for GitRevision
-where
-	DB: sqlx::Database,
-	&'r [u8]: sqlx::Decode<'r, DB>,
-{
-	fn decode(
-		value: <DB as sqlx::Database>::ValueRef<'r>,
-	) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>
-	{
-		let bytes = <&'r [u8] as sqlx::Decode<'r, DB>>::decode(value)?;
-		let bytes = <[u8; RAW_LEN]>::try_from(bytes)?;
-
-		Ok(Self { bytes })
-	}
-}
-
-impl utoipa::ToSchema for GitRevision
-{
-}
-
-impl utoipa::PartialSchema for GitRevision
-{
-	fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
-	{
-		use utoipa::openapi::{
-			Object,
-			schema::{self, SchemaType},
-		};
-
-		Object::builder()
-			.description(Some("a git revision"))
-			.schema_type(SchemaType::Type(schema::Type::String))
-			.min_length(Some(STR_LEN))
-			.max_length(Some(STR_LEN))
-			.examples(["24bfd2242fc46340c95574468d78af687dea0e93"])
-			.into()
-	}
-}
+impl_utoipa!(GitRevision => {
+	Object::builder()
+		.description(Some("a git revision"))
+		.schema_type(schema::Type::String)
+		.min_length(Some(STR_LEN))
+		.max_length(Some(STR_LEN))
+		.examples(["24bfd2242fc46340c95574468d78af687dea0e93"])
+});

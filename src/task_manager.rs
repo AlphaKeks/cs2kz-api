@@ -1,8 +1,9 @@
-use std::io;
-
-use tokio::task;
-use tokio_util::{sync::CancellationToken, task::TaskTracker};
-use tracing::Instrument;
+use {
+	std::io,
+	tokio::task,
+	tokio_util::{sync::CancellationToken, task::TaskTracker},
+	tracing::Instrument,
+};
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct TaskManager
@@ -57,16 +58,16 @@ impl TaskManager
 		})
 	}
 
-	#[tracing::instrument(level = "debug")]
+	#[instrument(level = "debug")]
 	pub async fn shutdown(self)
 	{
 		self.tasks.close();
-		tracing::trace!("closed task tracker");
+		trace!("closed task tracker");
 
 		self.cancellation_token.cancel();
-		tracing::trace!("cancelled tasks");
+		trace!("cancelled tasks");
 
 		self.tasks.wait().await;
-		tracing::trace!("all tasks have exited");
+		trace!("all tasks have exited");
 	}
 }

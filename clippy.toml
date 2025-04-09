@@ -13,5 +13,6 @@ doc-valid-idents = [
   "OpenID",
   "OpenAPI",
   "SemVer",
+  "MariaDB",
   "..",
 ]

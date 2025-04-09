@@ -1,5 +1,7 @@
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use {
+	serde::{Deserialize, Serialize},
+	utoipa::ToSchema,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[serde(transparent)]

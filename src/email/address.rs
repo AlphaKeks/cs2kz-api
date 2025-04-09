@@ -1,7 +1,8 @@
-use std::{error::Error, str::FromStr, sync::Arc};
-
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use {
+	serde::{Deserialize, Serialize},
+	std::{error::Error, str::FromStr, sync::Arc},
+	utoipa::ToSchema,
+};
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[schema(value_type = str, format = Email)]
@@ -15,7 +16,7 @@ impl EmailAddress
 {
 	pub fn as_str(&self) -> &str
 	{
-		lettre::Address::as_ref(&self.0)
+		lettre::Address::as_ref(&*self.0)
 	}
 }
 

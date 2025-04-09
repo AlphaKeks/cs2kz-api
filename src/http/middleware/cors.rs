@@ -1,8 +1,9 @@
-use std::sync::Arc;
-
-use headers::HeaderMapExt;
-use http::{HeaderValue, Method, header, request};
-use tower_http::cors::{AllowCredentials, AllowHeaders, AllowMethods, AllowOrigin, CorsLayer};
+use {
+	headers::HeaderMapExt,
+	http::{HeaderValue, Method, header, request},
+	std::sync::Arc,
+	tower_http::cors::{AllowCredentials, AllowHeaders, AllowMethods, AllowOrigin, CorsLayer},
+};
 
 pub(crate) fn layer(allowed_origins: impl IntoIterator<Item = HeaderValue>) -> CorsLayer
 {

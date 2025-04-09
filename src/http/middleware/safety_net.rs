@@ -1,18 +1,18 @@
-use std::{
-	convert::Infallible,
-	error::Error,
-	future,
-	io,
-	mem,
-	pin::Pin,
-	task::{self, Poll, ready},
-	time::Duration,
+use {
+	crate::TaskManager,
+	axum::response::IntoResponse,
+	std::{
+		convert::Infallible,
+		error::Error,
+		future,
+		io,
+		mem,
+		pin::Pin,
+		task::{self, Poll, ready},
+		time::Duration,
+	},
+	tokio_util::sync::WaitForCancellationFutureOwned,
 };
-
-use axum::response::IntoResponse;
-use tokio_util::sync::WaitForCancellationFutureOwned;
-
-use crate::TaskManager;
 
 pub(crate) fn layer(task_manager: TaskManager, timeout: Duration) -> SafetyNetLayer
 {
@@ -32,11 +32,7 @@ impl<S> tower::Layer<S> for SafetyNetLayer
 
 	fn layer(&self, inner: S) -> Self::Service
 	{
-		SafetyNet {
-			inner,
-			task_manager: self.task_manager.clone(),
-			timeout: self.timeout,
-		}
+		SafetyNet { inner, task_manager: self.task_manager.clone(), timeout: self.timeout }
 	}
 }
 
@@ -149,25 +145,25 @@ where
 	{
 		Poll::Ready(Ok(match self.project().kind.project() {
 			ResponseFutureProj::Error(error) => {
-				tracing::warn!(error = &*error as &dyn Error, "failed to spawn handler task");
+				warn!(error = &*error as &dyn Error, "failed to spawn handler task");
 				http::StatusCode::SERVICE_UNAVAILABLE.into_response()
 			},
 			ResponseFutureProj::Spawned { span, cancellation, task_handle } => 'scope: {
 				let _guard = span.enter();
 
 				if cancellation.poll(cx).is_ready() {
-					tracing::trace!("server shutting down");
+					trace!("server shutting down");
 					break 'scope http::StatusCode::SERVICE_UNAVAILABLE.into_response();
 				}
 
 				match ready!(Pin::new(task_handle).poll(cx)) {
 					Ok(Ok(output)) => output.into_response(),
 					Ok(Err(_)) => {
-						tracing::warn!("service call timed out");
+						warn!("service call timed out");
 						http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
 					},
 					Err(_) => {
-						tracing::error!("service call panicked");
+						error!("service call panicked");
 						http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
 					},
 				}

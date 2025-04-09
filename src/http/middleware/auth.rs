@@ -1,18 +1,18 @@
-use std::sync::Arc;
-
-use axum::{
-	extract::{Request, State},
-	middleware::Next,
-	response::{IntoResponse, Response},
+use {
+	crate::{Config, http::auth},
+	axum::{
+		extract::{Request, State},
+		middleware::Next,
+		response::{IntoResponse, Response},
+	},
+	axum_extra::extract::CookieJar,
+	cs2kz_api::{
+		database::{self, DatabaseError, DatabaseResult},
+		time::Timestamp,
+		users::{self, sessions::SessionId},
+	},
+	std::sync::Arc,
 };
-use axum_extra::extract::CookieJar;
-use cs2kz_api::{
-	database::{Database, DatabaseError, DatabaseResult},
-	time::Timestamp,
-	users::{self, sessions::SessionId},
-};
-
-use crate::{Config, http::auth};
 
 pub(crate) macro layer($database:expr, $config:expr) {
 	axum::middleware::from_fn_with_state(
@@ -24,7 +24,7 @@ pub(crate) macro layer($database:expr, $config:expr) {
 #[derive(Debug, Clone)]
 pub(crate) struct AuthState
 {
-	database: Database,
+	database: database::ConnectionPool,
 	config: Arc<Config>,
 }
 
@@ -56,11 +56,7 @@ impl IntoResponse for SessionRejection
 	}
 }
 
-#[tracing::instrument(
-	level = "debug",
-	skip(database, config, req, next),
-	err(Debug, level = "debug")
-)]
+#[instrument(level = "debug", skip(database, config, req, next), err(Debug, level = "debug"))]
 pub(crate) async fn middleware_fn(
 	State(AuthState { database, config }): State<AuthState>,
 	maybe_session_id: Option<SessionId>,
@@ -73,8 +69,8 @@ pub(crate) async fn middleware_fn(
 	};
 
 	let session = {
-		let mut conn = database.acquire_connection().await?;
-		users::sessions::get_by_id(&mut conn, session_id)
+		let mut db_conn = database.acquire().await?;
+		users::sessions::get_by_id(&mut db_conn, session_id)
 			.await?
 			.ok_or(SessionRejection::InvalidSessionId)?
 	};
@@ -102,19 +98,19 @@ pub(crate) async fn middleware_fn(
 		.build();
 
 	database
-		.in_transaction(async |conn| -> DatabaseResult<()> {
+		.in_transaction(async |db_conn| -> DatabaseResult<()> {
 			let updated = if session.is_valid() {
 				users::sessions::extend(session.id())
 					.duration(config.http.session_duration)
-					.exec(conn)
+					.exec(db_conn)
 					.await?
 			} else {
 				cookie.make_removal();
-				users::sessions::expire(session.id()).exec(conn).await?
+				users::sessions::expire(session.id()).exec(db_conn).await?
 			};
 
 			if !updated {
-				tracing::warn!(session.id = %session.id(), "updated non-existent session?");
+				warn!(session.id = %session.id(), "updated non-existent session?");
 			}
 
 			Ok(())

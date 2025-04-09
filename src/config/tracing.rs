@@ -1,9 +1,10 @@
-use std::{
-	net::SocketAddr,
-	path::{Path, PathBuf},
+use {
+	serde::Deserialize,
+	std::{
+		net::SocketAddr,
+		path::{Path, PathBuf},
+	},
 };
-
-use serde::Deserialize;
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
@@ -56,10 +57,7 @@ impl Default for FilesConfig
 {
 	fn default() -> Self
 	{
-		Self {
-			enable: Default::default(),
-			directory: default_files_directory(),
-		}
+		Self { enable: Default::default(), directory: default_files_directory() }
 	}
 }
 

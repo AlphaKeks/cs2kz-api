@@ -1,14 +1,14 @@
-mod rejection;
-
-use std::fmt;
-
-use axum::{
-	extract::{FromRequestParts, OptionalFromRequestParts},
-	http::request,
-};
-use serde::Deserialize;
-
 pub(crate) use self::rejection::QueryRejection;
+use {
+	axum::{
+		extract::{FromRequestParts, OptionalFromRequestParts},
+		http::request,
+	},
+	serde::Deserialize,
+	std::fmt,
+};
+
+mod rejection;
 
 #[derive(Debug)]
 pub(crate) struct Query<T>(pub T)
@@ -22,7 +22,7 @@ where
 {
 	type Rejection = QueryRejection<T>;
 
-	#[tracing::instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
+	#[instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
 	async fn from_request_parts(
 		parts: &mut request::Parts,
 		_state: &S,
@@ -42,7 +42,7 @@ where
 {
 	type Rejection = QueryRejection<T>;
 
-	#[tracing::instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
+	#[instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
 	async fn from_request_parts(
 		parts: &mut request::Parts,
 		_state: &S,

@@ -1,28 +1,28 @@
-pub mod banned_by;
-mod id;
-mod reason;
-mod unban_reason;
-
-use std::time::Duration;
-
-use futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt};
-use serde::Serialize;
-use sqlx::Row;
-use utoipa::ToSchema;
-
 pub use self::{
 	banned_by::BannedBy,
 	id::{BanId, ParseBanIdError},
 	reason::BanReason,
 	unban_reason::{InvalidUnbanReason, UnbanReason},
 };
-use crate::{
-	database::{DatabaseConnection, DatabaseError, DatabaseResult},
-	players::{PlayerId, PlayerIp},
-	stream::StreamExt as _,
-	time::Timestamp,
-	users::UserId,
+use {
+	crate::{
+		database::{self, DatabaseError, DatabaseResult},
+		players::{PlayerId, PlayerIp},
+		stream::StreamExt as _,
+		time::Timestamp,
+		users::UserId,
+	},
+	futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt},
+	serde::Serialize,
+	sqlx::Row,
+	std::time::Duration,
+	utoipa::ToSchema,
 };
+
+pub mod banned_by;
+mod id;
+mod reason;
+mod unban_reason;
 
 #[derive(Debug)]
 pub struct CreatedBan
@@ -41,11 +41,11 @@ pub enum CreateBanError
 	DatabaseError(DatabaseError),
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn create(
 	#[builder(start_fn)] player_id: PlayerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	player_ip: Option<PlayerIp>,
 	reason: BanReason,
 	#[builder(into)] banned_by: BannedBy,
@@ -62,7 +62,7 @@ pub async fn create(
              GROUP BY player_id",
 			player_id,
 		)
-		.fetch(conn.as_raw())
+		.fetch(db_conn.raw_mut())
 		.map_ok(Option::unwrap_or_default)
 		.try_fold(Duration::ZERO, async |total, duration| Ok(total + duration))
 		.await?;
@@ -79,7 +79,7 @@ pub async fn create(
 			 WHERE id = ?",
 			player_id,
 		)
-		.fetch_optional(conn.as_raw())
+		.fetch_optional(db_conn.raw_mut())
 		.await?
 		.ok_or(CreateBanError::UnknownPlayer)?
 	};
@@ -95,7 +95,7 @@ pub async fn create(
 		banned_by,
 		expires_at,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.and_then(async |row| row.try_get(0))
 	.await?;
 
@@ -122,10 +122,10 @@ pub struct Unban
 	pub created_at: Timestamp,
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn count(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	player: Option<PlayerId>,
 	#[builder(into)] banned_by: Option<BannedBy>,
 ) -> DatabaseResult<u64>
@@ -138,16 +138,16 @@ pub async fn count(
 		player,
 		banned_by,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.and_then(async |row| row.try_into().map_err(DatabaseError::convert_count))
 	.await
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	player: Option<PlayerId>,
 	#[builder(into)] banned_by: Option<BannedBy>,
 	#[builder(default = 0)] offset: u64,
@@ -176,7 +176,7 @@ pub fn get(
 		offset,
 		limit,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current())
@@ -214,11 +214,11 @@ pub fn get(
 	})
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_by_id(
 	#[builder(start_fn)] ban_id: BanId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<Ban>>
 {
 	sqlx::query!(
@@ -237,7 +237,7 @@ pub async fn get_by_id(
 		 WHERE b.id = ?",
 		ban_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.and_then(async |row| {
 		let Some(row) = row else {
@@ -288,11 +288,11 @@ pub enum UpdateBanError
 	DatabaseError(DatabaseError),
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn update(
 	#[builder(start_fn)] ban_id: BanId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	reason: Option<BanReason>,
 	#[builder(into)] expires_after: Option<Duration>,
 ) -> Result<bool, UpdateBanError>
@@ -303,7 +303,7 @@ pub async fn update(
 		 WHERE id = ?",
 		ban_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.await?
 	{
 		None => return Ok(false),
@@ -323,7 +323,7 @@ pub async fn update(
 		expires_at,
 		ban_id,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.map_ok(|query_result| query_result.rows_affected() > 0)
 	.map_err(UpdateBanError::from)
 	.await
@@ -342,20 +342,20 @@ pub enum RevertBanError
 	InvalidBanId,
 
 	#[from(DatabaseError, sqlx::Error)]
-	Database(DatabaseError),
+	DatabaseError(DatabaseError),
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn revert(
 	#[builder(start_fn)] ban_id: BanId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	reason: UnbanReason,
 	unbanned_by: UserId,
 ) -> Result<(), RevertBanError>
 {
 	let has_expired = sqlx::query_scalar!("SELECT expires_at FROM Bans WHERE id = ?", ban_id)
-		.fetch_optional(conn.as_raw())
+		.fetch_optional(db_conn.raw_mut())
 		.await?
 		.is_some_and(|expires_at| expires_at <= Timestamp::now());
 
@@ -369,7 +369,7 @@ pub async fn revert(
 		 WHERE id = ?",
 		ban_id,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.await?;
 
 	if has_been_reverted {
@@ -383,11 +383,11 @@ pub async fn revert(
 		reason,
 		unbanned_by,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.await?;
 
 	sqlx::query!("UPDATE Bans SET expires_at = NOW() WHERE id = ?", ban_id)
-		.execute(conn.as_raw())
+		.execute(db_conn.raw_mut())
 		.await?;
 
 	Ok(())

@@ -1,13 +1,3 @@
-mod id;
-mod ip;
-mod name;
-mod preferences;
-mod rating;
-
-use futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt};
-use serde::Serialize;
-use utoipa::ToSchema;
-
 pub use self::{
 	id::{ParsePlayerIdError, PlayerId},
 	ip::PlayerIp,
@@ -15,14 +5,25 @@ pub use self::{
 	preferences::PlayerPreferences,
 	rating::{InvalidPlayerRating, PlayerRating},
 };
-use crate::{
-	database::{DatabaseConnection, DatabaseError, DatabaseResult},
-	game::Game,
-	mode::Mode,
-	records::Leaderboard,
-	stream::StreamExt as _,
-	time::Timestamp,
+use {
+	crate::{
+		database::{self, DatabaseError, DatabaseResult, QueryBuilder},
+		game::Game,
+		mode::Mode,
+		records::Leaderboard,
+		stream::StreamExt as _,
+		time::Timestamp,
+	},
+	futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt},
+	serde::Serialize,
+	utoipa::ToSchema,
 };
+
+mod id;
+mod ip;
+mod name;
+mod preferences;
+mod rating;
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct Player
@@ -33,12 +34,12 @@ pub struct Player
 	pub created_at: Timestamp,
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn create(
 	#[builder(start_fn)] player_id: PlayerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
-	name: PlayerName,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
+	name: &PlayerName,
 	#[builder(into)] ip_address: PlayerIp,
 ) -> DatabaseResult<()>
 {
@@ -52,16 +53,16 @@ pub async fn create(
 		name,
 		ip_address,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.await?;
 
 	Ok(())
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn count(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: Option<&str>,
 ) -> DatabaseResult<u64>
 {
@@ -71,16 +72,16 @@ pub async fn count(
 		 WHERE name LIKE COALESCE(?, name)",
 		name.map(|name| format!("%{name}%")),
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.and_then(async |row| row.try_into().map_err(DatabaseError::convert_count))
 	.await
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: Option<&str>,
 	#[builder(default = 0)] offset: u64,
 	limit: u64,
@@ -102,7 +103,7 @@ pub fn get(
 		offset,
 		limit,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current())
@@ -114,11 +115,11 @@ pub fn get(
 	})
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_by_id(
 	#[builder(start_fn)] player_id: PlayerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<Player>>
 {
 	sqlx::query_as!(
@@ -132,16 +133,16 @@ pub async fn get_by_id(
 		 WHERE id = ?",
 		player_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn is_banned(
 	#[builder(start_fn)] player_id: PlayerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<bool>
 {
 	sqlx::query_scalar!(
@@ -152,62 +153,67 @@ pub async fn is_banned(
 		 AND (b.id IS NULL OR b.expires_at > NOW())",
 		player_id,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_preferences(
 	#[builder(start_fn)] player_id: PlayerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	game: Game,
 ) -> DatabaseResult<Option<PlayerPreferences>>
 {
-	let (conn, query) = conn.as_parts();
-
-	query.reset();
-	query.push("SELECT");
-	query.push(match game {
-		Game::CS2 => " cs2_preferences ",
-		Game::CSGO => " csgo_preferences ",
-	});
-	query.push("FROM Players WHERE id = ");
-	query.push_bind(player_id);
-
-	query
-		.build_query_scalar::<PlayerPreferences>()
-		.fetch_optional(conn)
-		.map_err(DatabaseError::from)
-		.await
+	sqlx::query_scalar::<_, PlayerPreferences>(&format! {
+		"SELECT {preferences}
+		 FROM Players
+		 WHERE id = ?",
+		preferences = match game {
+			Game::CS2 => "cs2_preferences",
+			Game::CSGO => "csgo_preferences",
+		},
+	})
+	.bind(player_id)
+	.fetch_optional(db_conn.raw_mut())
+	.map_err(DatabaseError::from)
+	.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
-pub async fn set_preferences(
+pub async fn update(
 	#[builder(start_fn)] player_id: PlayerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
-	game: Game,
-	preferences: PlayerPreferences,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
+	name: Option<&PlayerName>,
+	preferences: Option<(&PlayerPreferences, Game)>,
 ) -> DatabaseResult<bool>
 {
-	let (conn, query) = conn.as_parts();
+	let mut query = QueryBuilder::new("UPDATE Players SET name = COALESCE(?, name)");
 
-	query.reset();
-	query.push("UPDATE Players SET");
-	query.push(match game {
-		Game::CS2 => " cs2_preferences ",
-		Game::CSGO => " csgo_preferences ",
-	});
-	query.push(" = ");
-	query.push_bind(sqlx::types::Json(preferences));
-	query.push(" WHERE id = ");
-	query.push(player_id);
+	if let Some((_, game)) = preferences {
+		query.push(format_args! {
+			", {preferences} = ?",
+			preferences = match game {
+				Game::CS2 => " cs2_preferences ",
+				Game::CSGO => " csgo_preferences ",
+			},
+		});
+	}
+
+	query.push(" WHERE id = ?");
 
 	query
 		.build()
-		.execute(conn)
+		.bind(name.as_ref())
+		.bind(
+			preferences
+				.as_ref()
+				.map(|&(preferences, _)| sqlx::types::Json(preferences)),
+		)
+		.bind(player_id)
+		.execute(db_conn.raw_mut())
 		.map_ok(|query_result| query_result.rows_affected() > 0)
 		.map_err(DatabaseError::from)
 		.await
@@ -221,10 +227,10 @@ pub struct RatingLeaderboardEntry
 	rating: PlayerRating,
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get_rating_leaderboard(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	size: u64,
 ) -> impl Stream<Item = DatabaseResult<RatingLeaderboardEntry>>
 {
@@ -240,7 +246,7 @@ pub fn get_rating_leaderboard(
 		 LIMIT ?",
 		size,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current())
@@ -254,63 +260,55 @@ pub struct RecordsLeaderboardEntry
 	records: u64,
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get_records_leaderboard(
 	#[builder(start_fn)] leaderboard: Leaderboard,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	mode: Option<Mode>,
 	size: u64,
 ) -> impl Stream<Item = DatabaseResult<RecordsLeaderboardEntry>>
 {
-	let (conn, query) = conn.as_parts();
+	let (db_conn, query) = db_conn.parts();
 
-	query.reset();
-
-	#[rustfmt::skip]
-	query.push(r#"
-		WITH RecordCounts AS (
-		  SELECT r.player_id, COUNT(r.record_id) AS record_count
-		  FROM
-	"#);
-
-	query.push(match leaderboard {
-		Leaderboard::NUB => "BestRecords AS r",
-		Leaderboard::PRO => "BestProRecords AS r",
+	query.push(format_args! {
+		"WITH RecordCounts AS (
+		   SELECT r.player_id, COUNT(r.record_id) AS record_count
+		   FROM {leaderboard} AS r
+		   INNER JOIN Filters AS f ON f.id = r.filter_id
+		   WHERE r.points = 10000
+		   AND f.mode = COALESCE(?, f.mode)
+		   GROUP BY r.player_id
+		 )
+		 SELECT
+		   p.id AS `id: PlayerId`,
+		   p.name AS `name: PlayerName`,
+		   r.record_count AS `records: u64`
+		 FROM RecordCounts AS r
+		 INNER JOIN Players AS p ON p.id = r.player_id
+		 ORDER BY r.record_count DESC
+		 LIMIT ?",
+		leaderboard = match leaderboard {
+			Leaderboard::NUB => "BestRecords",
+			Leaderboard::PRO => "BestProRecords",
+		},
 	});
-
-	#[rustfmt::skip]
-	query.push(r#"
-		  INNER JOIN Filters AS f ON f.id = r.filter_id
-		  WHERE r.points = 10000
-		  AND f.mode = COALESCE(?, f.mode)
-		  GROUP BY r.player_id
-		)
-		SELECT
-		  p.id AS `id: PlayerId`,
-		  p.name AS `name: PlayerName`,
-		  r.record_count AS `records: u64`
-		FROM RecordCounts AS r
-		INNER JOIN Players AS p ON p.id = r.player_id
-		ORDER BY r.record_count DESC
-		LIMIT ?
-	"#);
 
 	query
 		.build_query_as::<RecordsLeaderboardEntry>()
 		.bind(mode)
 		.bind(size)
-		.fetch(conn)
+		.fetch(db_conn)
 		.map_err(DatabaseError::from)
 		.fuse()
 		.instrumented(tracing::Span::current())
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn recalculate_rating(
 	#[builder(start_fn)] player_id: PlayerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<PlayerRating>>
 {
 	sqlx::query!(
@@ -319,7 +317,7 @@ pub async fn recalculate_rating(
 		 WHERE player_id = ?",
 		player_id,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.await?;
 
 	let maybe_rating = sqlx::query_scalar!(
@@ -350,28 +348,28 @@ pub async fn recalculate_rating(
 		player_id,
 		player_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.await?
 	.flatten();
 
 	if let Some(rating) = maybe_rating {
 		sqlx::query!("UPDATE Players SET rating = ? WHERE id = ?", rating, player_id)
-			.execute(conn.as_raw())
+			.execute(db_conn.raw_mut())
 			.await?;
 	}
 
 	Ok(maybe_rating)
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn delete(
 	#[builder(start_fn)] count: u64,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<u64>
 {
 	sqlx::query!("DELETE FROM Players LIMIT ?", count)
-		.execute(conn.as_raw())
+		.execute(db_conn.raw_mut())
 		.map_ok(|query_result| query_result.rows_affected())
 		.map_err(DatabaseError::from)
 		.await

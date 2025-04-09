@@ -1,427 +1,523 @@
-mod config;
-mod connected_servers;
-mod proto;
-
-use std::{future, sync::Arc};
-
-use axum::response::Response;
-use axum_tws::WebSocketUpgrade;
-use futures_util::{StreamExt, stream};
-use tokio::sync::{mpsc, oneshot};
-use tokio_util::sync::CancellationToken;
-
-pub use self::config::ServerMonitorConfig;
-use self::connected_servers::{ConnectedServers, SendServerMessageError, ServerTaskData};
-use crate::{
-	database::{Database, DatabaseError},
-	event_queue::{self, Event},
-	servers::{self, ServerId},
+pub use self::config::Config;
+use {
+	crate::{
+		database,
+		event_queue::{self, Event},
+		points::PointsDaemonHandle,
+		servers::{self, ServerId},
+	},
+	axum_tws::{WebSocketError, WebSocketUpgrade},
+	futures_util::{FutureExt, StreamExt, TryStreamExt, future, stream},
+	std::{
+		assert_matches::debug_assert_matches,
+		collections::hash_map::{self, HashMap},
+		error::Error,
+		fmt,
+		sync::Arc,
+	},
+	tokio::{
+		sync::{mpsc, oneshot},
+		task::{self, JoinSet},
+	},
+	tokio_util::sync::CancellationToken,
 };
 
-/// A background task for managing WebSocket connections to gameservers.
-#[derive(Debug)]
+mod config;
+mod proto;
+
+pub type Result<T, E = ServerMonitorError> = std::result::Result<T, E>;
+type TaskResult = Result<(), WebSocketError>;
+type HttpResponse = axum::response::Response;
+
 pub struct ServerMonitor
 {
-	/// The original sender half of the channel
-	tx: mpsc::Sender<MonitorMessage>,
+	config: Config,
+	database: database::ConnectionPool,
+	points_daemon: PointsDaemonHandle,
 
-	/// The receiver we use to handle messages from [`ServerMonitorHandle`]
-	rx: mpsc::Receiver<MonitorMessage>,
+	tasks: JoinSet<TaskResult>,
+	server_ids: HashMap<task::Id, ServerId>,
+	server_data: HashMap<ServerId, ConnectedServerData>,
 
-	database: Database,
-	config: ServerMonitorConfig,
-
-	/// A collection of gameserver WebSocket tasks
-	connected_servers: ConnectedServers,
+	handles_tx: mpsc::Sender<HandleMessage>,
+	handles_rx: mpsc::Receiver<HandleMessage>,
 }
 
-/// A handle to communicate with the [`ServerMonitor`]
 #[derive(Debug, Clone)]
 pub struct ServerMonitorHandle
 {
-	tx: mpsc::WeakSender<MonitorMessage>,
+	monitor_tx: mpsc::WeakSender<HandleMessage>,
 }
 
 #[derive(Debug, Display, Error)]
-pub enum ServerMonitorError
-{
-	#[display("{_0}")]
-	Database(DatabaseError),
-}
+pub enum ServerMonitorError {}
 
 #[derive(Debug, Display, Error)]
 pub enum ServerConnectingError
 {
-	#[display("monitor is unavailable")]
+	#[display("monitor is currently unavailable")]
 	MonitorUnavailable,
 
 	#[display("server is already connected")]
-	ServerAlreadyConnected,
+	AlreadyConnected,
 }
 
 #[derive(Debug, Display, Error)]
 pub enum DisconnectServerError
 {
-	#[display("monitor is unavailable")]
+	#[display("monitor is currently unavailable")]
 	MonitorUnavailable,
 }
 
 #[derive(Debug, Display, Error)]
-#[display("failed to get connection info: {_variant}")]
 pub enum GetConnectionInfoError
 {
-	#[display("monitor is unavailable")]
+	#[display("server is not currently connected")]
+	NotConnected,
+
+	#[display("monitor is currently unavailable")]
 	MonitorUnavailable,
 }
 
 #[derive(Debug, Display, Error)]
-#[display("failed to broadcast chat message: {_variant}")]
-pub enum BroadcastChatMessageError
+pub enum BroadcastMessageError
 {
-	#[display("monitor is unavailable")]
+	#[display("monitor is currently unavailable")]
 	MonitorUnavailable,
-
-	#[display("server is not connected")]
-	ServerNotConnected,
 }
 
-/// Messages sent from [`ServerMonitorHandle`] to [`ServerMonitor`]
 #[derive(Debug)]
-enum MonitorMessage
+struct ConnectedServerData
 {
-	/// Informs the monitor of a server trying to establish a connection.
+	tx: mpsc::Sender<ServerMessage>,
+	abort_handle: task::AbortHandle,
+}
+
+#[derive(Debug)]
+enum HandleMessage
+{
 	ServerConnecting
 	{
-		/// The ID of the server that is trying to connect
+		/// ID of the server that is connecting
 		id: ServerId,
 
-		/// The HTTP upgrade sent by the client
-		upgrade: WebSocketUpgrade,
+		/// HTTP upgrade extracted from the request
+		http_upgrade: WebSocketUpgrade,
 
-		/// Channel for the monitor to use to send a response back
-		response_tx: oneshot::Sender<Result<Response, ServerConnectingError>>,
+		/// Either the HTTP response to return or an error if the server could
+		/// not connect
+		response_tx: oneshot::Sender<Result<HttpResponse, ServerConnectingError>>,
 	},
 
-	/// Tells the monitor to close the connection to a specific server, if there
-	/// is any.
 	DisconnectServer
 	{
-		/// The ID of the server that should be disconnected
+		/// The ID of the server to disconnect
 		id: ServerId,
+
+		/// Whether the server was disconnected
+		response_tx: oneshot::Sender<bool>,
 	},
 
-	/// Retrieves realtime connection information from one or more servers.
 	WantConnectionInfo
 	{
-		/// The ID of the server to get connection info from or [`None`] if info
-		/// from all servers is requested
-		server_id: Option<ServerId>,
+		/// The ID of the server we want information from
+		id: ServerId,
 
-		/// Channel for the server task(s) to use to send a response back
-		response_tx: mpsc::UnboundedSender<Option<servers::ConnectionInfo>>,
+		/// Information about the connection
+		response_tx: oneshot::Sender<Option<servers::ConnectionInfo>>,
 	},
 
-	/// Instructs servers to broadcast a chat message.
-	BroadcastChatMessage
+	BroadcastMessage
 	{
-		/// The ID of the server to broadcast the message to or [`None`] if it
-		/// should be broadcasted to all servers
-		server_id: Option<ServerId>,
+		/// ID of the server that should broadcast the message
+		server_id: ServerId,
 
-		/// The message to broadcast
-		message: Box<str>,
+		/// The message to be broadcast
+		message: Arc<str>,
 
-		/// Channel for the server task(s) to use to send a response back
-		///
-		/// `true` means the message has been sent to the server.
-		response_tx: mpsc::UnboundedSender<bool>,
+		/// Signal to confirm the message was (not) broadcast
+		response_tx: oneshot::Sender<bool>,
 	},
 }
 
-/// Messages sent from [`ServerMonitor`] to server tasks
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum ServerMessage
 {
-	/// Instructs a connection to terminate immediately.
-	Disconnect,
-
-	/// Retrieves realtime connection information from one or more servers.
-	WantConnectionInfo
+	Disconnect
 	{
-		/// Channel for the server(s) to use to send a response back
-		response_tx: mpsc::UnboundedSender<Option<servers::ConnectionInfo>>,
+		response_tx: oneshot::Sender<bool>
 	},
 
-	/// Instructs a server to broadcast a chat message.
-	BroadcastChatMessage
+	WantConnectionInfo
 	{
-		/// The message to broadcast
-		message: Arc<str>,
+		response_tx: oneshot::Sender<Option<servers::ConnectionInfo>>
+	},
 
-		/// Channel for the server task to use to send a response back
-		///
-		/// `true` means the message has been sent to the server.
-		response_tx: mpsc::UnboundedSender<bool>,
+	BroadcastMessage
+	{
+		message: Arc<str>, response_tx: oneshot::Sender<bool>
 	},
 }
 
 impl ServerMonitor
 {
-	pub fn new(database: Database, config: ServerMonitorConfig) -> Self
+	pub fn new(
+		config: Config,
+		database: database::ConnectionPool,
+		points_daemon: PointsDaemonHandle,
+	) -> Self
 	{
-		let (tx, rx) = mpsc::channel(128);
-		let connected_servers = ConnectedServers::default();
+		let tasks = JoinSet::default();
+		let server_ids = HashMap::default();
+		let server_data = HashMap::default();
+		let (handles_tx, handles_rx) = mpsc::channel(128);
 
-		Self { tx, rx, database, config, connected_servers }
+		Self {
+			config,
+			database,
+			points_daemon,
+			tasks,
+			server_ids,
+			server_data,
+			handles_tx,
+			handles_rx,
+		}
 	}
 
 	pub fn handle(&self) -> ServerMonitorHandle
 	{
-		ServerMonitorHandle { tx: self.tx.downgrade() }
+		ServerMonitorHandle { monitor_tx: self.handles_tx.downgrade() }
 	}
 
-	#[tracing::instrument(skip(self, cancellation_token), err)]
-	pub async fn run(
-		mut self,
-		cancellation_token: CancellationToken,
-	) -> Result<(), ServerMonitorError>
+	#[instrument(skip(cancellation_token), err)]
+	pub async fn run(mut self, cancellation_token: CancellationToken) -> Result<()>
 	{
 		loop {
 			select! {
 				() = cancellation_token.cancelled() => {
-					tracing::info!("server monitor shutting down");
+					info!("server monitor shutting down");
 					return Ok(());
 				},
 
-				Some(message) = self.rx.recv() => match message {
-					MonitorMessage::ServerConnecting { id, upgrade, response_tx } => {
-						self.on_server_connecting(
-							cancellation_token.child_token(),
-							id,
-							upgrade,
-							response_tx,
-						);
-					},
-					MonitorMessage::DisconnectServer { id } => {
-						self.disconnect_server(id).await;
-					},
-					MonitorMessage::WantConnectionInfo { server_id, response_tx } => {
-						self.on_want_connection_info(server_id, response_tx).await;
-					},
-					MonitorMessage::BroadcastChatMessage { server_id, message, response_tx } => {
-						self.on_broadcast_chat_message(server_id, message, response_tx).await;
-					},
+				Some(join_result) = self.tasks.join_next_with_id() => {
+					self.on_task_complete(join_result).await;
 				},
 
-				Some(task_data) = self.connected_servers.join_next() => {
-					self.on_server_disconnect(task_data).await?;
+				Some(message) = self.handles_rx.recv() => {
+					self.on_handle_message(message).await;
 				},
-			}
-		}
-	}
-
-	#[tracing::instrument(level = "debug", skip(self, http_upgrade, response_tx))]
-	fn on_server_connecting(
-		&mut self,
-		cancellation_token: CancellationToken,
-		server_id: ServerId,
-		http_upgrade: WebSocketUpgrade,
-		response_tx: oneshot::Sender<Result<Response, ServerConnectingError>>,
-	)
-	{
-		let connect_result = self
-			.connected_servers
-			.insert(server_id, http_upgrade, self.config, self.database.clone(), cancellation_token)
-			.map_err(|task_id| {
-				tracing::warn!(%server_id, %task_id, "server attempted to connect multiple times");
-				ServerConnectingError::ServerAlreadyConnected
-			});
-
-		let _ = response_tx.send(connect_result);
-	}
-
-	#[tracing::instrument(level = "debug", skip(self))]
-	async fn disconnect_server(&mut self, id: ServerId)
-	{
-		match self.connected_servers.send_message(id, ServerMessage::Disconnect).await {
-			Ok(()) => {
-				tracing::debug!(%id, "disconnected server");
-			},
-			Err(SendServerMessageError::ServerNotConnected { .. }) => {
-				tracing::debug!(%id, "server was not connected");
-			},
-		}
-	}
-
-	#[tracing::instrument(level = "debug", skip(self, response_tx))]
-	async fn on_want_connection_info(
-		&mut self,
-		server_id: Option<ServerId>,
-		response_tx: mpsc::UnboundedSender<Option<servers::ConnectionInfo>>,
-	)
-	{
-		let message = ServerMessage::WantConnectionInfo { response_tx };
-		let Some(server_id) = server_id else {
-			let server_count = self.connected_servers.broadcast_message(&message).await;
-			tracing::debug!(server_count, "broadcasted message to all servers");
-			return;
-		};
-
-		if let Err(SendServerMessageError::ServerNotConnected { message }) =
-			self.connected_servers.send_message(server_id, message).await
-		{
-			let ServerMessage::WantConnectionInfo { response_tx } = message else {
-				unreachable!();
 			};
-
-			let _ = response_tx.send(None);
 		}
 	}
 
-	#[tracing::instrument(level = "debug", skip(self, response_tx))]
-	async fn on_broadcast_chat_message(
+	#[instrument]
+	async fn on_task_complete(
 		&mut self,
-		server_id: Option<ServerId>,
-		message: Box<str>,
-		response_tx: mpsc::UnboundedSender<bool>,
+		join_result: Result<(task::Id, TaskResult), task::JoinError>,
 	)
 	{
-		let message = ServerMessage::BroadcastChatMessage { message: message.into(), response_tx };
-		let Some(server_id) = server_id else {
-			let server_count = self.connected_servers.broadcast_message(&message).await;
-			tracing::debug!(server_count, "broadcasted message to all servers");
+		match join_result {
+			Ok((task_id, task_result)) => {
+				let Some(server_id) = self.server_ids.remove(&task_id) else {
+					unreachable!()
+				};
+
+				let Some(data) = self.server_data.remove(&server_id) else {
+					unreachable!()
+				};
+
+				debug_assert!(data.tx.is_closed());
+				debug_assert_eq!(data.abort_handle.id(), task_id);
+				debug_assert!(data.abort_handle.is_finished());
+
+				if let Err(err) = task_result {
+					warn!(
+						task.id = %task_id,
+						server.id = %server_id,
+						error = &err as &dyn Error,
+						"server task encountered an error",
+					);
+				} else {
+					info!(task.id = %task_id, server.id = %server_id, "server disconnected");
+				}
+
+				event_queue::dispatch(Event::ServerDisconnected { id: server_id });
+			},
+			Err(err) => {
+				error!(error = &err as &dyn Error, "failed to join server task");
+			},
+		}
+	}
+
+	#[instrument]
+	async fn on_handle_message(&mut self, message: HandleMessage)
+	{
+		match message {
+			HandleMessage::ServerConnecting { id, http_upgrade, response_tx } => {
+				let _ = response_tx.send(self.on_server_connecting(id, http_upgrade).await);
+			},
+			HandleMessage::DisconnectServer { id, response_tx } => {
+				self.disconnect_server(id, response_tx).await;
+			},
+			HandleMessage::WantConnectionInfo { id, response_tx } => {
+				self.get_connection_info(id, response_tx).await;
+			},
+			HandleMessage::BroadcastMessage { server_id, message, response_tx } => {
+				self.broadcast_message(server_id, message, response_tx).await;
+			},
+		}
+	}
+
+	#[instrument]
+	async fn on_server_connecting(
+		&mut self,
+		id: ServerId,
+		http_upgrade: WebSocketUpgrade,
+	) -> Result<HttpResponse, ServerConnectingError>
+	{
+		match self.server_data.entry(id) {
+			hash_map::Entry::Occupied(entry) => {
+				debug_assert!(self.server_ids.contains_key(&entry.get().abort_handle.id()));
+				Err(ServerConnectingError::AlreadyConnected)
+			},
+
+			hash_map::Entry::Vacant(entry) => {
+				if cfg!(debug_assertions) {
+					self.server_ids.values().for_each(|&server_id| assert_ne!(server_id, id));
+				}
+
+				// Because `on_upgrade` (see end of this function) spawns a task
+				// internally, but we want to spawn tasks ourselves (in
+				// `self.tasks`), we have to set up a channel for sending the
+				// socket from the task spawned by `on_upgrade` to our own task.
+				let (socket_tx, socket_rx) = oneshot::channel();
+				let (server_tx, server_rx) = mpsc::channel(32);
+				let config = self.config;
+				let database = self.database.clone();
+				let points_daemon = self.points_daemon.clone();
+				let server_data = entry.insert(ConnectedServerData {
+					tx: server_tx,
+					abort_handle: self
+						.tasks
+						.build_task()
+						.name(&format!("gameserver_{id}"))
+						.spawn(socket_rx.then(move |socket_result| {
+							match socket_result {
+								Ok(socket) => future::Either::Left({
+									proto::serve_connection(
+										socket,
+										server_rx,
+										config,
+										database,
+										points_daemon,
+										id,
+									)
+								}),
+								Err(_) => future::Either::Right(if cfg!(debug_assertions) {
+									future::ready(Ok((/* debug assertion below failed */)))
+								} else {
+									unreachable!("`socket_tx` is not dropped")
+								}),
+							}
+						}))
+						.unwrap_or_else(|err| panic!("failed to spawn task: {err}")),
+				});
+
+				{
+					let old_id = self.server_ids.insert(server_data.abort_handle.id(), id);
+					debug_assert_matches!(old_id, None);
+				}
+
+				Ok(http_upgrade.on_upgrade(async move |socket| {
+					let _ = socket_tx.send(socket);
+				}))
+			},
+		}
+	}
+
+	#[instrument]
+	async fn disconnect_server(&mut self, id: ServerId, response_tx: oneshot::Sender<bool>)
+	{
+		let Some(&ConnectedServerData { ref tx, .. }) = self.server_data.get(&id) else {
+			let _ = response_tx.send(false);
 			return;
 		};
 
-		if let Err(SendServerMessageError::ServerNotConnected { message }) =
-			self.connected_servers.send_message(server_id, message).await
+		if let Err(mpsc::error::SendError(message)) =
+			tx.send(ServerMessage::Disconnect { response_tx }).await
 		{
-			let ServerMessage::BroadcastChatMessage { response_tx, .. } = message else {
-				unreachable!();
+			let ServerMessage::Disconnect { response_tx } = message else {
+				unreachable!()
 			};
 
 			let _ = response_tx.send(false);
 		}
 	}
 
-	#[tracing::instrument(level = "debug", skip(self), err)]
-	async fn on_server_disconnect(
+	#[instrument]
+	async fn get_connection_info(
 		&mut self,
-		task_data: ServerTaskData,
-	) -> Result<(), ServerMonitorError>
+		id: ServerId,
+		response_tx: oneshot::Sender<Option<servers::ConnectionInfo>>,
+	)
 	{
-		if !task_data.abort_handle.is_finished() {
-			tracing::warn!("server disconnected but task is not finished?");
+		let Some(&ConnectedServerData { ref tx, .. }) = self.server_data.get(&id) else {
+			let _ = response_tx.send(None);
+			return;
+		};
+
+		if let Err(mpsc::error::SendError(message)) =
+			tx.send(ServerMessage::WantConnectionInfo { response_tx }).await
+		{
+			let ServerMessage::WantConnectionInfo { response_tx } = message else {
+				unreachable!()
+			};
+
+			let _ = response_tx.send(None);
 		}
+	}
 
-		if let sender_count @ 1.. = task_data.tx.strong_count() {
-			tracing::warn!(sender_count, "server disconnected but channel is not closed?");
+	#[instrument]
+	async fn broadcast_message(
+		&mut self,
+		server_id: ServerId,
+		message: Arc<str>,
+		response_tx: oneshot::Sender<bool>,
+	)
+	{
+		let Some(&ConnectedServerData { ref tx, .. }) = self.server_data.get(&server_id) else {
+			let _ = response_tx.send(false);
+			return;
+		};
+
+		if let Err(mpsc::error::SendError(message)) =
+			tx.send(ServerMessage::BroadcastMessage { message, response_tx }).await
+		{
+			let ServerMessage::BroadcastMessage { message, response_tx } = message else {
+				unreachable!()
+			};
+
+			let _ = response_tx.send(false);
 		}
+	}
+}
 
-		event_queue::dispatch(Event::ServerDisconnected { id: task_data.id });
-
-		Ok(())
+#[expect(clippy::missing_fields_in_debug)]
+impl fmt::Debug for ServerMonitor
+{
+	fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result
+	{
+		fmt.debug_struct("ServerMonitor")
+			.field("config", &self.config)
+			.field("tasks", &self.tasks.len())
+			.field("handles", &self.handles_tx.weak_count())
+			.finish()
 	}
 }
 
 impl ServerMonitorHandle
 {
-	/// Creates a dangling handle.
-	///
-	/// Calls to this handle will always return a "monitor unavailable" error.
 	pub fn dangling() -> Self
 	{
-		let (tx, _) = mpsc::channel(1);
-		Self { tx: tx.downgrade() }
+		Self { monitor_tx: mpsc::channel(1).0.downgrade() }
 	}
 
-	/// Notifies the monitor of a connecting server.
-	#[tracing::instrument(skip(self, http_upgrade), err(level = "debug"))]
+	#[instrument(skip(self, http_upgrade), err(level = "debug"))]
 	pub async fn server_connecting(
 		&self,
-		server_id: ServerId,
+		id: ServerId,
 		http_upgrade: WebSocketUpgrade,
-	) -> Result<Response, ServerConnectingError>
+	) -> Result<HttpResponse, ServerConnectingError>
 	{
 		let (response_tx, response_rx) = oneshot::channel();
-		let monitor_tx = self.tx.upgrade().ok_or(ServerConnectingError::MonitorUnavailable)?;
+		let tx = self
+			.monitor_tx
+			.upgrade()
+			.ok_or(ServerConnectingError::MonitorUnavailable)?;
 
-		monitor_tx
-			.send(MonitorMessage::ServerConnecting {
-				id: server_id,
-				upgrade: http_upgrade,
-				response_tx,
-			})
+		if tx
+			.send(HandleMessage::ServerConnecting { id, http_upgrade, response_tx })
 			.await
-			.map_err(|_| ServerConnectingError::MonitorUnavailable)?;
-
-		drop(monitor_tx);
-
-		match response_rx.await {
-			Ok(result) => result,
-			Err(_) => Err(ServerConnectingError::MonitorUnavailable),
+			.is_err()
+		{
+			return Err(ServerConnectingError::MonitorUnavailable);
 		}
+
+		response_rx.await.unwrap_or(Err(ServerConnectingError::MonitorUnavailable))
 	}
 
-	/// Tells the monitor to close the connection to a specific server, if there
-	/// is any.
-	#[tracing::instrument(skip(self), err(level = "debug"))]
-	pub async fn disconnect_server(&self, id: ServerId) -> Result<(), DisconnectServerError>
+	#[instrument(skip(self), ret(level = "debug"), err(level = "debug"))]
+	pub async fn disconnect_server(&self, id: ServerId) -> Result<bool, DisconnectServerError>
 	{
-		let monitor_tx = self.tx.upgrade().ok_or(DisconnectServerError::MonitorUnavailable)?;
+		let (response_tx, response_rx) = oneshot::channel();
+		let tx = self
+			.monitor_tx
+			.upgrade()
+			.ok_or(DisconnectServerError::MonitorUnavailable)?;
 
-		monitor_tx
-			.send(MonitorMessage::DisconnectServer { id })
-			.await
-			.map_err(|_| DisconnectServerError::MonitorUnavailable)
+		if tx.send(HandleMessage::DisconnectServer { id, response_tx }).await.is_err() {
+			return Err(DisconnectServerError::MonitorUnavailable);
+		}
+
+		response_rx.await.map_err(|_| DisconnectServerError::MonitorUnavailable)
 	}
 
-	/// Retrieves realtime connection information from a server.
-	#[tracing::instrument(skip(self), ret(level = "debug"), err(level = "debug"))]
+	#[instrument(skip(self), ret(level = "debug"), err(level = "debug"))]
 	pub async fn get_connection_info(
 		&self,
-		server_id: ServerId,
-	) -> Result<Option<servers::ConnectionInfo>, GetConnectionInfoError>
+		id: ServerId,
+	) -> Result<servers::ConnectionInfo, GetConnectionInfoError>
 	{
-		let (response_tx, mut response_rx) = mpsc::unbounded_channel();
-		let monitor_tx = self.tx.upgrade().ok_or(GetConnectionInfoError::MonitorUnavailable)?;
+		let (response_tx, response_rx) = oneshot::channel();
+		let tx = self
+			.monitor_tx
+			.upgrade()
+			.ok_or(GetConnectionInfoError::MonitorUnavailable)?;
 
-		monitor_tx
-			.send(MonitorMessage::WantConnectionInfo { server_id: Some(server_id), response_tx })
+		if tx
+			.send(HandleMessage::WantConnectionInfo { id, response_tx })
 			.await
-			.map_err(|_| GetConnectionInfoError::MonitorUnavailable)?;
+			.is_err()
+		{
+			return Err(GetConnectionInfoError::MonitorUnavailable);
+		}
 
-		drop(monitor_tx);
-
-		response_rx.recv().await.ok_or(GetConnectionInfoError::MonitorUnavailable)
+		response_rx
+			.await
+			.map_err(|_| GetConnectionInfoError::MonitorUnavailable)?
+			.ok_or(GetConnectionInfoError::NotConnected)
 	}
 
-	/// Instructs one or more servers to broadcast a chat message.
-	///
-	/// Returns how many servers have been instructed successfully.
-	#[tracing::instrument(skip(self, message), err(level = "debug"))]
-	pub async fn broadcast_chat_message(
+	#[instrument(skip_all, ret(level = "debug"), err(level = "debug"))]
+	pub async fn broadcast_message(
 		&self,
-		message: Box<str>,
-		server_id: Option<ServerId>,
-	) -> Result<usize, BroadcastChatMessageError>
+		to: impl IntoIterator<Item = ServerId>,
+		message: impl Into<Arc<str>>,
+	) -> Result<usize, BroadcastMessageError>
 	{
-		let (response_tx, response_rx) = mpsc::unbounded_channel();
-		let monitor_tx = self.tx.upgrade().ok_or(BroadcastChatMessageError::MonitorUnavailable)?;
+		let tx = self
+			.monitor_tx
+			.upgrade()
+			.ok_or(BroadcastMessageError::MonitorUnavailable)?;
 
-		tracing::debug!(chat_message = &*message, "broadcasting chat message");
+		let message = Into::<Arc<str>>::into(message);
 
-		monitor_tx
-			.send(MonitorMessage::BroadcastChatMessage { server_id, message, response_tx })
-			.await
-			.map_err(|_| BroadcastChatMessageError::MonitorUnavailable)?;
+		let responses = stream::iter(to).then(|server_id| {
+			let (response_tx, response_rx) = oneshot::channel();
+			let message = HandleMessage::BroadcastMessage {
+				server_id,
+				message: Arc::clone(&message),
+				response_tx,
+			};
 
-		drop(monitor_tx);
-
-		let responses = stream::unfold(response_rx, async |mut response_rx| {
-			response_rx.recv().await.map(|received| (received, response_rx))
+			tx.send(message).then(async move |send_result| {
+				send_result.map_err(|_| BroadcastMessageError::MonitorUnavailable)?;
+				response_rx.await.map_err(|_| BroadcastMessageError::MonitorUnavailable)
+			})
 		});
 
-		Ok(responses.filter(|&received| future::ready(received)).count().await)
+		responses
+			.try_fold(0_usize, async |count, received| Ok(count + usize::from(received)))
+			.await
 	}
 }

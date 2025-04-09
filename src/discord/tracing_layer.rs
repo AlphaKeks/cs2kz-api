@@ -1,16 +1,21 @@
-use std::{
-	collections::HashMap,
-	error::Error,
-	fmt::{self, Write},
-	mem,
+//! A [`tracing_subscriber::Layer`] implementation for recording events as
+//! Discord embeds and sending them over a channel to a [`Bot`]
+//!
+//! [`Bot`]: super::Bot
+
+use {
+	crate::time::Timestamp,
+	poise::serenity_prelude::{self as serenity, CreateEmbed, CreateEmbedFooter},
+	std::{
+		collections::HashMap,
+		error::Error,
+		fmt::{self, Write},
+		mem,
+	},
+	tokio::sync::mpsc,
+	tracing::{field::Field, span},
+	tracing_subscriber::{field, layer, registry},
 };
-
-use poise::serenity_prelude::{self as serenity, CreateEmbed, CreateEmbedFooter};
-use tokio::sync::mpsc;
-use tracing::{field::Field, span};
-use tracing_subscriber::{field, layer, registry};
-
-use crate::time::Timestamp;
 
 #[derive(Debug)]
 pub struct Layer
@@ -92,7 +97,7 @@ impl EventVisitor
 			tracing::Level::ERROR => (serenity::Colour::RED, "ERROR"),
 		};
 
-		let title = format!("({level}) `{target}`", target = event.metadata().target());
+		let title = format!("({}) `{}`", level, event.metadata().target());
 		let location = format!(
 			"`{}:{}`",
 			event
@@ -113,11 +118,10 @@ impl EventVisitor
 
 		if let Some(span) = parent_span {
 			let extensions = span.extensions();
-			let span_fields = extensions.get::<Fields>().map(|&Fields(ref fields)| {
-				fields.iter().map(|(&name, value)| (name, value.clone(), false))
-			});
 
-			if let Some(fields) = span_fields {
+			if let Some(fields) = extensions.get::<Fields>().map(|&Fields(ref raw_fields)| {
+				raw_fields.iter().map(|(&name, value)| (name, value.clone(), false))
+			}) {
 				embed = embed.fields(fields);
 			}
 		}
@@ -149,8 +153,10 @@ impl field::Visit for EventVisitor
 
 			self.embed = mem::take(&mut self.embed).description(format!("```\n{value}\n```"));
 		} else {
+			/// Field size limit imposed by Discord
 			const LIMIT: usize = 1024;
-			let cutoff = value.floor_char_boundary(LIMIT - "``".len() - "...".len());
+
+			let cutoff = value.floor_char_boundary(const { LIMIT - "``".len() - "...".len() });
 			let mut formatted_value = format!("`{}", &value[..cutoff]);
 
 			if cutoff < (value.len() - 1) {
@@ -165,6 +171,7 @@ impl field::Visit for EventVisitor
 
 	fn record_error(&mut self, field: &Field, value: &(dyn Error + 'static))
 	{
+		// TODO: capture error sources?
 		self.embed = mem::take(&mut self.embed).field(field.name(), value.to_string(), false);
 	}
 
@@ -183,6 +190,7 @@ impl field::Visit for Fields
 
 	fn record_error(&mut self, field: &Field, value: &(dyn Error + 'static))
 	{
+		// TODO: capture error sources?
 		let _ = write!(self.0.entry(field.name()).or_default(), "{value}");
 	}
 

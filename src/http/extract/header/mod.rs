@@ -1,14 +1,14 @@
-mod rejection;
-
-use std::fmt;
-
-use axum::{
-	extract::{FromRequestParts, OptionalFromRequestParts},
-	http::request,
-};
-use headers::HeaderMapExt;
-
 pub(crate) use self::rejection::HeaderRejection;
+use {
+	axum::{
+		extract::{FromRequestParts, OptionalFromRequestParts},
+		http::request,
+	},
+	headers::HeaderMapExt,
+	std::fmt,
+};
+
+mod rejection;
 
 #[derive(Debug)]
 pub(crate) struct Header<T>(pub T)
@@ -22,7 +22,7 @@ where
 {
 	type Rejection = HeaderRejection<T>;
 
-	#[tracing::instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
+	#[instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
 	async fn from_request_parts(
 		parts: &mut request::Parts,
 		_state: &S,
@@ -43,7 +43,7 @@ where
 {
 	type Rejection = HeaderRejection<T>;
 
-	#[tracing::instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
+	#[instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
 	async fn from_request_parts(
 		parts: &mut request::Parts,
 		_state: &S,

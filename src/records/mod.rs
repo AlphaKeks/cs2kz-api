@@ -1,14 +1,3 @@
-mod id;
-mod points;
-mod rank;
-mod teleports;
-mod time;
-
-use futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt};
-use serde::{Deserialize, Serialize};
-use sqlx::Row;
-use utoipa::ToSchema;
-
 pub use self::{
 	id::{ParseRecordIdError, RecordId},
 	points::{InvalidPoints, Points},
@@ -16,17 +5,29 @@ pub use self::{
 	teleports::Teleports,
 	time::{InvalidTime, Time},
 };
-use crate::{
-	database::{DatabaseConnection, DatabaseError, DatabaseResult, QueryBuilder},
-	maps::{CourseId, CourseLocalId, CourseName, FilterId, MapId, MapName, Tier},
-	mode::Mode,
-	players::{self, PlayerId, PlayerName, PlayerRating},
-	points::CalculateLeaderboardPortionForNewRecordError,
-	servers::ServerSessionId,
-	stream::StreamExt as _,
-	styles::Styles,
-	time::Timestamp,
+use {
+	crate::{
+		database::{self, DatabaseError, DatabaseResult, QueryBuilder},
+		maps::{CourseId, CourseLocalId, CourseName, FilterId, MapId, MapName, Tier},
+		mode::Mode,
+		players::{self, PlayerId, PlayerName, PlayerRating},
+		points::CalculateLeaderboardPortionForNewRecordError,
+		servers::ServerSessionId,
+		stream::StreamExt as _,
+		styles::Styles,
+		time::Timestamp,
+	},
+	futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt},
+	serde::{Deserialize, Serialize},
+	sqlx::Row,
+	utoipa::ToSchema,
 };
+
+mod id;
+mod points;
+mod rank;
+mod teleports;
+mod time;
 
 #[derive(Debug, Serialize, ToSchema, sqlx::FromRow)]
 pub struct Record
@@ -142,27 +143,27 @@ pub enum CreateRecordError
 	CalculatePoints(CalculateLeaderboardPortionForNewRecordError),
 
 	#[from(DatabaseError, sqlx::Error)]
-	Database(DatabaseError),
+	DatabaseError(DatabaseError),
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn create(
 	#[builder(start_fn)] filter_id: FilterId,
 	#[builder(start_fn)] player_id: PlayerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	session_id: ServerSessionId,
 	time: Time,
 	teleports: Teleports,
 	styles: Styles,
 ) -> Result<CreatedRecord, CreateRecordError>
 {
-	#[tracing::instrument(level = "debug", skip(conn), ret(level = "debug"), err)]
+	#[instrument(level = "debug", skip(db_conn), ret(level = "debug"), err)]
 	#[builder(finish_fn = exec)]
 	async fn update_leaderboard(
 		#[builder(start_fn)] filter_id: FilterId,
 		#[builder(start_fn)] leaderboard: Leaderboard,
-		#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+		#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 		time: Time,
 		has_pb: bool,
 	) -> Result<CreatedRankedRecordStats, CreateRecordError>
@@ -180,7 +181,7 @@ pub async fn create(
 			query
 				.build_query_scalar::<Tier>()
 				.bind(filter_id)
-				.fetch_one(conn.as_raw())
+				.fetch_one(db_conn.raw_mut())
 				.await?
 		};
 
@@ -209,7 +210,7 @@ pub async fn create(
 			query
 				.build_query_as::<LeaderboardEntry>()
 				.bind(filter_id)
-				.fetch_all(conn.as_raw())
+				.fetch_all(db_conn.raw_mut())
 				.await?
 		};
 
@@ -249,7 +250,7 @@ pub async fn create(
 			let leaderboard_portion = if !is_small_leaderboard
 				&& let Some(distribution) =
 					crate::points::Distribution::get_cached(filter_id, leaderboard)
-						.exec(&mut *conn)
+						.exec(&mut *db_conn)
 						.await?
 			{
 				crate::points::LeaderboardPortion::from_distribution(distribution, time).await?
@@ -289,14 +290,14 @@ pub async fn create(
 		})
 	}
 
-	#[tracing::instrument(level = "debug", skip(conn), ret(level = "debug"), err)]
+	#[instrument(level = "debug", skip(db_conn), ret(level = "debug"), err)]
 	#[builder(finish_fn = exec)]
 	async fn update_pb(
 		#[builder(start_fn)] filter_id: FilterId,
 		#[builder(start_fn)] player_id: PlayerId,
 		#[builder(start_fn)] record_id: RecordId,
 		#[builder(start_fn)] leaderboard: Leaderboard,
-		#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+		#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 		points: Points,
 	) -> DatabaseResult<()>
 	{
@@ -321,13 +322,13 @@ pub async fn create(
 			.bind(player_id)
 			.bind(record_id)
 			.bind(points)
-			.execute(conn.as_raw())
+			.execute(db_conn.raw_mut())
 			.await?;
 
 		Ok(())
 	}
 
-	if players::is_banned(player_id).exec(&mut *conn).await? {
+	if players::is_banned(player_id).exec(&mut *db_conn).await? {
 		return Err(CreateRecordError::PlayerIsBanned);
 	}
 
@@ -342,7 +343,7 @@ pub async fn create(
 		teleports,
 		styles,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.and_then(async |row| row.try_get(0))
 	.await?;
 
@@ -359,7 +360,7 @@ pub async fn create(
 		filter_id,
 		player_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.await?;
 
 	let pro_pb = sqlx::query!(
@@ -371,19 +372,19 @@ pub async fn create(
 		filter_id,
 		player_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.await?;
 
 	let nub_stats = if nub_pb.as_ref().is_none_or(|pb| pb.time > time) {
 		let stats = update_leaderboard(filter_id, Leaderboard::NUB)
 			.time(time)
 			.has_pb(nub_pb.is_some())
-			.exec(&mut *conn)
+			.exec(&mut *db_conn)
 			.await?;
 
 		update_pb(filter_id, player_id, record_id, Leaderboard::NUB)
 			.points(stats.points)
-			.exec(&mut *conn)
+			.exec(&mut *db_conn)
 			.await?;
 
 		Some(stats)
@@ -395,12 +396,12 @@ pub async fn create(
 		let stats = update_leaderboard(filter_id, Leaderboard::PRO)
 			.time(time)
 			.has_pb(nub_pb.is_some())
-			.exec(&mut *conn)
+			.exec(&mut *db_conn)
 			.await?;
 
 		update_pb(filter_id, player_id, record_id, Leaderboard::PRO)
 			.points(stats.points)
-			.exec(&mut *conn)
+			.exec(&mut *db_conn)
 			.await?;
 
 		Some(stats)
@@ -409,7 +410,7 @@ pub async fn create(
 	};
 
 	let player_rating = if nub_stats.is_some() || pro_stats.is_some() {
-		players::recalculate_rating(player_id).exec(&mut *conn).await?
+		players::recalculate_rating(player_id).exec(&mut *db_conn).await?
 	} else {
 		None
 	};
@@ -424,10 +425,10 @@ pub async fn create(
 	})
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn count(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	player: Option<PlayerId>,
 	course: Option<CourseId>,
 	mode: Option<Mode>,
@@ -444,16 +445,16 @@ pub async fn count(
 		course,
 		mode,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.and_then(async |row| row.try_into().map_err(DatabaseError::convert_count))
 	.await
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	player: Option<PlayerId>,
 	course: Option<CourseId>,
 	mode: Option<Mode>,
@@ -461,10 +462,7 @@ pub fn get(
 	limit: u64,
 ) -> impl Stream<Item = DatabaseResult<Record>>
 {
-	let (conn, query) = conn.as_parts();
-	query.reset();
-
-	query.push({
+	sqlx::query_as::<_, Record>({
 		"SELECT
 		   r.id,
 		   p.id AS player_id,
@@ -493,32 +491,26 @@ pub fn get(
 		 AND f.mode = COALESCE(?, f.mode)
 		 ORDER BY r.id DESC
 		 LIMIT ?, ?"
-	});
-
-	query
-		.build_query_as::<Record>()
-		.bind(player)
-		.bind(course)
-		.bind(mode)
-		.bind(offset)
-		.bind(limit)
-		.fetch(conn)
-		.map_err(DatabaseError::from)
-		.fuse()
-		.instrumented(tracing::Span::current())
+	})
+	.bind(player)
+	.bind(course)
+	.bind(mode)
+	.bind(offset)
+	.bind(limit)
+	.fetch(db_conn.raw_mut())
+	.map_err(DatabaseError::from)
+	.fuse()
+	.instrumented(tracing::Span::current())
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_by_id(
 	#[builder(start_fn)] record_id: RecordId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<Record>>
 {
-	let (conn, query) = conn.as_parts();
-	query.reset();
-
-	query.push({
+	sqlx::query_as::<_, Record>({
 		"SELECT
 		   r.id,
 		   p.id AS player_id,
@@ -543,29 +535,26 @@ pub async fn get_by_id(
 		 INNER JOIN Courses AS c ON c.id = f.course_id
 		 INNER JOIN Maps AS m ON m.id = c.map_id
 		 WHERE r.id = ?"
-	});
-
-	query
-		.build_query_as::<Record>()
-		.bind(record_id)
-		.fetch_optional(conn)
-		.map_err(DatabaseError::from)
-		.await
+	})
+	.bind(record_id)
+	.fetch_optional(db_conn.raw_mut())
+	.map_err(DatabaseError::from)
+	.await
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get_detailed_leaderboard(
 	#[builder(start_fn)] filter_id: FilterId,
 	#[builder(start_fn)] leaderboard: Leaderboard,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	#[builder(default = u64::MAX)] size: u64,
 ) -> impl Stream<Item = DatabaseResult<Record>>
 {
-	let (conn, query) = conn.as_parts();
+	let (conn, query) = db_conn.parts();
 	query.reset();
 
-	query.push({
+	query.push(format_args! {
 		"SELECT
 		   r.id,
 		   p.id AS player_id,
@@ -582,31 +571,26 @@ pub fn get_detailed_leaderboard(
 		   BestRecords.points AS nub_points,
 		   BestProRecords.points AS pro_points,
 		   r.created_at
-		 FROM Records AS r"
+		 FROM Records AS r
+		 {join_leaderboards}
+		 INNER JOIN Players AS p ON p.id = r.player_id
+		 INNER JOIN Filters AS f ON f.id = r.filter_id
+		 INNER JOIN Courses AS c ON c.id = f.course_id
+		 INNER JOIN Maps AS m ON m.id = c.map_id
+		 WHERE r.filter_id = ?
+		 ORDER BY r.time ASC, r.created_at ASC
+		 LIMIT ?",
+		join_leaderboards = match leaderboard {
+			Leaderboard::NUB => {
+				"INNER JOIN BestRecords ON BestRecords.record_id = r.id
+				 LEFT JOIN BestProRecords ON BestProRecords.record_id = r.id"
+			},
+			Leaderboard::PRO => {
+				"LEFT JOIN BestRecords ON BestRecords.record_id = r.id
+				 INNER JOIN BestProRecords ON BestProRecords.record_id = r.id"
+			},
+		},
 	});
-
-	match leaderboard {
-		Leaderboard::NUB => {
-			query.push({
-				" INNER JOIN BestRecords ON BestRecords.record_id = r.id
-				  LEFT JOIN BestProRecords ON BestProRecords.record_id = r.id"
-			});
-		},
-		Leaderboard::PRO => {
-			query.push({
-				" LEFT JOIN BestRecords ON BestRecords.record_id = r.id
-				  INNER JOIN BestProRecords ON BestProRecords.record_id = r.id"
-			});
-		},
-	}
-
-	query.push(" INNER JOIN Players AS p ON p.id = r.player_id ");
-	query.push(" INNER JOIN Filters AS f ON f.id = r.filter_id ");
-	query.push(" INNER JOIN Courses AS c ON c.id = f.course_id ");
-	query.push(" INNER JOIN Maps AS m ON m.id = c.map_id ");
-	query.push(" WHERE r.filter_id = ?");
-	query.push(" ORDER BY r.time ASC, r.created_at ASC ");
-	query.push(" LIMIT ? ");
 
 	query
 		.build_query_as::<Record>()
@@ -618,54 +602,53 @@ pub fn get_detailed_leaderboard(
 		.instrumented(tracing::Span::current())
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get_leaderboard(
 	#[builder(start_fn)] filter_id: FilterId,
 	#[builder(start_fn)] leaderboard: Leaderboard,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	#[builder(default = u64::MAX)] size: u64,
 ) -> impl Stream<Item = DatabaseResult<LeaderboardEntry>>
 {
-	let (conn, query) = conn.as_parts();
+	let (conn, query) = db_conn.parts();
 	query.reset();
 
-	query.push({
+	query.push(format_args! {
 		"SELECT
 		   r.id,
 		   r.player_id,
 		   r.time
 		 FROM Records AS r
-		 INNER JOIN"
+		 INNER JOIN {leaderboard} AS br ON br.record_id = r.id
+		 WHERE br.filter_id = ?
+		 ORDER BY r.time ASC, r.created_at ASC,
+		 LIMIT ?",
+		leaderboard = match leaderboard {
+			Leaderboard::NUB => " BestRecords",
+			Leaderboard::PRO => " BestProRecords",
+		},
 	});
-
-	query.push(match leaderboard {
-		Leaderboard::NUB => " BestRecords AS br ON br.record_id = r.id WHERE br.filter_id = ",
-		Leaderboard::PRO => " BestProRecords AS br ON br.record_id = r.id WHERE br.filter_id = ",
-	});
-
-	query.push_bind(filter_id);
-	query.push(" ORDER BY r.time ASC, r.created_at ASC");
-	query.push(" LIMIT ");
-	query.push_bind(size);
 
 	query
 		.build_query_as::<LeaderboardEntry>()
+		.bind(filter_id)
+		.bind(size)
 		.fetch(conn)
 		.map_err(DatabaseError::from)
 		.fuse()
 		.instrumented(tracing::Span::current())
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn delete(
 	#[builder(start_fn)] count: u64,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<u64>
 {
 	sqlx::query!("DELETE FROM Records LIMIT ?", count)
-		.execute(conn.as_raw())
+		.execute(db_conn.raw_mut())
 		.map_ok(|query_result| query_result.rows_affected())
 		.map_err(DatabaseError::from)
 		.await

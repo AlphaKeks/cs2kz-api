@@ -1,14 +1,3 @@
-mod host;
-mod id;
-mod name;
-mod port;
-mod session_id;
-
-use futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt};
-use serde::Serialize;
-use sqlx::Row;
-use utoipa::ToSchema;
-
 pub use self::{
 	host::ServerHost,
 	id::{ParseServerIdError, ServerId},
@@ -16,16 +5,28 @@ pub use self::{
 	port::ServerPort,
 	session_id::{ParseServerSessionIdError, ServerSessionId},
 };
-use crate::{
-	access_key::AccessKey,
-	database::{DatabaseConnection, DatabaseError, DatabaseResult},
-	game::Game,
-	players::{PlayerId, PlayerName},
-	plugin::PluginVersionId,
-	stream::StreamExt as _,
-	time::Timestamp,
-	users::{UserId, Username},
+use {
+	crate::{
+		access_keys::AccessKey,
+		database::{self, DatabaseError, DatabaseResult},
+		game::Game,
+		players::{PlayerId, PlayerName},
+		plugin::PluginVersionId,
+		stream::StreamExt as _,
+		time::Timestamp,
+		users::{UserId, Username},
+	},
+	futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt},
+	serde::Serialize,
+	sqlx::Row,
+	utoipa::ToSchema,
 };
+
+mod host;
+mod id;
+mod name;
+mod port;
+mod session_id;
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct Server
@@ -61,10 +62,10 @@ pub struct ServerOwner
 	pub name: Username,
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn count(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: Option<&str>,
 	host: Option<&str>,
 	game: Game,
@@ -86,17 +87,17 @@ pub async fn count(
 		owned_by,
 		!require_access_key,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.and_then(async |row| row.try_into().map_err(DatabaseError::convert_count))
 	.await
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get(
 	#[builder(start_fn)] game: Game,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: Option<&str>,
 	host: Option<&str>,
 	owned_by: Option<UserId>,
@@ -134,7 +135,7 @@ pub fn get(
 		offset,
 		limit,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current())
@@ -150,11 +151,11 @@ pub fn get(
 	})
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_by_id(
 	#[builder(start_fn)] server_id: ServerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<Server>>
 {
 	sqlx::query!(
@@ -172,7 +173,7 @@ pub async fn get_by_id(
 		 WHERE s.id = ?",
 		server_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.map_ok(|maybe_row| {
 		maybe_row.map(|row| Server {
@@ -189,24 +190,24 @@ pub async fn get_by_id(
 	.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_id_by_access_key(
 	#[builder(start_fn)] access_key: AccessKey,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<ServerId>>
 {
 	sqlx::query_scalar!("SELECT id AS `id: ServerId` FROM Servers WHERE access_key = ?", access_key)
-		.fetch_optional(conn.as_raw())
+		.fetch_optional(db_conn.raw_mut())
 		.map_err(DatabaseError::from)
 		.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_owner_id(
 	#[builder(start_fn)] server_id: ServerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<UserId>>
 {
 	sqlx::query_scalar!(
@@ -215,7 +216,7 @@ pub async fn get_owner_id(
 		 WHERE id = ?",
 		server_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.await
 }
@@ -235,10 +236,10 @@ pub enum CreateServerError
 	DatabaseError(DatabaseError),
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn create(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: ServerName,
 	host: ServerHost,
 	port: ServerPort,
@@ -258,7 +259,7 @@ pub async fn create(
 		owned_by,
 		access_key,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.and_then(async |row| row.try_get(0))
 	.map_ok(|id| CreatedServer { id, access_key })
 	.map_err(DatabaseError::from)
@@ -282,11 +283,11 @@ pub enum UpdateServerError
 	DatabaseError(DatabaseError),
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn update(
 	#[builder(start_fn)] server_id: ServerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: Option<ServerName>,
 	host: Option<ServerHost>,
 	port: Option<ServerPort>,
@@ -306,7 +307,7 @@ pub async fn update(
 		game,
 		server_id,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.map_ok(|query_result| query_result.rows_affected() > 0)
 	.map_err(DatabaseError::from)
 	.map_err(|err| {
@@ -321,11 +322,11 @@ pub async fn update(
 	.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn delete(
 	#[builder(start_fn)] count: u64,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	owned_by: Option<UserId>,
 ) -> DatabaseResult<u64>
 {
@@ -336,17 +337,17 @@ pub async fn delete(
 		owned_by,
 		count,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.map_ok(|query_result| query_result.rows_affected())
 	.map_err(DatabaseError::from)
 	.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn reset_access_key(
 	#[builder(start_fn)] server_id: ServerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	#[builder(default = AccessKey::new())] access_key: AccessKey,
 ) -> DatabaseResult<Option<AccessKey>>
 {
@@ -357,17 +358,17 @@ pub async fn reset_access_key(
 		access_key,
 		server_id,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.map_ok(|query_result| (query_result.rows_affected() > 0).then_some(access_key))
 	.map_err(DatabaseError::from)
 	.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn delete_access_key(
 	#[builder(start_fn)] server_id: ServerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<bool>
 {
 	sqlx::query!(
@@ -376,17 +377,17 @@ pub async fn delete_access_key(
 		 WHERE id = ?",
 		server_id,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.map_ok(|query_result| query_result.rows_affected() > 0)
 	.map_err(DatabaseError::from)
 	.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn create_session(
 	#[builder(start_fn)] server_id: ServerId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	plugin_version_id: PluginVersionId,
 ) -> DatabaseResult<ServerSessionId>
 {
@@ -397,7 +398,7 @@ pub async fn create_session(
 		server_id,
 		plugin_version_id,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.and_then(async |row| row.try_get(0))
 	.map_err(DatabaseError::from)
 	.await

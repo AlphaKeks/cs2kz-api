@@ -1,9 +1,11 @@
-use cs2kz_api::users::sessions::SessionId;
-use utoipa::{
-	Modify,
-	openapi::{
-		OpenApi,
-		security::{ApiKey, ApiKeyValue, Http, HttpAuthScheme, SecurityScheme},
+use {
+	cs2kz_api::users::sessions::SessionId,
+	utoipa::{
+		Modify,
+		openapi::{
+			OpenApi,
+			security::{ApiKey, ApiKeyValue, Http, HttpAuthScheme, SecurityScheme},
+		},
 	},
 };
 

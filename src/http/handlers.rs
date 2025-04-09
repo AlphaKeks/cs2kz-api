@@ -1,110 +1,110 @@
-use std::{
-	collections::{BTreeMap, BTreeSet, HashMap},
-	error::Error,
-	fs::File,
-	pin::pin,
-	sync::{Arc, LazyLock},
-};
-
-use axum::{
-	extract::State,
-	response::{IntoResponse, NoContent, Redirect, Response, Sse, sse},
-};
-use axum_extra::extract::CookieJar;
-use axum_tws::WebSocketUpgrade;
-use cs2kz_api::{
-	access_key::AccessKey,
-	bans::{self, Ban, BanId, BanReason, CreateBanError, CreatedBan, UnbanReason},
-	checksum::Checksum,
-	database::Database,
-	email::EmailAddress,
-	error::ResultExt,
-	event_queue::{self, Event},
-	game::Game,
-	git_revision::GitRevision,
-	maps::{
-		self,
-		CourseDescription,
-		CourseId,
-		CourseLocalId,
-		CourseName,
-		CourseUpdate,
-		CreateMapError,
-		FilterNotes,
-		FilterUpdate,
-		Map,
-		MapDescription,
-		MapId,
-		MapName,
-		MapState,
-		NewCS2Filters,
-		NewCSGOFilters,
-		NewCourse,
-		NewFilter,
-		NewFilters,
-		Tier,
+use {
+	crate::{
+		Config,
+		TaskManager,
+		http::{
+			auth,
+			extract::{header::Header, path::Path, query::Query},
+			json::Json,
+			openapi,
+			pagination::{Limit, Offset, PaginationResponse},
+			problem_details::{ProblemDescription, ProblemDetails, ProblemType},
+			response::{Created, HandlerError, HandlerResult},
+		},
+		runtime,
 	},
-	mode::Mode,
-	players::{self, Player, PlayerId, PlayerPreferences, PlayerRating},
-	plugin::{self, PluginVersion, PluginVersionInfo},
-	records::{self, Leaderboard, Record, RecordId},
-	server_monitor::{self, ServerMonitorHandle},
-	servers::{
-		self,
-		CreateServerError,
-		CreatedServer,
-		Server,
-		ServerHost,
-		ServerId,
-		ServerName,
-		ServerPort,
+	axum::{
+		extract::State,
+		response::{IntoResponse, NoContent, Redirect, Response, Sse, sse},
 	},
-	steam::{
-		self,
-		workshop::{self, WorkshopId},
+	axum_extra::extract::CookieJar,
+	axum_tws::WebSocketUpgrade,
+	cs2kz_api::{
+		access_keys::AccessKey,
+		bans::{self, Ban, BanId, BanReason, CreateBanError, CreatedBan, UnbanReason},
+		checksum::Checksum,
+		database,
+		email::EmailAddress,
+		error::ResultExt,
+		event_queue::{self, Event},
+		game::Game,
+		git_revision::GitRevision,
+		maps::{
+			self,
+			CourseDescription,
+			CourseId,
+			CourseLocalId,
+			CourseName,
+			CourseUpdate,
+			CreateMapError,
+			FilterNotes,
+			FilterUpdate,
+			Map,
+			MapDescription,
+			MapId,
+			MapName,
+			MapState,
+			NewCS2Filters,
+			NewCSGOFilters,
+			NewCourse,
+			NewFilter,
+			NewFilters,
+			Tier,
+		},
+		mode::Mode,
+		players::{self, Player, PlayerId, PlayerPreferences, PlayerRating},
+		plugin::{self, PluginVersion, PluginVersionInfo},
+		records::{self, Leaderboard, Record, RecordId},
+		server_monitor::{self, ServerMonitorHandle},
+		servers::{
+			self,
+			CreateServerError,
+			CreatedServer,
+			Server,
+			ServerHost,
+			ServerId,
+			ServerName,
+			ServerPort,
+		},
+		steam::{
+			self,
+			workshop::{self, WorkshopId},
+		},
+		stream::{StreamExt as _, TryStreamExt as _},
+		styles::Style,
+		time::{Seconds, Timestamp},
+		users::{
+			self,
+			Permission,
+			Permissions,
+			ServerBudget,
+			User,
+			UserId,
+			Username,
+			sessions::SessionId,
+		},
 	},
-	stream::{StreamExt as _, TryStreamExt as _},
-	styles::Style,
-	time::{Seconds, Timestamp},
-	users::{
-		self,
-		Permission,
-		Permissions,
-		ServerBudget,
-		User,
-		UserId,
-		Username,
-		sessions::SessionId,
+	futures_util::{
+		Stream,
+		StreamExt as _,
+		TryFutureExt,
+		TryStreamExt as _,
+		stream::{self, FuturesUnordered},
 	},
-};
-use futures_util::{
-	Stream,
-	StreamExt as _,
-	TryFutureExt,
-	TryStreamExt as _,
-	stream::{self, FuturesUnordered},
-};
-use headers::{Authorization, authorization::Bearer};
-use serde::{Deserialize, Serialize};
-use steam_openid::VerifyCallbackPayloadErrorKind;
-use tokio::task;
-use tokio_util::sync::CancellationToken;
-use url::Url;
-use utoipa::{IntoParams, ToSchema};
-
-use crate::{
-	Config,
-	TaskManager,
-	http::{
-		auth,
-		extract::{header::Header, path::Path, query::Query},
-		json::Json,
-		openapi,
-		pagination::{Limit, Offset, PaginationResponse},
-		problem_details::{ProblemDescription, ProblemDetails, ProblemType},
-		response::{Created, HandlerError, HandlerResult},
+	headers::{Authorization, authorization::Bearer},
+	serde::{Deserialize, Serialize},
+	std::{
+		collections::{BTreeMap, BTreeSet, HashMap},
+		error::Error,
+		fs::File,
+		pin::pin,
+		sync::{Arc, LazyLock},
 	},
-	runtime,
+	steam_openid::VerifyCallbackPayloadErrorKind,
+	tokio::task,
+	tokio_util::sync::CancellationToken,
+	url::Url,
+	utoipa::{IntoParams, ToSchema},
 };
 
 const PLAYER_COOKIE_NAME: &str = "kz-player";
@@ -112,7 +112,7 @@ const PLAYER_COOKIE_NAME: &str = "kz-player";
 //=================================================================================================
 // `/docs`
 
-#[tracing::instrument(level = "trace", skip(config))]
+#[instrument(level = "trace", skip(config))]
 pub(crate) async fn openapi_json(State(config): State<Arc<Config>>) -> Response
 {
 	let schema = openapi::SCHEMA.get_or_init(|| {
@@ -142,7 +142,7 @@ pub(crate) async fn openapi_json(State(config): State<Arc<Config>>) -> Response
 	Json(schema).into_response()
 }
 
-#[tracing::instrument(level = "trace")]
+#[instrument(level = "trace")]
 pub(crate) async fn problems_json() -> Response
 {
 	static PROBLEMS: LazyLock<Box<[ProblemDescription]>> =
@@ -151,7 +151,7 @@ pub(crate) async fn problems_json() -> Response
 	Json(&PROBLEMS[..]).into_response()
 }
 
-#[tracing::instrument(level = "trace")]
+#[instrument(level = "trace")]
 pub(crate) async fn swagger_ui(path: Option<Path<String>>) -> Response
 {
 	static CONFIG: LazyLock<Arc<utoipa_swagger_ui::Config<'static>>> = LazyLock::new(|| {
@@ -178,7 +178,7 @@ pub(crate) async fn swagger_ui(path: Option<Path<String>>) -> Response
 			.body(file.bytes.into())
 			.unwrap_or_else(|err| panic!("failed to build hard-coded response: {err}")),
 		Err(err) => {
-			tracing::error!(error = &*err, "failed to serve SwaggerUI file");
+			error!(error = &*err, "failed to serve SwaggerUI file");
 			http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
 		},
 	}
@@ -203,7 +203,7 @@ pub(crate) struct RatingLeaderboard(Vec<players::RatingLeaderboardEntry>);
 /// Global Player Rating Leaderboard
 ///
 /// This endpoint returns the highest rated players in KZ.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/leaderboards/rating",
@@ -215,14 +215,14 @@ pub(crate) struct RatingLeaderboard(Vec<players::RatingLeaderboardEntry>);
 	),
 )]
 pub(crate) async fn get_rating_leaderboard(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Query(GetRatingLeaderboardQuery { limit }): Query<GetRatingLeaderboardQuery>,
 ) -> HandlerResult<Json<RatingLeaderboard>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let entries = players::get_rating_leaderboard()
 		.size(limit.value())
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.try_collect::<Vec<_>>()
 		.await?;
 
@@ -248,7 +248,7 @@ pub(crate) struct RecordsLeaderboard(Vec<players::RecordsLeaderboardEntry>);
 /// Global World Record Leaderboard
 ///
 /// This endpoint returns the players with the most World Records.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/leaderboards/records/{leaderboard}",
@@ -260,16 +260,16 @@ pub(crate) struct RecordsLeaderboard(Vec<players::RecordsLeaderboardEntry>);
 	),
 )]
 pub(crate) async fn get_records_leaderboard(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Path(leaderboard): Path<Leaderboard>,
 	Query(GetRecordsLeaderboardQuery { mode, limit }): Query<GetRecordsLeaderboardQuery>,
 ) -> HandlerResult<Json<RecordsLeaderboard>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let entries = players::get_records_leaderboard(leaderboard)
 		.maybe_mode(mode)
 		.size(limit.value())
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.try_collect::<Vec<_>>()
 		.await?;
 
@@ -289,7 +289,7 @@ pub(crate) struct GetCourseLeaderboardQuery
 ///
 /// This endpoint returns the leaderboard for a specific course in a specific
 /// mode.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/leaderboards/course/{course_id}/{mode}/{leaderboard}",
@@ -306,21 +306,21 @@ pub(crate) struct GetCourseLeaderboardQuery
 	),
 )]
 pub(crate) async fn get_course_leaderboard(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Path((course_id, mode, leaderboard)): Path<(CourseId, Mode, Leaderboard)>,
 	Query(GetCourseLeaderboardQuery { limit }): Query<GetCourseLeaderboardQuery>,
 ) -> HandlerResult<Json<Vec<Record>>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 
 	let filter_id = maps::get_filter_id(course_id, mode)
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.await?
 		.ok_or(HandlerError::NotFound)?;
 
 	let records = records::get_detailed_leaderboard(filter_id, leaderboard)
 		.size(limit.value())
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.try_collect::<Vec<_>>()
 		.await?;
 
@@ -355,7 +355,7 @@ pub(crate) struct GetRecordsQuery
 /// Records
 ///
 /// This endpoint returns the latest records.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/records",
@@ -367,17 +367,17 @@ pub(crate) struct GetRecordsQuery
 	),
 )]
 pub(crate) async fn get_records(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Query(GetRecordsQuery { player, course, mode, offset, limit }): Query<GetRecordsQuery>,
 ) -> HandlerResult<Json<PaginationResponse<Record>>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let mut response = PaginationResponse::new({
 		records::count()
 			.maybe_player(player)
 			.maybe_course(course)
 			.maybe_mode(mode)
-			.exec(&mut conn)
+			.exec(&mut db_conn)
 			.await?
 	});
 
@@ -387,7 +387,7 @@ pub(crate) async fn get_records(
 		.maybe_mode(mode)
 		.offset(offset.value())
 		.limit(limit.value())
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.try_collect_into(&mut response)
 		.await?;
 
@@ -397,7 +397,7 @@ pub(crate) async fn get_records(
 /// Records by ID
 ///
 /// This endpoint returns a specific record by its API-assigned ID.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/records/{record_id}",
@@ -410,13 +410,13 @@ pub(crate) async fn get_records(
 	),
 )]
 pub(crate) async fn get_record(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Path(record_id): Path<RecordId>,
 ) -> HandlerResult<Json<Record>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let record = records::get_by_id(record_id)
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.await?
 		.ok_or(HandlerError::NotFound)?;
 
@@ -533,16 +533,13 @@ pub(crate) enum CreateFiltersRequest
 {
 	CS2
 	{
-		vnl: CreateFilterRequest,
-		ckz: CreateFilterRequest,
+		vnl: CreateFilterRequest, ckz: CreateFilterRequest
 	},
 
 	#[allow(clippy::upper_case_acronyms)]
 	CSGO
 	{
-		kzt: CreateFilterRequest,
-		skz: CreateFilterRequest,
-		vnl: CreateFilterRequest,
+		kzt: CreateFilterRequest, skz: CreateFilterRequest, vnl: CreateFilterRequest
 	},
 }
 
@@ -569,7 +566,7 @@ pub(crate) struct CreateMapResponse
 /// follows [the rules].
 ///
 /// [the rules]: http://docs.cs2kz.org/mapping/approval#rules
-#[tracing::instrument(
+#[instrument(
 	skip(config, database, steam_api_client),
 	ret(level = "debug"),
 	err(Debug, level = "debug")
@@ -589,14 +586,14 @@ pub(crate) struct CreateMapResponse
 )]
 pub(crate) async fn create_map(
 	State(config): State<Arc<Config>>,
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	State(steam_api_client): State<steam::api::Client>,
 	session: auth::Session,
 	Json(CreateMapRequest { workshop_id, description, game, courses }): Json<CreateMapRequest>,
 ) -> HandlerResult<Created<CreateMapResponse>>
 {
 	if !session.user_info().permissions().contains(&Permission::CreateMaps) {
-		tracing::debug!("user does not have permissions");
+		debug!("user does not have permissions");
 		return Err(HandlerError::Unauthorized);
 	}
 
@@ -605,7 +602,7 @@ pub(crate) async fn create_map(
 			(Game::CS2, CreateFiltersRequest::CS2 { .. })
 			| (Game::CSGO, CreateFiltersRequest::CSGO { .. }) => { /* ok */ },
 			_ => {
-				tracing::debug!("invalid filters");
+				debug!("invalid filters");
 				return Err(ProblemDetails::new(ProblemType::InvalidFilterForGame).into());
 			},
 		}
@@ -620,7 +617,7 @@ pub(crate) async fn create_map(
 		})?;
 
 	if &map_metadata.creator_id != session.user_info().id().as_ref() {
-		tracing::debug!("user is not the mapper");
+		debug!("user is not the mapper");
 		return Err(HandlerError::Unauthorized);
 	}
 
@@ -637,7 +634,7 @@ pub(crate) async fn create_map(
 			config.depot_downloader.out_dir.as_ref(),
 		)
 		.await
-		.inspect_err_dyn(|error| tracing::error!(error, "failed to download workshop map"))
+		.inspect_err_dyn(|error| error!(error, "failed to download workshop map"))
 		.map_err(|_| HandlerError::Internal)?;
 
 		let span = tracing::info_span!("read_depot_downloader_result");
@@ -646,9 +643,9 @@ pub(crate) async fn create_map(
 		task::spawn_blocking(move || {
 			let _guard = span.entered();
 			File::open(path.as_ref())
-				.inspect_err_dyn(|error| tracing::error!(error, "failed to open {path:?}"))
+				.inspect_err_dyn(|error| error!(error, "failed to open {path:?}"))
 				.and_then(|mut file| Checksum::from_reader(&mut file))
-				.inspect_err_dyn(|error| tracing::error!(error, "failed to read {path:?}"))
+				.inspect_err_dyn(|error| error!(error, "failed to read {path:?}"))
 		})
 		.await
 		.unwrap_or_else(|err| panic!("{err}"))
@@ -656,7 +653,7 @@ pub(crate) async fn create_map(
 	};
 
 	let map_id = database
-		.in_transaction(async move |conn| {
+		.in_transaction(async move |db_conn| {
 			for course in courses.values() {
 				let mut mappers =
 					FuturesUnordered::from_iter(course.mappers.iter().map(|&user_id| {
@@ -674,9 +671,9 @@ pub(crate) async fn create_map(
 					})?;
 
 					if let Ok(()) =
-						users::create(mapper_id).name(mapper_name).exec(&mut *conn).await
+						users::create(mapper_id).name(mapper_name).exec(&mut *db_conn).await
 					{
-						tracing::debug!(
+						debug!(
 							id = %mapper_id,
 							name = mapper.name.as_str(),
 							"registered mapper as new user",
@@ -763,7 +760,7 @@ pub(crate) async fn create_map(
 				.checksum(vpk_checksum)
 				.created_by(session.user_info().id())
 				.courses(courses)
-				.exec(conn)
+				.exec(db_conn)
 				.await
 		})
 		.await?;
@@ -816,7 +813,7 @@ impl GetMapsQuery
 /// Global KZ Maps
 ///
 /// This endpoint returns the latest KZ maps.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/maps/{game}",
@@ -828,16 +825,16 @@ impl GetMapsQuery
 	),
 )]
 pub(crate) async fn get_maps(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Query(GetMapsQuery { name, game, state, offset, limit }): Query<GetMapsQuery>,
 ) -> HandlerResult<Json<PaginationResponse<Map>>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let mut response = PaginationResponse::new({
 		maps::count(game)
 			.maybe_name(name.as_deref())
 			.state(state)
-			.exec(&mut conn)
+			.exec(&mut db_conn)
 			.await?
 	});
 
@@ -846,7 +843,7 @@ pub(crate) async fn get_maps(
 		.state(state)
 		.offset(offset.value())
 		.limit(limit.value())
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.try_collect_into(&mut response)
 		.await?;
 
@@ -856,7 +853,7 @@ pub(crate) async fn get_maps(
 /// Global KZ Maps by ID
 ///
 /// This endpoint returns a specific KZ map by its API-assigned ID.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/maps/{map_id}",
@@ -869,13 +866,13 @@ pub(crate) async fn get_maps(
 	),
 )]
 pub(crate) async fn get_map(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Path(map_id): Path<MapId>,
 ) -> HandlerResult<Json<Map>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let map = maps::get_by_id(map_id)
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.await?
 		.ok_or(HandlerError::NotFound)?;
 
@@ -941,7 +938,7 @@ pub(crate) struct UpdateFiltersRequest
 /// map is currently work-in-progress and you uploaded a new version to Steam's
 /// Community Workshop, you must send a request to this endpoint to make the API
 /// aware of it.
-#[tracing::instrument(
+#[instrument(
 	skip(config, database, steam_api_client),
 	ret(level = "debug"),
 	err(Debug, level = "debug")
@@ -965,7 +962,7 @@ pub(crate) struct UpdateFiltersRequest
 )]
 pub(crate) async fn update_map(
 	State(config): State<Arc<Config>>,
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	State(steam_api_client): State<steam::api::Client>,
 	session: auth::Session,
 	Path(map_id): Path<MapId>,
@@ -973,24 +970,24 @@ pub(crate) async fn update_map(
 ) -> HandlerResult<NoContent>
 {
 	let has_permissions = session.user_info().permissions().contains(&Permission::UpdateMaps);
-	let mut conn = None;
+	let mut db_conn = None;
 
 	if !has_permissions {
-		tracing::debug!("user does not have permissions");
+		debug!("user does not have permissions");
 
-		let conn = conn.insert(database.acquire_connection().await?);
+		let db_conn = db_conn.insert(database.acquire().await?);
 		let metadata = maps::get_metadata(map_id)
-			.exec(conn)
+			.exec(db_conn)
 			.await?
 			.ok_or(HandlerError::NotFound)?;
 
 		if metadata.created_by != session.user_info().id() {
-			tracing::debug!("user is not the mapper");
+			debug!("user is not the mapper");
 			return Err(HandlerError::Unauthorized);
 		}
 
 		let state @ (MapState::Graveyard | MapState::WIP) = metadata.state else {
-			tracing::debug!(state = ?metadata.state, "user cannot update frozen map");
+			debug!(state = ?metadata.state, "user cannot update frozen map");
 
 			let mut problem_details = ProblemDetails::new(ProblemType::MapIsFrozen);
 			problem_details.add_extension_member("map_state", &metadata.state);
@@ -1007,7 +1004,7 @@ pub(crate) async fn update_map(
 			return Err(HandlerError::Problem(problem_details));
 		};
 
-		tracing::debug!(?state, "user is updating their map");
+		debug!(?state, "user is updating their map");
 	}
 
 	let (metadata, checksum) = {
@@ -1026,7 +1023,7 @@ pub(crate) async fn update_map(
 				config.depot_downloader.out_dir.as_ref(),
 			)
 			.await
-			.inspect_err_dyn(|error| tracing::error!(error, "failed to download workshop map"))
+			.inspect_err_dyn(|error| error!(error, "failed to download workshop map"))
 			.map_err(|_| HandlerError::Internal)?;
 
 			let span = tracing::info_span!("read_depot_downloader_result");
@@ -1035,9 +1032,9 @@ pub(crate) async fn update_map(
 			task::spawn_blocking(move || {
 				let _guard = span.entered();
 				File::open(path.as_ref())
-					.inspect_err_dyn(|error| tracing::error!(error, "failed to open {path:?}"))
+					.inspect_err_dyn(|error| error!(error, "failed to open {path:?}"))
 					.and_then(|mut file| Checksum::from_reader(&mut file))
-					.inspect_err_dyn(|error| tracing::error!(error, "failed to read {path:?}"))
+					.inspect_err_dyn(|error| error!(error, "failed to read {path:?}"))
 			})
 			.await
 			.unwrap_or_else(|err| panic!("{err}"))
@@ -1048,7 +1045,7 @@ pub(crate) async fn update_map(
 	};
 
 	if !has_permissions && metadata.creator_id != *session.user_info().id().as_ref() {
-		tracing::debug!("user is not the mapper");
+		debug!("user is not the mapper");
 		return Err(HandlerError::Unauthorized);
 	}
 
@@ -1058,46 +1055,47 @@ pub(crate) async fn update_map(
 		HandlerError::Problem(problem_details)
 	})?;
 
-	let conn = match conn {
-		Some(ref mut conn) => conn,
-		None => conn.insert(database.acquire_connection().await?),
+	let db_conn = match db_conn {
+		Some(ref mut db_conn) => db_conn,
+		None => db_conn.insert(database.acquire().await?),
 	};
 
-	conn.in_transaction(async |conn| {
-		let course_updates = course_updates.into_iter().map(|(local_id, course_update)| {
-			let filter_updates =
-				course_update.filter_updates.into_iter().map(|(mode, filter_update)| {
-					let filter_update = FilterUpdate::builder()
-						.maybe_nub_tier(filter_update.nub_tier)
-						.maybe_pro_tier(filter_update.pro_tier)
-						.maybe_ranked(filter_update.ranked)
-						.maybe_notes(filter_update.notes)
-						.build();
+	db_conn
+		.in_transaction(async |db_conn| {
+			let course_updates = course_updates.into_iter().map(|(local_id, course_update)| {
+				let filter_updates =
+					course_update.filter_updates.into_iter().map(|(mode, filter_update)| {
+						let filter_update = FilterUpdate::builder()
+							.maybe_nub_tier(filter_update.nub_tier)
+							.maybe_pro_tier(filter_update.pro_tier)
+							.maybe_ranked(filter_update.ranked)
+							.maybe_notes(filter_update.notes)
+							.build();
 
-					(mode, filter_update)
-				});
+						(mode, filter_update)
+					});
 
-			let course_update = CourseUpdate::builder()
-				.maybe_name(course_update.name)
-				.maybe_description(course_update.description)
-				.added_mappers(course_update.added_mappers)
-				.removed_mappers(course_update.removed_mappers)
-				.filter_updates(filter_updates)
-				.build();
+				let course_update = CourseUpdate::builder()
+					.maybe_name(course_update.name)
+					.maybe_description(course_update.description)
+					.added_mappers(course_update.added_mappers)
+					.removed_mappers(course_update.removed_mappers)
+					.filter_updates(filter_updates)
+					.build();
 
-			(local_id, course_update)
-		});
+				(local_id, course_update)
+			});
 
-		maps::update(map_id)
-			.workshop_id(workshop_id)
-			.name(map_name)
-			.maybe_description(description)
-			.checksum(checksum)
-			.course_updates(course_updates)
-			.exec(conn)
-			.await
-	})
-	.await?;
+			maps::update(map_id)
+				.workshop_id(workshop_id)
+				.name(map_name)
+				.maybe_description(description)
+				.checksum(checksum)
+				.course_updates(course_updates)
+				.exec(db_conn)
+				.await
+		})
+		.await?;
 
 	Ok(NoContent)
 }
@@ -1112,7 +1110,7 @@ pub(crate) struct UpdateMapStateRequest
 ///
 /// This endpoint can be used by the Map Approval Team to approve or reject
 /// submitted maps.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	put,
 	path = "/maps/{map_id}/state",
@@ -1130,26 +1128,22 @@ pub(crate) struct UpdateMapStateRequest
 	),
 )]
 pub(crate) async fn update_map_state(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Path(map_id): Path<MapId>,
 	Json(UpdateMapStateRequest { state }): Json<UpdateMapStateRequest>,
 ) -> HandlerResult<NoContent>
 {
 	if !session.user_info().permissions().contains(&Permission::UpdateMaps) {
-		tracing::debug!("user does not have permissions");
+		debug!("user does not have permissions");
 		return Err(HandlerError::Unauthorized);
 	}
 
 	let updated = database
-		.in_transaction(async |conn| maps::set_state(map_id, state).exec(conn).await)
+		.in_transaction(async |db_conn| maps::set_state(map_id, state).exec(db_conn).await)
 		.await?;
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 //=================================================================================================
@@ -1177,7 +1171,7 @@ pub(crate) struct CreateServerResponse
 /// a server owner, please make sure your server follows [the rules].
 ///
 /// [the rules]: http://docs.cs2kz.org/servers/approval#rules
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	post,
 	path = "/servers",
@@ -1192,28 +1186,30 @@ pub(crate) struct CreateServerResponse
 	),
 )]
 pub(crate) async fn create_server(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Json(CreateServerRequest { name, host, port, game }): Json<CreateServerRequest>,
 ) -> HandlerResult<Created<CreateServerResponse>>
 {
 	if session.user_info().server_budget().is_exhausted() {
-		tracing::debug!("server budget is exhausted");
+		debug!("server budget is exhausted");
 		return Err(HandlerError::Unauthorized);
 	}
 
 	let (server_id, access_key) = database
-		.in_transaction(async |conn| -> Result<_, CreateServerError> {
+		.in_transaction(async |db_conn| -> Result<_, CreateServerError> {
 			let CreatedServer { id, access_key } = servers::create()
 				.name(name)
 				.host(host)
 				.port(port)
 				.game(game)
 				.owned_by(session.user_info().id())
-				.exec(&mut *conn)
+				.exec(&mut *db_conn)
 				.await?;
 
-			users::decrement_server_budget(session.user_info().id()).exec(conn).await?;
+			users::decrement_server_budget(session.user_info().id())
+				.exec(db_conn)
+				.await?;
 
 			Ok((id, access_key))
 		})
@@ -1257,11 +1253,7 @@ pub(crate) struct GetServersQuery
 /// currently online and connected to the API will contain a `connection_info`
 /// object with real-time information about the map they're currently hosting
 /// and who's playing on them.
-#[tracing::instrument(
-	skip(database, server_monitor),
-	ret(level = "debug"),
-	err(Debug, level = "debug")
-)]
+#[instrument(skip(database, server_monitor), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/servers",
@@ -1273,19 +1265,19 @@ pub(crate) struct GetServersQuery
 	),
 )]
 pub(crate) async fn get_servers(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	State(server_monitor): State<ServerMonitorHandle>,
 	Query(GetServersQuery { name, host, game, owned_by, offset, limit }): Query<GetServersQuery>,
 ) -> HandlerResult<Json<PaginationResponse<Server>>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let mut response = PaginationResponse::new({
 		servers::count()
 			.maybe_name(name.as_deref())
 			.maybe_host(host.as_deref())
 			.game(game)
 			.maybe_owned_by(owned_by)
-			.exec(&mut conn)
+			.exec(&mut db_conn)
 			.await?
 	});
 
@@ -1296,13 +1288,13 @@ pub(crate) async fn get_servers(
 			.maybe_owned_by(owned_by)
 			.offset(offset.value())
 			.limit(limit.value())
-			.exec(&mut conn)
+			.exec(&mut db_conn)
 	});
 
 	response.extend_reserve(servers.size_hint().0);
 	while let Some(server) = servers.try_next().await? {
 		response.extend_one(match server_monitor.get_connection_info(server.id).await {
-			Ok(connection_info) => Server { connection_info, ..server },
+			Ok(connection_info) => Server { connection_info: Some(connection_info), ..server },
 			Err(_) => server,
 		});
 	}
@@ -1313,11 +1305,7 @@ pub(crate) async fn get_servers(
 /// Global KZ Servers by ID
 ///
 /// Returns a specific KZ server by its API-assigned ID.
-#[tracing::instrument(
-	skip(database, server_monitor),
-	ret(level = "debug"),
-	err(Debug, level = "debug")
-)]
+#[instrument(skip(database, server_monitor), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/servers/{server_id}",
@@ -1330,18 +1318,18 @@ pub(crate) async fn get_servers(
 	),
 )]
 pub(crate) async fn get_server(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	State(server_monitor): State<ServerMonitorHandle>,
 	Path(server_id): Path<ServerId>,
 ) -> HandlerResult<Json<Server>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let mut server = servers::get_by_id(server_id)
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.await?
 		.ok_or(HandlerError::NotFound)?;
 
-	server.connection_info = server_monitor.get_connection_info(server.id).await.ok().flatten();
+	server.connection_info = server_monitor.get_connection_info(server.id).await.ok();
 
 	Ok(Json(server))
 }
@@ -1359,7 +1347,7 @@ pub(crate) struct UpdateServerRequest
 ///
 /// This endpoint can be used by server owners to update the metadata of their
 /// servers, such as IP/port.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	patch,
 	path = "/servers/{server_id}",
@@ -1377,28 +1365,24 @@ pub(crate) struct UpdateServerRequest
 	),
 )]
 pub(crate) async fn update_server(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Path(server_id): Path<ServerId>,
 	Json(UpdateServerRequest { name, host, port, game }): Json<UpdateServerRequest>,
 ) -> HandlerResult<NoContent>
 {
 	let updated = database
-		.in_transaction(async |conn| {
+		.in_transaction(async |db_conn| {
 			servers::update(server_id)
 				.maybe_name(name)
 				.maybe_host(host)
 				.maybe_port(port)
 				.maybe_game(game)
-				.exec(conn)
+				.exec(db_conn)
 				.await
 		})
 		.await?;
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -1412,11 +1396,7 @@ pub(crate) struct ResetServerAccessKeyResponse
 /// This endpoint can be used by server owners and admins to generate a new
 /// access key for a server. This immediately invalidates the old key and cuts
 /// off the server if it is currently connected to the API.
-#[tracing::instrument(
-	skip(database, server_monitor),
-	ret(level = "debug"),
-	err(Debug, level = "debug")
-)]
+#[instrument(skip(database, server_monitor), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	put,
 	path = "/servers/{server_id}/access-key",
@@ -1431,7 +1411,7 @@ pub(crate) struct ResetServerAccessKeyResponse
 	),
 )]
 pub(crate) async fn reset_server_access_key(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	State(server_monitor): State<ServerMonitorHandle>,
 	session: auth::Session,
 	Path(server_id): Path<ServerId>,
@@ -1446,16 +1426,19 @@ pub(crate) async fn reset_server_access_key(
 	}
 
 	let access_key = database
-		.in_transaction(async |conn| servers::reset_access_key(server_id).exec(conn).await)
+		.in_transaction(async |db_conn| servers::reset_access_key(server_id).exec(db_conn).await)
 		.await?
 		.ok_or(HandlerError::NotFound)?;
 
 	match server_monitor.disconnect_server(server_id).await {
-		Ok(()) => {
-			tracing::debug!("disconnected server");
+		Ok(true) => {
+			debug!("disconnected server");
+		},
+		Ok(false) => {
+			debug!("did not disconnect server; not currently connected");
 		},
 		Err(server_monitor::DisconnectServerError::MonitorUnavailable) => {
-			tracing::debug!("did not disconnect server; monitor unavailable");
+			debug!("did not disconnect server; monitor unavailable");
 		},
 	}
 
@@ -1467,11 +1450,7 @@ pub(crate) async fn reset_server_access_key(
 /// This endpoint can be used by admins to delete a server's API key. This
 /// immediately invalidates it and cuts off the server if it is currently
 /// connected to the API.
-#[tracing::instrument(
-	skip(database, server_monitor),
-	ret(level = "debug"),
-	err(Debug, level = "debug")
-)]
+#[instrument(skip(database, server_monitor), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	delete,
 	path = "/servers/{server_id}/access-key",
@@ -1486,7 +1465,7 @@ pub(crate) async fn reset_server_access_key(
 	),
 )]
 pub(crate) async fn delete_server_access_key(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	State(server_monitor): State<ServerMonitorHandle>,
 	session: auth::Session,
 	Path(server_id): Path<ServerId>,
@@ -1501,23 +1480,22 @@ pub(crate) async fn delete_server_access_key(
 	}
 
 	let updated = database
-		.in_transaction(async |conn| servers::delete_access_key(server_id).exec(conn).await)
+		.in_transaction(async |db_conn| servers::delete_access_key(server_id).exec(db_conn).await)
 		.await?;
 
 	match server_monitor.disconnect_server(server_id).await {
-		Ok(()) => {
-			tracing::debug!("disconnected server");
+		Ok(true) => {
+			debug!("disconnected server");
+		},
+		Ok(false) => {
+			debug!("did not disconnect server; not currently connected");
 		},
 		Err(server_monitor::DisconnectServerError::MonitorUnavailable) => {
-			tracing::debug!("did not disconnect server; monitor unavailable");
+			debug!("did not disconnect server; monitor unavailable");
 		},
 	}
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 //=================================================================================================
@@ -1543,7 +1521,7 @@ pub(crate) struct CreateBanResponse
 /// This endpoint can be used to restrict players from submitting records or
 /// jumpstats to the API. Servers will also be informed about banned players
 /// when they join.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	post,
 	path = "/bans",
@@ -1558,23 +1536,23 @@ pub(crate) struct CreateBanResponse
 	),
 )]
 pub(crate) async fn create_ban(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Json(CreateBanRequest { player_id, reason, expires_after }): Json<CreateBanRequest>,
 ) -> HandlerResult<Created<CreateBanResponse>>
 {
 	if !session.user_info().permissions().contains(&Permission::CreateBans) {
-		tracing::debug!("user does not have permissions");
+		debug!("user does not have permissions");
 		return Err(HandlerError::Unauthorized);
 	}
 
 	let (ban_id, expires_at) = database
-		.in_transaction(async |conn| -> Result<_, CreateBanError> {
+		.in_transaction(async |db_conn| -> Result<_, CreateBanError> {
 			let CreatedBan { id, expires_at } = bans::create(player_id)
 				.reason(reason)
 				.banned_by(session.user_info().id())
 				.maybe_expires_after(expires_after)
-				.exec(&mut *conn)
+				.exec(&mut *db_conn)
 				.await?;
 
 			Ok((id, expires_at))
@@ -1606,7 +1584,7 @@ pub(crate) struct GetBansQuery
 /// Player Bans
 ///
 /// This endpoint returns the latest player bans created by `POST /bans`.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/bans",
@@ -1618,16 +1596,16 @@ pub(crate) struct GetBansQuery
 	),
 )]
 pub(crate) async fn get_bans(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Query(GetBansQuery { player_id, banned_by, offset, limit }): Query<GetBansQuery>,
 ) -> HandlerResult<Json<PaginationResponse<Ban>>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let mut response = PaginationResponse::new({
 		bans::count()
 			.maybe_player(player_id)
 			.maybe_banned_by(banned_by)
-			.exec(&mut conn)
+			.exec(&mut db_conn)
 			.await?
 	});
 
@@ -1636,7 +1614,7 @@ pub(crate) async fn get_bans(
 		.maybe_banned_by(banned_by)
 		.offset(offset.value())
 		.limit(limit.value())
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.try_collect_into(&mut response)
 		.await?;
 
@@ -1646,7 +1624,7 @@ pub(crate) async fn get_bans(
 /// Player Bans by ID
 ///
 /// This endpoint returns information about a specific ban.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/bans/{ban_id}",
@@ -1659,13 +1637,13 @@ pub(crate) async fn get_bans(
 	),
 )]
 pub(crate) async fn get_ban(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Path(ban_id): Path<BanId>,
 ) -> HandlerResult<Json<Ban>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let ban = bans::get_by_id(ban_id)
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.await?
 		.ok_or(HandlerError::NotFound)?;
 
@@ -1686,7 +1664,7 @@ pub(crate) struct UpdateBanRequest
 ///
 /// **Do not use this endpoint to revert bans! Use `DELETE /bans/{ban_id}`
 /// instead.**
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	patch,
 	path = "/bans/{ban_id}",
@@ -1703,32 +1681,28 @@ pub(crate) struct UpdateBanRequest
 	),
 )]
 pub(crate) async fn update_ban(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Path(ban_id): Path<BanId>,
 	Json(UpdateBanRequest { reason, expires_after }): Json<UpdateBanRequest>,
 ) -> HandlerResult<NoContent>
 {
 	if !session.user_info().permissions().contains(&Permission::UpdateBans) {
-		tracing::debug!("user does not have permissions");
+		debug!("user does not have permissions");
 		return Err(HandlerError::Unauthorized);
 	}
 
 	let updated = database
-		.in_transaction(async |conn| {
+		.in_transaction(async |db_conn| {
 			bans::update(ban_id)
 				.maybe_reason(reason)
 				.maybe_expires_after(expires_after)
-				.exec(conn)
+				.exec(db_conn)
 				.await
 		})
 		.await?;
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -1741,7 +1715,7 @@ pub(crate) struct RevertBanRequest
 ///
 /// This endpoint can be used to revert a ban ("unban" a player). Only active
 /// bans can be reverted and a player can only have one active ban at a time.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	delete,
 	path = "/bans/{ban_id}",
@@ -1759,23 +1733,23 @@ pub(crate) struct RevertBanRequest
 	),
 )]
 pub(crate) async fn revert_ban(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Path(ban_id): Path<BanId>,
 	Json(RevertBanRequest { reason }): Json<RevertBanRequest>,
 ) -> HandlerResult<NoContent>
 {
 	if !session.user_info().permissions().contains(&Permission::RevertBans) {
-		tracing::debug!("user does not have permissions");
+		debug!("user does not have permissions");
 		return Err(HandlerError::Unauthorized);
 	}
 
 	database
-		.in_transaction(async |conn| {
+		.in_transaction(async |db_conn| {
 			bans::revert(ban_id)
 				.reason(reason)
 				.unbanned_by(session.user_info().id())
-				.exec(conn)
+				.exec(db_conn)
 				.await
 		})
 		.await?;
@@ -1809,7 +1783,7 @@ pub(crate) struct GetPlayersQuery
 ///
 /// This endpoint returns information about players who have joined KZ servers
 /// before.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/players",
@@ -1821,20 +1795,20 @@ pub(crate) struct GetPlayersQuery
 	),
 )]
 pub(crate) async fn get_players(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Query(GetPlayersQuery { name, offset, limit }): Query<GetPlayersQuery>,
 ) -> HandlerResult<Json<PaginationResponse<Player>>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let mut response = PaginationResponse::new({
-		players::count().maybe_name(name.as_deref()).exec(&mut conn).await?
+		players::count().maybe_name(name.as_deref()).exec(&mut db_conn).await?
 	});
 
 	players::get()
 		.maybe_name(name.as_deref())
 		.offset(offset.value())
 		.limit(limit.value())
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.try_collect_into(&mut response)
 		.await?;
 
@@ -1844,7 +1818,7 @@ pub(crate) async fn get_players(
 /// KZ Players by SteamID
 ///
 /// This endpoint returns a specific player by their SteamID.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/players/{player_id}",
@@ -1857,13 +1831,13 @@ pub(crate) async fn get_players(
 	),
 )]
 pub(crate) async fn get_player(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Path(player_id): Path<PlayerId>,
 ) -> HandlerResult<Json<Player>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let player = players::get_by_id(player_id)
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.await?
 		.ok_or(HandlerError::NotFound)?;
 
@@ -1880,7 +1854,7 @@ pub(crate) struct GetPlayerPreferencesQuery
 /// Player Preferences
 ///
 /// This endpoint returns the in-game preferences of a specific player.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/players/{player_id}/preferences",
@@ -1893,15 +1867,15 @@ pub(crate) struct GetPlayerPreferencesQuery
 	),
 )]
 pub(crate) async fn get_player_preferences(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Path(player_id): Path<PlayerId>,
 	Query(GetPlayerPreferencesQuery { game }): Query<GetPlayerPreferencesQuery>,
 ) -> HandlerResult<Json<PlayerPreferences>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let player = players::get_preferences(player_id)
 		.game(game)
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.await?
 		.ok_or(HandlerError::NotFound)?;
 
@@ -1919,7 +1893,7 @@ pub(crate) struct UpdatePlayerPreferencesRequest
 ///
 /// This endpoint can be used to update your in-game preferences without joining
 /// a server and doing it manually there.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	put,
 	path = "/players/{player_id}/preferences",
@@ -1936,7 +1910,7 @@ pub(crate) struct UpdatePlayerPreferencesRequest
 	),
 )]
 pub(crate) async fn update_player_preferences(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Path(player_id): Path<PlayerId>,
 	Json(UpdatePlayerPreferencesRequest { game, preferences }): Json<
@@ -1949,30 +1923,25 @@ pub(crate) async fn update_player_preferences(
 	}
 
 	let updated = database
-		.in_transaction(async |conn| {
-			players::set_preferences(player_id)
-				.game(game)
-				.preferences(preferences)
-				.exec(conn)
+		.in_transaction(async |db_conn| {
+			players::update(player_id)
+				.preferences((&preferences, game))
+				.exec(db_conn)
 				.await
 		})
 		.await?;
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 pub(crate) async fn recalculate_player_rating(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Path(player_id): Path<PlayerId>,
 ) -> HandlerResult<Json<PlayerRating>>
 {
 	let rating = database
-		.in_transaction(async |conn| players::recalculate_rating(player_id).exec(conn).await)
+		.in_transaction(async |db_conn| players::recalculate_rating(player_id).exec(db_conn).await)
 		.await?
 		.ok_or(HandlerError::NotFound)?;
 
@@ -2007,7 +1976,7 @@ pub(crate) struct GetUsersQuery
 ///
 /// This endpoint returns information about users that have logged into the API
 /// before.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/users",
@@ -2019,18 +1988,18 @@ pub(crate) struct GetUsersQuery
 	),
 )]
 pub(crate) async fn get_users(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Query(GetUsersQuery { has_permissions, required_permissions, offset, limit }): Query<
 		GetUsersQuery,
 	>,
 ) -> HandlerResult<Json<PaginationResponse<User>>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let mut response = PaginationResponse::new({
 		users::count()
 			.has_permissions(has_permissions)
 			.required_permissions(required_permissions)
-			.exec(&mut conn)
+			.exec(&mut db_conn)
 			.await?
 	});
 
@@ -2039,7 +2008,7 @@ pub(crate) async fn get_users(
 		.required_permissions(required_permissions)
 		.offset(offset.value())
 		.limit(limit.value())
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.try_collect_into(&mut response)
 		.await?;
 
@@ -2049,7 +2018,7 @@ pub(crate) async fn get_users(
 /// API Users by SteamID
 ///
 /// This endpoint returns information about a specific user by their SteamID.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/users/{user_id}",
@@ -2062,13 +2031,13 @@ pub(crate) async fn get_users(
 	),
 )]
 pub(crate) async fn get_user(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Path(user_id): Path<UserId>,
 ) -> HandlerResult<Json<User>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let user = users::get_by_id(user_id)
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.await?
 		.ok_or(HandlerError::NotFound)?;
 
@@ -2085,7 +2054,7 @@ pub(crate) struct UpdateUserEmailRequest
 ///
 /// This endpoint can be used to update your email address. The API will use
 /// this for sending notifications, for example if you are a server owner.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	put,
 	path = "/users/{user_id}/email",
@@ -2102,7 +2071,7 @@ pub(crate) struct UpdateUserEmailRequest
 	),
 )]
 pub(crate) async fn update_user_email(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Path(user_id): Path<UserId>,
 	Json(UpdateUserEmailRequest { email }): Json<UpdateUserEmailRequest>,
@@ -2113,21 +2082,17 @@ pub(crate) async fn update_user_email(
 	}
 
 	let updated = database
-		.in_transaction(async |conn| users::set_email(user_id, Some(email)).exec(conn).await)
+		.in_transaction(async |db_conn| users::set_email(user_id, Some(email)).exec(db_conn).await)
 		.await?;
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 /// Delete your Email address
 ///
 /// This endpoint can be used to completely delete your email address from the
 /// API. It will no longer be able to send you notifications anymore.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	delete,
 	path = "/users/{user_id}/email",
@@ -2142,7 +2107,7 @@ pub(crate) async fn update_user_email(
 	),
 )]
 pub(crate) async fn delete_user_email(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Path(user_id): Path<UserId>,
 ) -> HandlerResult<NoContent>
@@ -2152,14 +2117,10 @@ pub(crate) async fn delete_user_email(
 	}
 
 	let updated = database
-		.in_transaction(async |conn| users::set_email(user_id, None).exec(conn).await)
+		.in_transaction(async |db_conn| users::set_email(user_id, None).exec(db_conn).await)
 		.await?;
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -2171,7 +2132,7 @@ pub(crate) struct UpdateUserPermissionsRequest
 /// Update a user's permissions
 ///
 /// This endpoint can be used to edit other users' permissions.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	put,
 	path = "/users/{user_id}/permissions",
@@ -2188,7 +2149,7 @@ pub(crate) struct UpdateUserPermissionsRequest
 	),
 )]
 pub(crate) async fn update_user_permissions(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Path(user_id): Path<UserId>,
 	Json(UpdateUserPermissionsRequest { permissions }): Json<UpdateUserPermissionsRequest>,
@@ -2203,14 +2164,12 @@ pub(crate) async fn update_user_permissions(
 	}
 
 	let updated = database
-		.in_transaction(async |conn| users::set_permissions(user_id, permissions).exec(conn).await)
+		.in_transaction(async |db_conn| {
+			users::set_permissions(user_id, permissions).exec(db_conn).await
+		})
 		.await?;
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -2223,7 +2182,7 @@ pub(crate) struct UpdateServerBudgetRequest
 ///
 /// This endpoint can be used to set a user's server budget (how many servers
 /// they are allowed to create).
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	put,
 	path = "/users/{user_id}/server-budget",
@@ -2240,7 +2199,7 @@ pub(crate) struct UpdateServerBudgetRequest
 	),
 )]
 pub(crate) async fn update_user_server_budget(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Path(user_id): Path<UserId>,
 	Json(UpdateServerBudgetRequest { budget }): Json<UpdateServerBudgetRequest>,
@@ -2255,14 +2214,12 @@ pub(crate) async fn update_user_server_budget(
 	}
 
 	let updated = database
-		.in_transaction(async |conn| users::set_server_budget(user_id, budget).exec(conn).await)
+		.in_transaction(async |db_conn| {
+			users::set_server_budget(user_id, budget).exec(db_conn).await
+		})
 		.await?;
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 //=================================================================================================
@@ -2272,7 +2229,7 @@ pub(crate) async fn update_user_server_budget(
 ///
 /// This endpoint can be used to mark a user as a "mapper". This will allow them
 /// to use the `PUT /maps` endpoint.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	put,
 	path = "/mappers/{user_id}",
@@ -2287,7 +2244,7 @@ pub(crate) async fn update_user_server_budget(
 	),
 )]
 pub(crate) async fn create_mapper(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Path(user_id): Path<UserId>,
 ) -> HandlerResult<NoContent>
@@ -2297,23 +2254,19 @@ pub(crate) async fn create_mapper(
 	}
 
 	let updated = database
-		.in_transaction(async |conn| {
-			users::add_permissions(user_id, Permission::CreateMaps).exec(conn).await
+		.in_transaction(async |db_conn| {
+			users::add_permissions(user_id, Permission::CreateMaps).exec(db_conn).await
 		})
 		.await?;
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 /// Mark a user as a non-mapper
 ///
 /// This endpoint can be used to mark a user as not a "mapper". This will
 /// prevent them from using the `PUT /maps` endpoint.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	delete,
 	path = "/mappers/{user_id}",
@@ -2328,7 +2281,7 @@ pub(crate) async fn create_mapper(
 	),
 )]
 pub(crate) async fn delete_mapper(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Path(user_id): Path<UserId>,
 ) -> HandlerResult<NoContent>
@@ -2338,16 +2291,14 @@ pub(crate) async fn delete_mapper(
 	}
 
 	let updated = database
-		.in_transaction(async |conn| {
-			users::remove_permissions(user_id, Permission::CreateMaps).exec(conn).await
+		.in_transaction(async |db_conn| {
+			users::remove_permissions(user_id, Permission::CreateMaps)
+				.exec(db_conn)
+				.await
 		})
 		.await?;
 
-	if updated {
-		Ok(NoContent)
-	} else {
-		Err(HandlerError::NotFound)
-	}
+	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 //=================================================================================================
@@ -2358,7 +2309,7 @@ pub(crate) async fn delete_mapper(
 /// Returns an [SSE] response.
 ///
 /// [SSE]: https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
-#[tracing::instrument(skip(task_manager), ret(level = "debug"))]
+#[instrument(skip(task_manager), ret(level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/events",
@@ -2385,7 +2336,13 @@ pub(crate) async fn events(State(task_manager): State<TaskManager>) -> Response
 	let stream = stream::unfold(state, async |mut state| {
 		select! {
 			() = state.cancellation_token.cancelled() => None,
-			Some(event) = state.events.next() => Some((sse::Event::try_from(&*event), state)),
+			Some(event) = state.events.next() => {
+				let event = sse::Event::default()
+					.event(event.name())
+					.json_data(event);
+
+				Some((event, state))
+			},
 		}
 	});
 
@@ -2440,11 +2397,7 @@ pub(crate) struct CreateStylePluginVersionRequest
 /// Register a new GOKZ/cs2kz-metamod version
 ///
 /// This endpoint is used by GitHub CI to inform the API of new plugin versions.
-#[tracing::instrument(
-	skip(config, database),
-	ret(level = "debug"),
-	err(Debug, level = "debug")
-)]
+#[instrument(skip(config, database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	post,
 	path = "/plugin/versions",
@@ -2460,7 +2413,7 @@ pub(crate) struct CreateStylePluginVersionRequest
 )]
 pub(crate) async fn create_plugin_version(
 	State(config): State<Arc<Config>>,
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Header(Authorization(bearer)): Header<Authorization<Bearer>>,
 	Json(CreatePluginVersionRequest {
 		version,
@@ -2475,47 +2428,48 @@ pub(crate) async fn create_plugin_version(
 ) -> HandlerResult<Created<()>>
 {
 	let access_key = bearer.token().parse::<AccessKey>().map_err(|err| {
-		tracing::debug!(error = &err as &dyn Error, "failed to parse access key");
+		debug!(error = &err as &dyn Error, "failed to parse access key");
 		HandlerError::Unauthorized
 	})?;
 
-	let mut conn = database.acquire_connection().await?;
-	let access_key_name = access_key.fetch_name(&mut conn).await?.ok_or_else(|| {
-		tracing::debug!("invalid access key");
+	let mut db_conn = database.acquire().await?;
+	let access_key_name = access_key.fetch_name(&mut db_conn).await?.ok_or_else(|| {
+		debug!("invalid access key");
 		HandlerError::Unauthorized
 	})?;
 
 	if access_key_name != config.access_keys.cs2kz_metamod_release_key {
-		tracing::debug!("wrong access key");
+		debug!("wrong access key");
 		return Err(HandlerError::Unauthorized);
 	}
 
-	conn.in_transaction(async |conn| {
-		let modes = modes.into_iter().map(|req| {
-			(req.mode, plugin::Checksums {
-				linux: req.linux_checksum,
-				windows: req.windows_checksum,
-			})
-		});
+	db_conn
+		.in_transaction(async |db_conn| {
+			let modes = modes.into_iter().map(|req| {
+				(req.mode, plugin::Checksums {
+					linux: req.linux_checksum,
+					windows: req.windows_checksum,
+				})
+			});
 
-		let styles = styles.into_iter().map(|req| {
-			(req.style, plugin::Checksums {
-				linux: req.linux_checksum,
-				windows: req.windows_checksum,
-			})
-		});
+			let styles = styles.into_iter().map(|req| {
+				(req.style, plugin::Checksums {
+					linux: req.linux_checksum,
+					windows: req.windows_checksum,
+				})
+			});
 
-		plugin::create_version(version, game)
-			.git_revision(git_revision)
-			.linux_checksum(linux_checksum)
-			.windows_checksum(windows_checksum)
-			.is_cutoff(is_cutoff)
-			.modes(modes)
-			.styles(styles)
-			.exec(&mut *conn)
-			.await
-	})
-	.await?;
+			plugin::create_version(version, game)
+				.git_revision(git_revision)
+				.linux_checksum(linux_checksum)
+				.windows_checksum(windows_checksum)
+				.is_cutoff(is_cutoff)
+				.modes(modes)
+				.styles(styles)
+				.exec(&mut *db_conn)
+				.await
+		})
+		.await?;
 
 	Ok(Created(()))
 }
@@ -2541,7 +2495,7 @@ pub(crate) struct GetPluginVersionsQuery
 ///
 /// This endpoints returns metadata about official releases of the GOKZ and
 /// cs2kz-metamod projects.
-#[tracing::instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
+#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/plugin/versions",
@@ -2553,19 +2507,19 @@ pub(crate) struct GetPluginVersionsQuery
 	),
 )]
 pub(crate) async fn get_plugin_versions(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	Query(GetPluginVersionsQuery { game, offset, limit }): Query<GetPluginVersionsQuery>,
 ) -> HandlerResult<Json<PaginationResponse<PluginVersionInfo>>>
 {
-	let mut conn = database.acquire_connection().await?;
+	let mut db_conn = database.acquire().await?;
 	let mut response =
-		PaginationResponse::new(plugin::count_versions().game(game).exec(&mut conn).await?);
+		PaginationResponse::new(plugin::count_versions().game(game).exec(&mut db_conn).await?);
 
 	plugin::get_versions()
 		.game(game)
 		.offset(offset.value())
 		.limit(limit.value())
-		.exec(&mut conn)
+		.exec(&mut db_conn)
 		.try_collect_into(&mut response)
 		.await?;
 
@@ -2587,7 +2541,7 @@ pub(crate) struct WebLoginRequest
 /// Login with Steam
 ///
 /// This endpoint will redirect you to Steam for login.
-#[tracing::instrument(skip(config), ret(level = "debug"))]
+#[instrument(skip(config), ret(level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/auth/web/login",
@@ -2627,7 +2581,7 @@ pub(crate) struct WebLogoutRequest
 ///
 /// This endpoint can be used to delete your current, and optionally all other,
 /// active session(s).
-#[tracing::instrument(skip(config, database), ret(level = "debug"))]
+#[instrument(skip(config, database), ret(level = "debug"))]
 #[utoipa::path(
 	get,
 	path = "/auth/web/logout",
@@ -2641,7 +2595,7 @@ pub(crate) struct WebLogoutRequest
 )]
 pub(crate) async fn web_logout(
 	State(config): State<Arc<Config>>,
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	session: auth::Session,
 	Query(WebLogoutRequest { invalidate_all }): Query<WebLogoutRequest>,
 ) -> HandlerResult<(CookieJar, NoContent)>
@@ -2650,8 +2604,10 @@ pub(crate) async fn web_logout(
 
 	if invalidate_all {
 		database
-			.in_transaction(async |conn| {
-				users::sessions::expire_active(session.user_info().id()).exec(conn).await
+			.in_transaction(async |db_conn| {
+				users::sessions::expire_active(session.user_info().id())
+					.exec(db_conn)
+					.await
 			})
 			.await?;
 	}
@@ -2666,14 +2622,14 @@ pub(crate) async fn web_logout(
 	Ok((CookieJar::default().add(player_cookie), NoContent))
 }
 
-#[tracing::instrument(
+#[instrument(
 	skip(config, database, steam_api_client),
 	ret(level = "debug"),
 	err(Debug, level = "debug")
 )]
 pub(crate) async fn steam_auth_callback(
 	State(config): State<Arc<Config>>,
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	State(steam_api_client): State<steam::api::Client>,
 	Query(payload): Query<steam_openid::CallbackPayload>,
 ) -> HandlerResult<(CookieJar, Redirect)>
@@ -2699,7 +2655,7 @@ pub(crate) async fn steam_auth_callback(
 	match payload.clone().verify(expected_host, send_request).await {
 		Ok(user_id) => {
 			let Some(steam_user) = steam::users::get(&steam_api_client, user_id).await? else {
-				tracing::warn!(%user_id, "user logged in successfully but failed to fetch info");
+				warn!(%user_id, "user logged in successfully but failed to fetch info");
 				return Err(HandlerError::Unauthorized);
 			};
 
@@ -2709,21 +2665,21 @@ pub(crate) async fn steam_auth_callback(
 			let username = steam_user
 				.name
 				.parse::<Username>()
-				.inspect_err_dyn(|error| tracing::warn!(error, "steam user has invalid username"))
+				.inspect_err_dyn(|error| warn!(error, "steam user has invalid username"))
 				.map_err(|_| HandlerError::Unauthorized)?;
 
 			let session_id = database
-				.in_transaction(async |conn| {
-					users::create(user_id).name(username).exec(&mut *conn).await?;
+				.in_transaction(async |db_conn| {
+					users::create(user_id).name(username).exec(&mut *db_conn).await?;
 					users::sessions::create(user_id)
 						.expires_after(config.http.cookies.max_age_auth)
-						.exec(conn)
+						.exec(db_conn)
 						.await
 				})
 				.await?;
 
 			let user_json = serde_json::to_string(&steam_user).map_err(|err| {
-				tracing::error!(error = &err as &dyn Error, "failed to serialize JSON");
+				error!(error = &err as &dyn Error, "failed to serialize JSON");
 				HandlerError::Internal
 			})?;
 
@@ -2743,15 +2699,15 @@ pub(crate) async fn steam_auth_callback(
 		},
 		Err(error) => match *error.kind() {
 			VerifyCallbackPayloadErrorKind::HostMismatch => {
-				tracing::debug!("login failed due to hostname mismatch");
+				debug!("login failed due to hostname mismatch");
 				Err(HandlerError::Unauthorized)
 			},
 			VerifyCallbackPayloadErrorKind::HttpRequest(ref error) => {
-				tracing::debug!(error = error as &dyn Error);
+				debug!(error = error as &dyn Error);
 				Err(HandlerError::Problem(ProblemDetails::new(ProblemType::SteamApiError)))
 			},
 			VerifyCallbackPayloadErrorKind::BadStatus { ref response } => {
-				tracing::debug!(
+				debug!(
 					res.status = response.status().as_u16(),
 					res.body = str::from_utf8(response.body()).unwrap_or("<invalid utf-8>"),
 					"bad status",
@@ -2760,11 +2716,11 @@ pub(crate) async fn steam_auth_callback(
 				Err(HandlerError::Unauthorized)
 			},
 			VerifyCallbackPayloadErrorKind::BufferResponseBody { ref error, ref response } => {
-				tracing::error!(error = error as &dyn Error, res.status = response.status.as_u16());
+				error!(error = error as &dyn Error, res.status = response.status.as_u16());
 				Err(HandlerError::Unauthorized)
 			},
 			VerifyCallbackPayloadErrorKind::InvalidPayload { ref response } => {
-				tracing::debug!(
+				debug!(
 					res.status = response.status().as_u16(),
 					res.body = str::from_utf8(response.body()).unwrap_or("<invalid utf-8>"),
 					"bad payload",
@@ -2776,23 +2732,23 @@ pub(crate) async fn steam_auth_callback(
 	}
 }
 
-#[tracing::instrument(skip(database, server_monitor), ret(level = "debug"))]
+#[instrument(skip(database, server_monitor), ret(level = "debug"))]
 pub(crate) async fn cs2_auth(
-	State(database): State<Database>,
+	State(database): State<database::ConnectionPool>,
 	State(server_monitor): State<ServerMonitorHandle>,
 	Header(Authorization(bearer)): Header<Authorization<Bearer>>,
 	upgrade: WebSocketUpgrade,
 ) -> HandlerResult<Response>
 {
 	let access_key = bearer.token().parse::<AccessKey>().map_err(|err| {
-		tracing::debug!(error = &err as &dyn Error, "failed to parse access key");
+		debug!(error = &err as &dyn Error, "failed to parse access key");
 		HandlerError::Unauthorized
 	})?;
 
 	let server_id = {
-		let mut conn = database.acquire_connection().await?;
+		let mut db_conn = database.acquire().await?;
 		servers::get_id_by_access_key(access_key)
-			.exec(&mut conn)
+			.exec(&mut db_conn)
 			.await?
 			.ok_or(HandlerError::Unauthorized)?
 	};
@@ -2802,8 +2758,6 @@ pub(crate) async fn cs2_auth(
 		.await
 		.map_err(|err| match err {
 			server_monitor::ServerConnectingError::MonitorUnavailable => HandlerError::ShuttingDown,
-			server_monitor::ServerConnectingError::ServerAlreadyConnected => {
-				HandlerError::Unauthorized
-			},
+			server_monitor::ServerConnectingError::AlreadyConnected => HandlerError::Unauthorized,
 		})
 }

@@ -1,11 +1,12 @@
-use std::num::NonZero;
-
-use cs2kz_api::{
-	game::Game,
-	maps::{FilterId, MapState},
-	players::PlayerId,
-	servers::ServerId,
-	users::UserId,
+use {
+	cs2kz_api::{
+		game::Game,
+		maps::{FilterId, MapState},
+		players::PlayerId,
+		servers::ServerId,
+		users::UserId,
+	},
+	std::num::NonZero,
 };
 
 pub(crate) fn args() -> Args

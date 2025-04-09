@@ -1,6 +1,9 @@
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use {
+	serde::{Deserialize, Serialize},
+	utoipa::ToSchema,
+};
 
+/// The two games supported by the API
 #[repr(u8)]
 #[derive(
 	Debug,
@@ -19,30 +22,12 @@ use utoipa::ToSchema;
 #[serde(rename_all = "lowercase")]
 pub enum Game
 {
+	/// Counter-Strike 2
 	#[default]
 	CS2,
+
+	/// Counter-Strike: Global Offensive
 	CSGO,
-}
-
-impl Game
-{
-	/// Returns `true` if the game is [`CS2`].
-	///
-	/// [`CS2`]: Game::CS2
-	#[must_use]
-	pub fn is_cs2(&self) -> bool
-	{
-		matches!(self, Self::CS2)
-	}
-
-	/// Returns `true` if the game is [`CSGO`].
-	///
-	/// [`CSGO`]: Game::CSGO
-	#[must_use]
-	pub fn is_csgo(&self) -> bool
-	{
-		matches!(self, Self::CSGO)
-	}
 }
 
 impl_rand!(Game => |rng| {

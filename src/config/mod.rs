@@ -1,24 +1,4 @@
-#![allow(
-	missing_copy_implementations,
-	reason = "configs won't be copied around"
-)]
-
-mod access_keys;
-mod database;
-mod depot_downloader;
-mod http;
-mod runtime;
-mod steam;
-pub(crate) mod tracing;
-
-use std::{fs, path::Path};
-
-use color_eyre::{
-	Section,
-	eyre::{self, WrapErr},
-};
-use cs2kz_api::{discord, server_monitor::ServerMonitorConfig};
-use serde::Deserialize;
+#![allow(missing_copy_implementations, reason = "configs won't be copied around")]
 
 pub(crate) use self::{
 	access_keys::AccessKeys,
@@ -29,6 +9,23 @@ pub(crate) use self::{
 	steam::SteamConfig,
 	tracing::TracingConfig,
 };
+use {
+	color_eyre::{
+		Section,
+		eyre::{self, WrapErr},
+	},
+	cs2kz_api::{discord, server_monitor},
+	serde::Deserialize,
+	std::{fs, path::Path},
+};
+
+mod access_keys;
+mod database;
+mod depot_downloader;
+mod http;
+mod runtime;
+mod steam;
+pub(crate) mod tracing;
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
@@ -41,7 +38,7 @@ pub(crate) struct Config
 	pub steam: SteamConfig,
 	pub access_keys: AccessKeys,
 	pub depot_downloader: DepotDownloaderConfig,
-	pub server_monitor: Option<ServerMonitorConfig>,
+	pub server_monitor: Option<server_monitor::Config>,
 	pub discord: Option<discord::Config>,
 }
 

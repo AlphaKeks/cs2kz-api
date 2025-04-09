@@ -1,7 +1,8 @@
-use std::{cmp, ops, time::SystemTime};
-
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use {
+	serde::{Deserialize, Serialize},
+	std::{cmp, ops, time::SystemTime},
+	utoipa::ToSchema,
+};
 
 #[derive(
 	Debug,

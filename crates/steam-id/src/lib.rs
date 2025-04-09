@@ -5,6 +5,15 @@
 #[macro_use(Debug, Display, From, Error, FromStr)]
 extern crate derive_more as _;
 
+pub use self::{
+	account_instance::AccountInstance,
+	account_number::AccountNumber,
+	account_type::{AccountType, InvalidAccountType},
+	account_universe::{AccountUniverse, InvalidAccountUniverse},
+	error::{InvalidSteamId64, ParseSteam2IdError, ParseSteamIdError},
+};
+use std::{borrow::Borrow, fmt, ops::Deref, str::FromStr};
+
 mod account_instance;
 mod account_number;
 mod account_type;
@@ -16,16 +25,6 @@ mod serde_impls;
 
 #[cfg(feature = "rand")]
 mod rand_impls;
-
-use std::{borrow::Borrow, fmt, ops::Deref, str::FromStr};
-
-pub use self::{
-	account_instance::AccountInstance,
-	account_number::AccountNumber,
-	account_type::{AccountType, InvalidAccountType},
-	account_universe::{AccountUniverse, InvalidAccountUniverse},
-	error::{InvalidSteamId64, ParseSteam2IdError, ParseSteamIdError},
-};
 
 /// A [SteamID]
 ///

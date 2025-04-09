@@ -1,24 +1,3 @@
-mod course;
-mod description;
-mod filter;
-mod id;
-mod name;
-mod state;
-mod stream;
-mod tier;
-
-use std::{
-	collections::{HashMap, btree_map::BTreeMap},
-	fmt,
-	pin::pin,
-};
-
-use futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt};
-use serde::Serialize;
-use sqlx::Row;
-use tracing::Instrument;
-use utoipa::ToSchema;
-
 pub use self::{
 	course::{
 		CourseDescription,
@@ -37,17 +16,38 @@ pub use self::{
 	state::MapState,
 	tier::Tier,
 };
-use crate::{
-	checksum::Checksum,
-	database::{DatabaseConnection, DatabaseError, DatabaseResult},
-	event_queue::{self, Event},
-	game::Game,
-	mode::Mode,
-	steam::{self, workshop::WorkshopId},
-	stream::StreamExt as _,
-	time::Timestamp,
-	users::{InvalidUsername, UserId, Username},
+use {
+	crate::{
+		checksum::Checksum,
+		database::{self, DatabaseError, DatabaseResult, QueryBuilder},
+		event_queue::{self, Event},
+		game::Game,
+		mode::Mode,
+		steam::{self, workshop::WorkshopId},
+		stream::StreamExt as _,
+		time::Timestamp,
+		users::{InvalidUsername, UserId, Username},
+	},
+	futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt},
+	serde::Serialize,
+	sqlx::Row,
+	std::{
+		collections::{HashMap, btree_map::BTreeMap},
+		fmt,
+		pin::pin,
+	},
+	tracing::Instrument,
+	utoipa::ToSchema,
 };
+
+mod course;
+mod description;
+mod filter;
+mod id;
+mod name;
+mod state;
+mod stream;
+mod tier;
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct Map
@@ -62,7 +62,7 @@ pub struct Map
 	/// A checksum of the map's `.vpk` file
 	pub checksum: Checksum,
 
-	#[serde(serialize_with = "crate::serde::ser::map_as_set")]
+	#[serde(serialize_with = "crate::serde::ser::map_values")]
 	pub courses: BTreeMap<CourseId, Course>,
 	pub created_by: Mapper,
 	pub created_at: Timestamp,
@@ -90,7 +90,7 @@ pub struct Course
 	pub name: CourseName,
 	pub description: Option<CourseDescription>,
 
-	#[serde(serialize_with = "crate::serde::ser::map_as_set")]
+	#[serde(serialize_with = "crate::serde::ser::map_values")]
 	pub mappers: BTreeMap<UserId, Mapper>,
 
 	pub filters: Filters,
@@ -131,11 +131,11 @@ pub struct Filter
 	pub notes: Option<FilterNotes>,
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn count(
 	#[builder(start_fn)] game: Game,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: Option<&str>,
 	#[builder(default = MapState::Approved)] state: MapState,
 ) -> DatabaseResult<u64>
@@ -150,17 +150,17 @@ pub async fn count(
 		state,
 		name.map(|name| format!("%{name}%")),
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.and_then(async |row| row.try_into().map_err(DatabaseError::convert_count))
 	.await
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get(
 	#[builder(start_fn)] game: Game,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: Option<&str>,
 	#[builder(default = MapState::Approved)] state: MapState,
 	#[builder(default = 0)] offset: u64,
@@ -214,7 +214,7 @@ pub fn get(
 		offset,
 		limit,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current());
@@ -222,11 +222,11 @@ pub fn get(
 	self::stream::from_raw!(row_stream)
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_by_id(
 	#[builder(start_fn)] map_id: MapId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<Map>>
 {
 	let row_stream = sqlx::query!(
@@ -264,7 +264,7 @@ pub async fn get_by_id(
 		 ORDER BY m.id DESC, ma.id ASC, c.id ASC, cma.id ASC, f.mode ASC",
 		map_id,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current());
@@ -272,11 +272,11 @@ pub async fn get_by_id(
 	pin!(self::stream::from_raw!(row_stream)).try_next().await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_by_name(
 	#[builder(start_fn)] map_name: &str,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<Map>>
 {
 	let row_stream = sqlx::query!(
@@ -314,7 +314,7 @@ pub async fn get_by_name(
 		 ORDER BY m.id DESC, ma.id ASC, c.id ASC, cma.id ASC, f.mode ASC",
 		map_name,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current());
@@ -330,11 +330,11 @@ pub struct Metadata
 	pub created_by: UserId,
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_metadata(
 	#[builder(start_fn)] map_id: MapId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<Metadata>>
 {
 	sqlx::query_as!(
@@ -347,15 +347,15 @@ pub async fn get_metadata(
 		 WHERE id = ?",
 		map_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.await
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get_filters(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	#[builder(default = MapState::Approved)] map_state: MapState,
 	#[builder(default = 0)] offset: u64,
 	limit: u64,
@@ -384,17 +384,17 @@ pub fn get_filters(
 		offset,
 		limit,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current())
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub async fn get_mode_by_filter_id(
 	#[builder(start_fn)] filter_id: FilterId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<Mode>>
 {
 	sqlx::query_scalar!(
@@ -403,17 +403,17 @@ pub async fn get_mode_by_filter_id(
 		 WHERE id = ?",
 		filter_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_filter_id(
 	#[builder(start_fn)] course_id: CourseId,
 	#[builder(start_fn)] mode: Mode,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<FilterId>>
 {
 	sqlx::query_scalar!(
@@ -423,7 +423,7 @@ pub async fn get_filter_id(
 		course_id,
 		mode,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.await
 }
@@ -457,7 +457,7 @@ pub enum CreateMapError
 	NotTheMapper,
 
 	#[from(DatabaseError, sqlx::Error)]
-	Database(DatabaseError),
+	DatabaseError(DatabaseError),
 }
 
 #[derive(Debug, Builder)]
@@ -502,11 +502,11 @@ pub struct NewFilter
 	notes: Option<FilterNotes>,
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn create<I, CourseMappers>(
 	#[builder(start_fn)] workshop_id: WorkshopId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: MapName,
 	description: Option<MapDescription>,
 	game: Game,
@@ -521,12 +521,12 @@ where
 {
 	match self::invalidate(&name, game)
 		.check_created_by(created_by)
-		.exec(&mut *conn)
+		.exec(&mut *db_conn)
 		.await?
 	{
 		0 => { /* first submission */ },
-		1 => tracing::debug!("invalidated old version"),
-		n => tracing::warn!("invalidated {n} old versions"),
+		1 => debug!("invalidated old version"),
+		n => warn!("invalidated {n} old versions"),
 	}
 
 	let map_id = sqlx::query!(
@@ -540,15 +540,15 @@ where
 		checksum,
 		created_by,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.and_then(async |row| row.try_get(0))
 	.await?;
 
 	async {
 		for course in courses {
-			let course_id = create_course(map_id).course(course).exec(&mut *conn).await?;
+			let course_id = create_course(map_id).course(course).exec(&mut *db_conn).await?;
 
-			tracing::debug!(id = %course_id, "created course");
+			debug!(id = %course_id, "created course");
 		}
 
 		Result::<(), CreateMapError>::Ok(())
@@ -561,11 +561,11 @@ where
 	Ok(map_id)
 }
 
-#[tracing::instrument(level = "debug", skip(conn), ret(level = "debug"), err)]
+#[instrument(level = "debug", skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 async fn create_course<CourseMappers>(
 	#[builder(start_fn)] map_id: MapId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	course: NewCourse<CourseMappers>,
 ) -> Result<CourseId, CreateMapError>
 where
@@ -580,50 +580,51 @@ where
 		course.name,
 		course.description,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.and_then(async |row| row.try_get(0))
 	.await?;
 
 	for user_id in course.mappers {
-		create_course_mapper(course_id).user_id(user_id).exec(&mut *conn).await?;
-		tracing::debug!(id = %user_id, "created course mapper");
+		create_course_mapper(course_id)
+			.user_id(user_id)
+			.exec(&mut *db_conn)
+			.await?;
+		debug!(id = %user_id, "created course mapper");
 	}
 
 	async {
 		if let Some(NewCSGOFilters { kzt, skz, vnl }) = course.filters.csgo {
-			for (mode, filter) in [
-				(Mode::KZTimer, kzt),
-				(Mode::SimpleKZ, skz),
-				(Mode::VanillaCSGO, vnl),
-			] {
+			for (mode, filter) in
+				[(Mode::KZTimer, kzt), (Mode::SimpleKZ, skz), (Mode::VanillaCSGO, vnl)]
+			{
 				let filter_id = create_filter(course_id, mode)
 					.nub_tier(filter.nub_tier)
 					.pro_tier(filter.pro_tier)
 					.ranked(filter.ranked)
 					.maybe_notes(filter.notes)
-					.exec(&mut *conn)
+					.exec(&mut *db_conn)
 					.await?;
 
-				tracing::debug!(?mode, id = %filter_id, "created filter");
+				debug!(?mode, id = %filter_id, "created filter");
 			}
 
-			tracing::debug!("created csgo filters");
+			debug!("created csgo filters");
 		}
 
 		if let Some(NewCS2Filters { vnl, ckz }) = course.filters.cs2 {
-			for (mode, filter) in [(Mode::Vanilla, vnl), (Mode::Classic, ckz)] {
+			for (mode, filter) in [(Mode::VanillaCS2, vnl), (Mode::Classic, ckz)] {
 				let filter_id = create_filter(course_id, mode)
 					.nub_tier(filter.nub_tier)
 					.pro_tier(filter.pro_tier)
 					.ranked(filter.ranked)
 					.maybe_notes(filter.notes)
-					.exec(&mut *conn)
+					.exec(&mut *db_conn)
 					.await?;
 
-				tracing::debug!(?mode, id = %filter_id, "created filter");
+				debug!(?mode, id = %filter_id, "created filter");
 			}
 
-			tracing::debug!("created cs2 filters");
+			debug!("created cs2 filters");
 		}
 
 		DatabaseResult::Ok(())
@@ -634,11 +635,11 @@ where
 	Ok(course_id)
 }
 
-#[tracing::instrument(level = "debug", skip(conn), err)]
+#[instrument(level = "debug", skip(db_conn), err)]
 #[builder(finish_fn = exec)]
 async fn create_course_mapper(
 	#[builder(start_fn)] course_id: CourseId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	user_id: UserId,
 ) -> DatabaseResult<()>
 {
@@ -648,18 +649,18 @@ async fn create_course_mapper(
 		course_id,
 		user_id
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.await?;
 
 	Ok(())
 }
 
-#[tracing::instrument(level = "debug", skip(conn), ret(level = "debug"), err)]
+#[instrument(level = "debug", skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 async fn create_filter(
 	#[builder(start_fn)] course_id: CourseId,
 	#[builder(start_fn)] mode: Mode,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	nub_tier: Tier,
 	pro_tier: Tier,
 	ranked: bool,
@@ -677,19 +678,19 @@ async fn create_filter(
 		ranked,
 		notes,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.and_then(async |row| row.try_get(0))
 	.await?;
 
 	Ok(filter_id)
 }
 
-#[tracing::instrument(level = "debug", skip(conn), ret(level = "debug"), err)]
+#[instrument(level = "debug", skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 async fn invalidate(
 	#[builder(start_fn)] name: &MapName,
 	#[builder(start_fn)] game: Game,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	check_created_by: UserId,
 ) -> Result<u64, CreateMapError>
 {
@@ -704,7 +705,7 @@ async fn invalidate(
 		name,
 		game,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_ok(|row| (row.id, row.state, row.created_by))
 	.try_collect::<Vec<_>>()
 	.await?;
@@ -723,17 +724,15 @@ async fn invalidate(
 		return Err(CreateMapError::NotTheMapper);
 	}
 
-	let (conn, query) = conn.as_parts();
+	let mut query = QueryBuilder::new("UPDATE Maps SET state = -1 WHERE id IN");
 
-	query.reset();
-	query.push("UPDATE Maps SET state = -1 WHERE id IN");
 	query.push_tuples(old_versions, |mut query, (id, ..)| {
 		query.push_bind(id);
 	});
 
 	query
 		.build()
-		.execute(conn)
+		.execute(db_conn.raw_mut())
 		.map_ok(|query_result| query_result.rows_affected())
 		.map_err(CreateMapError::from)
 		.await
@@ -777,11 +776,11 @@ pub enum UpdateMapError
 	DatabaseError(DatabaseError),
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn update<I, AddedMappers, RemovedMappers, FilterUpdates>(
 	#[builder(start_fn)] map_id: MapId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	workshop_id: WorkshopId,
 	name: MapName,
 	description: Option<MapDescription>,
@@ -809,12 +808,12 @@ where
 		checksum,
 		map_id,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.map_ok(|query_result| query_result.rows_affected() > 0)
 	.map_err(DatabaseError::from)
 	.await?;
 
-	tracing::debug!(%map_id, "updated map");
+	debug!(%map_id, "updated map");
 
 	if !updated {
 		return Err(UpdateMapError::InvalidMapId);
@@ -828,7 +827,7 @@ where
 		 WHERE map_id = ?",
 		map_id,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_ok(|row| (row.local_id, row.id))
 	.try_collect::<HashMap<CourseLocalId, CourseId>>()
 	.await?;
@@ -844,20 +843,20 @@ where
 			.added_mappers(course_update.added_mappers)
 			.removed_mappers(course_update.removed_mappers)
 			.filter_updates(course_update.filter_updates)
-			.exec(&mut *conn)
+			.exec(&mut *db_conn)
 			.await?;
 
-		tracing::debug!(%local_id, "updated course");
+		debug!(%local_id, "updated course");
 	}
 
 	Ok(())
 }
 
-#[tracing::instrument(level = "debug", skip(conn), err)]
+#[instrument(level = "debug", skip(db_conn), err)]
 #[builder(finish_fn = exec)]
 async fn update_course<AddedMappers, RemovedMappers, FilterUpdates>(
 	#[builder(start_fn)] course_id: CourseId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: Option<CourseName>,
 	description: Option<CourseDescription>,
 	added_mappers: AddedMappers,
@@ -869,8 +868,6 @@ where
 	RemovedMappers: IntoIterator<Item = UserId> + fmt::Debug,
 	FilterUpdates: IntoIterator<Item = (Mode, FilterUpdate)> + fmt::Debug,
 {
-	let (conn, query) = conn.as_parts();
-
 	sqlx::query!(
 		"UPDATE Courses
 		 SET name = COALESCE(?, name),
@@ -880,13 +877,11 @@ where
 		description,
 		course_id,
 	)
-	.execute(&mut *conn)
+	.execute(db_conn.raw_mut())
 	.await?;
 
 	{
-		query.reset();
-		query.push("INSERT INTO CourseMappers (course_id, user_id)");
-
+		let mut query = QueryBuilder::new("INSERT INTO CourseMappers (course_id, user_id)");
 		let mut had_values = false;
 
 		query.push_values(added_mappers, |mut query, user_id| {
@@ -895,13 +890,12 @@ where
 		});
 
 		if had_values {
-			query.build().execute(&mut *conn).await?;
+			query.build().execute(db_conn.raw_mut()).await?;
 		}
 	}
 
 	{
-		query.reset();
-		query.push("DELETE FROM CourseMappers WHERE course_id = ");
+		let mut query = QueryBuilder::new("DELETE FROM CourseMappers WHERE course_id = ");
 		query.push_bind(course_id);
 		query.push(" AND user_id IN ");
 
@@ -913,7 +907,7 @@ where
 		});
 
 		if had_values {
-			query.build().execute(&mut *conn).await?;
+			query.build().execute(db_conn.raw_mut()).await?;
 		}
 	}
 
@@ -932,21 +926,21 @@ where
 			course_id,
 			mode,
 		)
-		.execute(&mut *conn)
+		.execute(db_conn.raw_mut())
 		.await?;
 
-		tracing::debug!(?mode, "updated filter");
+		debug!(?mode, "updated filter");
 	}
 
 	Ok(())
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn set_state(
 	#[builder(start_fn)] map_id: MapId,
 	#[builder(start_fn)] state: MapState,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<bool>
 {
 	let updated = sqlx::query!(
@@ -956,7 +950,7 @@ pub async fn set_state(
 		state,
 		map_id,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.map_ok(|query_result| query_result.rows_affected() > 0)
 	.await?;
 
@@ -967,11 +961,11 @@ pub async fn set_state(
 	Ok(updated)
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn delete(
 	#[builder(start_fn)] count: u64,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	created_by: Option<UserId>,
 ) -> DatabaseResult<u64>
 {
@@ -982,7 +976,7 @@ pub async fn delete(
 		created_by,
 		count,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.map_ok(|query_result| query_result.rows_affected())
 	.map_err(DatabaseError::from)
 	.await

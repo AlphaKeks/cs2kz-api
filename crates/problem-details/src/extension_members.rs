@@ -1,9 +1,10 @@
 //! The [`ExtensionMembers`] type and its [`Iterator`]s
 
-use std::{borrow::Borrow, fmt, hash::Hash};
-
-use serde::Serialize;
-use serde_json::map as base;
+use {
+	serde::Serialize,
+	serde_json::map as base,
+	std::{borrow::Borrow, fmt, hash::Hash},
+};
 
 type Fields = serde_json::Map<String, serde_json::Value>;
 

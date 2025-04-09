@@ -1,7 +1,6 @@
-use std::sync::Arc;
+use {serde::Deserialize, std::sync::Arc};
 
-use serde::Deserialize;
-
+/// A Discord bot token
 #[derive(Debug, Display, Clone, Deserialize)]
 pub struct Token(Arc<str>);
 

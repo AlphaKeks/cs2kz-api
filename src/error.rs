@@ -7,7 +7,10 @@ pub trait ResultExt
 	type Err;
 
 	/// [`Result::inspect_err()`] but with the error cast to
-	/// <code>[&][]dyn [Error]</code>
+	/// <code>[&][](dyn [Error] + 'static)</code>
+	///
+	/// This is useful when inspecting errors with [`tracing`] macros, as
+	/// <code>[&][](dyn [Error] + 'static)</code> implements [`tracing::Value`].
 	fn inspect_err_dyn(self, inspect: impl FnOnce(&(dyn Error + 'static))) -> Self
 	where
 		Self::Err: Error + 'static;

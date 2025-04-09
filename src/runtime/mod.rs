@@ -1,11 +1,11 @@
-pub(crate) mod environment;
-
-use std::io;
-
-use tokio::runtime::{Builder, Runtime};
-
 pub(crate) use self::environment::Environment;
-use crate::config::RuntimeConfig;
+use {
+	crate::config::RuntimeConfig,
+	std::io,
+	tokio::runtime::{Builder, Runtime},
+};
+
+pub(crate) mod environment;
 
 pub(crate) fn build(config: &RuntimeConfig) -> io::Result<Runtime>
 {

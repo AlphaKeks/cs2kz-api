@@ -1,16 +1,16 @@
-use std::fmt::Write;
-
-use futures_util::TryFutureExt;
-use poise::{
-	CreateReply,
-	serenity_prelude::{CreateEmbed, User},
+use {
+	super::{Context, DiscordError, config::Roles},
+	crate::users::{Permission, Permissions},
+	futures_util::TryFutureExt,
+	poise::{
+		CreateReply,
+		serenity_prelude::{CreateEmbed, User},
+	},
+	std::fmt::Write,
 };
 
-use super::{Context, DiscordError, config::Roles};
-use crate::users::{Permission, Permissions};
-
 /// Synchronizes a user's roles with their API permissions.
-#[tracing::instrument(skip(cx), err)]
+#[instrument(skip(cx), err)]
 #[poise::command(
 	slash_command,
 	context_menu_command = "Sync Roles with API permissions",
@@ -23,7 +23,7 @@ pub(super) async fn sync_roles(cx: Context<'_>, user: User) -> Result<(), Discor
 	cx.defer_ephemeral().await?;
 
 	let member = cx.data().config.guild_id.member(cx.http(), user.id).await?;
-	let mut conn = cx.data().database.acquire_connection().await?;
+	let mut db_conn = cx.data().database.acquire().await?;
 
 	let Some(user_info) = sqlx::query!(
 		"SELECT id, permissions AS `permissions: Permissions`
@@ -31,7 +31,7 @@ pub(super) async fn sync_roles(cx: Context<'_>, user: User) -> Result<(), Discor
 		 WHERE discord_id = ?",
 		user.id.get(),
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.await?
 	else {
 		let reply = CreateReply::default()
@@ -61,7 +61,7 @@ pub(super) async fn sync_roles(cx: Context<'_>, user: User) -> Result<(), Discor
 				 WHERE owner_id = ?",
 				user_info.id,
 			)
-			.fetch_one(conn.as_raw())
+			.fetch_one(db_conn.raw_mut())
 			.map_ok(|server_count| server_count > 0)
 			.await?;
 
@@ -94,11 +94,13 @@ pub(super) async fn sync_roles(cx: Context<'_>, user: User) -> Result<(), Discor
 		}
 
 		let removed_roles = roles_to_remove.iter().fold(String::new(), |mut text, role_id| {
-			if roles_to_remove.first() != Some(role_id) {
-				let _ = write!(text, ", ");
+			let _ = write!(text, "<@&{role_id}>");
+			let is_last = roles_to_remove.last().is_some_and(|last| last == role_id);
+
+			if !is_last {
+				text.push_str(", ");
 			}
 
-			let _ = write!(text, "<@&{role_id}>");
 			text
 		});
 

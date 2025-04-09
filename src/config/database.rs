@@ -1,8 +1,8 @@
-use std::num::NonZero;
-
-use cs2kz_api::database::ConnectOptions;
-use serde::{Deserialize, Deserializer};
-use url::Url;
+use {
+	serde::{Deserialize, Deserializer},
+	std::num::NonZero,
+	url::Url,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
@@ -18,27 +18,11 @@ pub(crate) struct DatabaseConfig
 	pub max_connections: Option<NonZero<u32>>,
 }
 
-impl DatabaseConfig
-{
-	pub(crate) fn connect_options(&self) -> ConnectOptions<'_>
-	{
-		ConnectOptions::builder()
-			.url(&self.url)
-			.maybe_min_connections(self.min_connections)
-			.maybe_max_connections(self.max_connections)
-			.build()
-	}
-}
-
 impl Default for DatabaseConfig
 {
 	fn default() -> Self
 	{
-		Self {
-			url: default_url(),
-			min_connections: None,
-			max_connections: None,
-		}
+		Self { url: default_url(), min_connections: None, max_connections: None }
 	}
 }
 

@@ -1,20 +1,21 @@
-use std::time::Duration;
-
-use axum::body::HttpBody;
-use bytes::Buf;
-use http::{Request, Response};
-use tower_http::{
-	classify::ServerErrorsFailureClass,
-	request_id::RequestId,
-	trace::{
-		HttpMakeClassifier,
-		MakeSpan,
-		OnBodyChunk,
-		OnEos,
-		OnFailure,
-		OnRequest,
-		OnResponse,
-		TraceLayer,
+use {
+	axum::body::HttpBody,
+	bytes::Buf,
+	http::{Request, Response},
+	std::time::Duration,
+	tower_http::{
+		classify::ServerErrorsFailureClass,
+		request_id::RequestId,
+		trace::{
+			HttpMakeClassifier,
+			MakeSpan,
+			OnBodyChunk,
+			OnEos,
+			OnFailure,
+			OnRequest,
+			OnResponse,
+			TraceLayer,
+		},
 	},
 };
 
@@ -65,7 +66,7 @@ fn on_request<B>(req: &Request<B>, span: &tracing::Span, include_headers: bool)
 	if let Some(request_id) = req.extensions().get::<RequestId>() {
 		span.record("req.id", tracing::field::debug(request_id.header_value()));
 	} else {
-		tracing::warn!(target: "cs2kz_api::http::request", "no request ID in request extensions");
+		warn!(target: "cs2kz_api::http::request", "no request ID in request extensions");
 	}
 
 	span.record("req.method", tracing::field::debug(req.method()));
@@ -76,7 +77,7 @@ fn on_request<B>(req: &Request<B>, span: &tracing::Span, include_headers: bool)
 		span.record("req.headers", tracing::field::debug(req.headers()));
 	}
 
-	tracing::info!(target: "cs2kz_api::http", "starting to process request");
+	info!(target: "cs2kz_api::http", "starting to process request");
 }
 
 fn on_response<B>(res: &Response<B>, latency: Duration, span: &tracing::Span, include_headers: bool)
@@ -87,12 +88,12 @@ fn on_response<B>(res: &Response<B>, latency: Duration, span: &tracing::Span, in
 		span.record("res.headers", tracing::field::debug(res.headers()));
 	}
 
-	tracing::info!(target: "cs2kz_api::http", ?latency, "finished processing request");
+	info!(target: "cs2kz_api::http", ?latency, "finished processing request");
 }
 
 fn on_body_chunk<B: HttpBody>(chunk: &B::Data, latency: Duration, _span: &tracing::Span)
 {
-	tracing::trace!(
+	trace!(
 		target: "cs2kz_api::http::response::body",
 		size = chunk.remaining(),
 		?latency,
@@ -102,7 +103,7 @@ fn on_body_chunk<B: HttpBody>(chunk: &B::Data, latency: Duration, _span: &tracin
 
 fn on_eos(trailers: Option<&http::HeaderMap>, stream_duration: Duration, _span: &tracing::Span)
 {
-	tracing::trace!(
+	trace!(
 		target: "cs2kz_api::http::response::body",
 		?trailers,
 		?stream_duration,
@@ -114,7 +115,7 @@ fn on_failure(failure_class: ServerErrorsFailureClass, latency: Duration, _span:
 {
 	match failure_class {
 		ServerErrorsFailureClass::StatusCode(status) => {
-			tracing::error!(
+			error!(
 				target: "cs2kz_api::http::error",
 				status = status.as_u16(),
 				?latency,
@@ -122,7 +123,7 @@ fn on_failure(failure_class: ServerErrorsFailureClass, latency: Duration, _span:
 			);
 		},
 		ServerErrorsFailureClass::Error(error) => {
-			tracing::error!(
+			error!(
 				target: "cs2kz_api::http::error",
 				error,
 				?latency,

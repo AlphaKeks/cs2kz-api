@@ -1,17 +1,17 @@
-use std::fs;
-
-use color_eyre::eyre::{self, WrapErr};
-use cs2kz_api::discord;
-use tracing_subscriber::{
-	EnvFilter,
-	Layer,
-	fmt::time::UtcTime,
-	layer::SubscriberExt,
-	reload,
-	util::SubscriberInitExt,
+use {
+	crate::config::TracingConfig,
+	color_eyre::eyre::{self, WrapErr},
+	cs2kz_api::discord,
+	std::fs,
+	tracing_subscriber::{
+		EnvFilter,
+		Layer,
+		fmt::time::UtcTime,
+		layer::SubscriberExt,
+		reload,
+		util::SubscriberInitExt,
+	},
 };
-
-use crate::config::TracingConfig;
 
 pub(crate) struct Guard
 {

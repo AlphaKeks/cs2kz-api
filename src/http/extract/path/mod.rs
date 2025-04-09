@@ -1,15 +1,15 @@
-mod rejection;
-
-use std::fmt;
-
-use axum::{
-	extract::{FromRequestParts, OptionalFromRequestParts},
-	http::request,
-};
-use futures_util::TryFutureExt;
-use serde::Deserialize;
-
 pub(crate) use self::rejection::PathRejection;
+use {
+	axum::{
+		extract::{FromRequestParts, OptionalFromRequestParts},
+		http::request,
+	},
+	futures_util::TryFutureExt,
+	serde::Deserialize,
+	std::fmt,
+};
+
+mod rejection;
 
 #[derive(Debug)]
 pub(crate) struct Path<T>(pub T)
@@ -23,7 +23,7 @@ where
 {
 	type Rejection = PathRejection<T>;
 
-	#[tracing::instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
+	#[instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
 	async fn from_request_parts(
 		parts: &mut request::Parts,
 		state: &S,
@@ -43,7 +43,7 @@ where
 {
 	type Rejection = PathRejection<T>;
 
-	#[tracing::instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
+	#[instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
 	async fn from_request_parts(
 		parts: &mut request::Parts,
 		state: &S,

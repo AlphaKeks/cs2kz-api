@@ -1,13 +1,14 @@
-use std::{
-	error::Error,
-	fmt,
-	net::{IpAddr, Ipv4Addr, Ipv6Addr},
-	sync::Arc,
+use {
+	addr::parse_domain_name,
+	serde::{Deserialize, Deserializer, Serialize, de},
+	std::{
+		error::Error,
+		fmt,
+		net::{IpAddr, Ipv4Addr, Ipv6Addr},
+		sync::Arc,
+	},
+	utoipa::ToSchema,
 };
-
-use addr::parse_domain_name;
-use serde::{Deserialize, Deserializer, Serialize, de};
-use utoipa::ToSchema;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(untagged)]

@@ -1,25 +1,27 @@
-mod version;
-mod version_id;
-
-use futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt};
-use serde::Serialize;
-use sqlx::Row;
-use utoipa::ToSchema;
-
 pub use self::{
 	version::PluginVersion,
 	version_id::{ParsePluginVersionIdError, PluginVersionId},
 };
-use crate::{
-	checksum::Checksum,
-	database::{DatabaseConnection, DatabaseError, DatabaseResult},
-	game::Game,
-	git_revision::GitRevision,
-	mode::Mode,
-	stream::StreamExt as _,
-	styles::Style,
-	time::Timestamp,
+use {
+	crate::{
+		checksum::Checksum,
+		database::{self, DatabaseError, DatabaseResult},
+		game::Game,
+		git_revision::GitRevision,
+		mode::Mode,
+		stream::StreamExt as _,
+		styles::Style,
+		time::Timestamp,
+	},
+	futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt},
+	serde::Serialize,
+	sqlx::Row,
+	std::ops,
+	utoipa::ToSchema,
 };
+
+mod version;
+mod version_id;
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct PluginVersionInfo
@@ -41,10 +43,30 @@ pub struct Checksums
 	pub windows: Checksum,
 }
 
+impl ops::Index<Os> for Checksums
+{
+	type Output = Checksum;
+
+	fn index(&self, os: Os) -> &Self::Output
+	{
+		match os {
+			Os::Linux => &self.linux,
+			Os::Windows => &self.windows,
+		}
+	}
+}
+
 impl_rand!(Checksums => |rng| Checksums {
 	linux: rng.random(),
 	windows: rng.random(),
 });
+
+#[derive(Debug, Clone, Copy)]
+pub enum Os
+{
+	Linux,
+	Windows,
+}
 
 #[derive(Debug, Display, Error, From)]
 pub enum CreatePluginVersionError
@@ -63,12 +85,12 @@ pub enum CreatePluginVersionError
 	DatabaseError(DatabaseError),
 }
 
-#[tracing::instrument(skip(conn, modes, styles), ret(level = "debug"), err)]
+#[instrument(skip(db_conn, modes, styles), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn create_version<Modes, Styles>(
 	#[builder(start_fn)] version: PluginVersion,
 	#[builder(start_fn)] game: Game,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	git_revision: GitRevision,
 	linux_checksum: Checksum,
 	windows_checksum: Checksum,
@@ -81,7 +103,7 @@ where
 	Styles: IntoIterator<Item = (Style, Checksums)>,
 {
 	if let Some(latest) = get_latest_version(game)
-		.exec(&mut *conn)
+		.exec(&mut *db_conn)
 		.await?
 		.filter(|latest| *latest > version)
 	{
@@ -125,7 +147,7 @@ where
 		windows_checksum,
 		is_cutoff,
 	)
-	.fetch_one(conn.as_raw())
+	.fetch_one(db_conn.raw_mut())
 	.and_then(async |row| row.try_get::<u16, _>(0))
 	.map_err(DatabaseError::from)
 	.map_err(|err| {
@@ -151,10 +173,10 @@ where
 			checksums.linux,
 			checksums.windows,
 		)
-		.execute(conn.as_raw())
+		.execute(db_conn.raw_mut())
 		.await?;
 
-		tracing::debug!(?mode, "inserted mode checksums");
+		debug!(?mode, "inserted mode checksums");
 	}
 
 	for (style, checksums) in styles {
@@ -171,33 +193,33 @@ where
 			checksums.linux,
 			checksums.windows,
 		)
-		.execute(conn.as_raw())
+		.execute(db_conn.raw_mut())
 		.await?;
 
-		tracing::debug!(?style, "inserted style checksums");
+		debug!(?style, "inserted style checksums");
 	}
 
 	Ok(())
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn count_versions(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	game: Game,
 ) -> DatabaseResult<u64>
 {
 	sqlx::query_scalar!("SELECT COUNT(*) FROM PluginVersions WHERE game = ?", game)
-		.fetch_one(conn.as_raw())
+		.fetch_one(db_conn.raw_mut())
 		.map_err(DatabaseError::from)
 		.and_then(async |row| row.try_into().map_err(DatabaseError::convert_count))
 		.await
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get_versions(
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	game: Game,
 	#[builder(default = 0)] offset: u64,
 	limit: u64,
@@ -220,7 +242,7 @@ pub fn get_versions(
 		offset,
 		limit,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current())
@@ -231,11 +253,11 @@ pub fn get_versions(
 	})
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_latest_version(
 	#[builder(start_fn)] game: Game,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<PluginVersion>>
 {
 	sqlx::query!(
@@ -251,7 +273,7 @@ pub async fn get_latest_version(
 		 LIMIT 1",
 		game,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.map_ok(|maybe_row| {
 		maybe_row.map(|row| {
 			PluginVersion::from_parts(row.major, row.minor, row.patch, &row.pre, &row.build)
@@ -261,11 +283,11 @@ pub async fn get_latest_version(
 	.await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn get_latest_version_id(
 	#[builder(start_fn)] game: Game,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<Option<PluginVersionId>>
 {
 	sqlx::query_scalar!(
@@ -276,16 +298,47 @@ pub async fn get_latest_version_id(
 		 LIMIT 1",
 		game,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.await
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
+#[builder(finish_fn = exec)]
+pub async fn validate_checksum(
+	#[builder(start_fn)] checksum: &Checksum,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
+) -> DatabaseResult<Option<(PluginVersionId, Game, Os)>>
+{
+	sqlx::query!(
+		"SELECT
+		   id AS `id: PluginVersionId`,
+		   game AS `game: Game`,
+		   (linux_checksum = ?) AS `is_linux!: bool`,
+		   (windows_checksum = ?) AS `is_windows!: bool`
+		 FROM PluginVersions
+		 WHERE (linux_checksum = ? OR windows_checksum = ?)",
+		checksum,
+		checksum,
+		checksum,
+		checksum,
+	)
+	.fetch_optional(db_conn.raw_mut())
+	.map_ok(|maybe_row| {
+		maybe_row.map(|row| {
+			debug_assert!(row.is_linux ^ row.is_windows);
+			(row.id, row.game, if row.is_linux { Os::Linux } else { Os::Windows })
+		})
+	})
+	.map_err(DatabaseError::from)
+	.await
+}
+
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get_mode_checksums(
 	#[builder(start_fn)] version_id: PluginVersionId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> impl Stream<Item = DatabaseResult<(Mode, Checksums)>>
 {
 	sqlx::query!(
@@ -297,7 +350,7 @@ pub fn get_mode_checksums(
 		 WHERE plugin_version_id = ?",
 		version_id,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current())
@@ -306,11 +359,11 @@ pub fn get_mode_checksums(
 	})
 }
 
-#[tracing::instrument(skip(conn))]
+#[instrument(skip(db_conn))]
 #[builder(finish_fn = exec)]
 pub fn get_style_checksums(
 	#[builder(start_fn)] version_id: PluginVersionId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> impl Stream<Item = DatabaseResult<(Style, Checksums)>>
 {
 	sqlx::query!(
@@ -322,23 +375,20 @@ pub fn get_style_checksums(
 		 WHERE plugin_version_id = ?",
 		version_id,
 	)
-	.fetch(conn.as_raw())
+	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
 	.fuse()
 	.instrumented(tracing::Span::current())
 	.map_ok(|row| {
-		(row.style, Checksums {
-			linux: row.linux_checksum,
-			windows: row.windows_checksum,
-		})
+		(row.style, Checksums { linux: row.linux_checksum, windows: row.windows_checksum })
 	})
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn delete_versions(
 	#[builder(start_fn)] count: u64,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<u64>
 {
 	let cutoff = sqlx::query_scalar!(
@@ -354,11 +404,11 @@ pub async fn delete_versions(
 		 LIMIT 1",
 		count,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.await?;
 
 	sqlx::query!("DELETE FROM PluginVersions WHERE id >= ?", cutoff)
-		.execute(conn.as_raw())
+		.execute(db_conn.raw_mut())
 		.map_ok(|query_result| query_result.rows_affected())
 		.map_err(DatabaseError::from)
 		.await

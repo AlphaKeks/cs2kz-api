@@ -6,21 +6,33 @@
 //!
 //! The current implementation uses [MD5], but that may change in the future.
 //!
-//! [MD5]: ::md5::Md5
+//! [MD5]: ::md5
 
-use std::{array, fmt, io, num::ParseIntError, ops::Deref, str::FromStr};
+use {
+	md5::{Digest, Md5},
+	serde::{Deserialize, Deserializer, Serialize, Serializer},
+	std::{array, fmt, io, num::ParseIntError, str::FromStr},
+};
 
-use md5::{Digest, Md5};
-
+/// The number of bytes that make up a [`Checksum`]
 const RAW_LEN: usize = 16_usize;
+
+/// The number of bytes used by a [`Checksum`] when represented as a string
 const STR_LEN: usize = RAW_LEN * 2;
 
+/// An opaque checksum
+///
+/// See [module-level documentation] for more information.
+///
+/// [module-level documentation]: crate::checksum
+#[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Checksum
 {
 	bytes: [u8; RAW_LEN],
 }
 
+/// Error for parsing strings into [`Checksum`]s
 #[derive(Debug, Display, Error)]
 pub enum ParseChecksumError
 {
@@ -37,6 +49,11 @@ pub enum ParseChecksumError
 
 impl Checksum
 {
+	pub const fn as_bytes(&self) -> &[u8]
+	{
+		self.bytes.as_slice()
+	}
+
 	/// Computes a [`Checksum`] from the given `bytes`.
 	pub fn from_bytes(bytes: &[u8]) -> Self
 	{
@@ -46,9 +63,9 @@ impl Checksum
 		Self { bytes: hasher.finalize().into() }
 	}
 
-	/// Computes a [`Checksum`] from all bytes read until EOF from the given
-	/// `reader`.
-	#[tracing::instrument(level = "trace", skip(reader), err(level = "warn"))]
+	/// Computes a [`Checksum`] from all bytes read from the given `reader`
+	/// (until EOF).
+	#[instrument(level = "debug", skip(reader), err)]
 	pub fn from_reader<R>(reader: &mut R) -> io::Result<Self>
 	where
 		R: ?Sized + io::Read,
@@ -78,16 +95,6 @@ impl fmt::Display for Checksum
 	}
 }
 
-impl Deref for Checksum
-{
-	type Target = [u8];
-
-	fn deref(&self) -> &Self::Target
-	{
-		&self.bytes[..]
-	}
-}
-
 impl FromStr for Checksum
 {
 	type Err = ParseChecksumError;
@@ -98,126 +105,92 @@ impl FromStr for Checksum
 			return Err(ParseChecksumError::InvalidLength { got: value.len() });
 		}
 
-		Ok(Self {
-			bytes: array::try_from_fn(|idx| {
-				let substr = value
-					.get(idx * 2..(idx + 1) * 2)
-					.unwrap_or_else(|| panic!("we checked the input's length"));
+		let bytes = array::try_from_fn(|idx| {
+			let substr = value.get(idx * 2..(idx + 1) * 2).unwrap_or_else(|| {
+				unreachable!("we checked the input's length");
+			});
 
-				u8::from_str_radix(substr, 16).map_err(ParseChecksumError::ParseHexDigit)
-			})?,
-		})
-	}
-}
-
-impl serde::Serialize for Checksum
-{
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		S: serde::Serializer,
-	{
-		format_args!("{self}").serialize(serializer)
-	}
-}
-
-impl<'de> serde::Deserialize<'de> for Checksum
-{
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-	where
-		D: serde::Deserializer<'de>,
-	{
-		if !deserializer.is_human_readable() {
-			return <[u8; RAW_LEN]>::deserialize(deserializer).map(|bytes| Self { bytes });
-		}
-
-		<String as serde::Deserialize<'de>>::deserialize(deserializer)?
-			.parse::<Self>()
-			.map_err(|err| match err {
-				ParseChecksumError::InvalidLength { got } => {
-					serde::de::Error::invalid_length(got, &"32 hex characters")
-				},
-				ParseChecksumError::ParseHexDigit(error) => serde::de::Error::custom(error),
-			})
-	}
-}
-
-impl_rand!(Checksum => |rng| Checksum { bytes: rng.random() });
-
-impl<DB> sqlx::Type<DB> for Checksum
-where
-	DB: sqlx::Database,
-	[u8]: sqlx::Type<DB>,
-{
-	fn type_info() -> <DB as sqlx::Database>::TypeInfo
-	{
-		<[u8] as sqlx::Type<DB>>::type_info()
-	}
-
-	fn compatible(ty: &<DB as sqlx::Database>::TypeInfo) -> bool
-	{
-		<[u8] as sqlx::Type<DB>>::compatible(ty)
-	}
-}
-
-impl<'q, DB> sqlx::Encode<'q, DB> for Checksum
-where
-	DB: sqlx::Database,
-	for<'a> &'a [u8]: sqlx::Encode<'q, DB>,
-{
-	fn encode_by_ref(
-		&self,
-		buf: &mut <DB as sqlx::Database>::ArgumentBuffer<'q>,
-	) -> Result<sqlx::encode::IsNull, Box<dyn std::error::Error + Send + Sync>>
-	{
-		(&&**self).encode(buf)
-	}
-
-	fn produces(&self) -> Option<<DB as sqlx::Database>::TypeInfo>
-	{
-		(&&**self).produces()
-	}
-
-	fn size_hint(&self) -> usize
-	{
-		(&&**self).size_hint()
-	}
-}
-
-impl<'r, DB> sqlx::Decode<'r, DB> for Checksum
-where
-	DB: sqlx::Database,
-	&'r [u8]: sqlx::Decode<'r, DB>,
-{
-	fn decode(
-		value: <DB as sqlx::Database>::ValueRef<'r>,
-	) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>
-	{
-		let bytes = <&'r [u8] as sqlx::Decode<'r, DB>>::decode(value)?;
-		let bytes = <[u8; RAW_LEN]>::try_from(bytes)?;
+			u8::from_str_radix(substr, 16).map_err(ParseChecksumError::ParseHexDigit)
+		})?;
 
 		Ok(Self { bytes })
 	}
 }
 
-impl utoipa::ToSchema for Checksum
-{
-}
+impl_rand!(Checksum => |rng| Checksum { bytes: rng.random() });
 
-impl utoipa::PartialSchema for Checksum
+impl Serialize for Checksum
 {
-	fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
 	{
-		use utoipa::openapi::{
-			Object,
-			schema::{self, SchemaType},
-		};
-
-		Object::builder()
-			.description(Some("an MD5 checksum"))
-			.schema_type(SchemaType::Type(schema::Type::String))
-			.min_length(Some(STR_LEN))
-			.max_length(Some(STR_LEN))
-			.examples(["ba29b1da0f9c28e2a9e072aba46cf040"])
-			.into()
+		if serializer.is_human_readable() {
+			format_args!("{self}").serialize(serializer)
+		} else {
+			self.as_bytes().serialize(serializer)
+		}
 	}
 }
+
+impl<'de> Deserialize<'de> for Checksum
+{
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		use serde::de;
+
+		struct ChecksumVisitor;
+
+		impl de::Visitor<'_> for ChecksumVisitor
+		{
+			type Value = Checksum;
+
+			fn expecting(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result
+			{
+				fmt.write_str("a checksum")
+			}
+
+			fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+			where
+				E: de::Error,
+			{
+				value.parse().map_err(E::custom)
+			}
+
+			fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+			where
+				E: de::Error,
+			{
+				<[u8; RAW_LEN]>::try_from(value)
+					.map(|bytes| Checksum { bytes })
+					.map_err(|_| E::invalid_length(value.len(), &self))
+			}
+		}
+
+		if deserializer.is_human_readable() {
+			deserializer.deserialize_str(ChecksumVisitor)
+		} else {
+			deserializer.deserialize_bytes(ChecksumVisitor)
+		}
+	}
+}
+
+impl_sqlx!(Checksum => {
+	Type as [u8];
+	Encode<'q, 'a> as &'a [u8] = |checksum| checksum.as_bytes();
+	Decode<'r> as &'r [u8] = |bytes| {
+		<&[u8] as TryInto<[u8; RAW_LEN]>>::try_into(bytes)
+			.map(|bytes| Checksum { bytes })
+	};
+});
+
+impl_utoipa!(Checksum => {
+	Object::builder()
+		.description(Some("an MD5 checksum"))
+		.schema_type(schema::Type::String)
+		.min_length(Some(STR_LEN))
+		.max_length(Some(STR_LEN))
+		.examples(["ba29b1da0f9c28e2a9e072aba46cf040"])
+});

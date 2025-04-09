@@ -1,8 +1,8 @@
-use std::num::ParseIntError;
+use {crate::InvalidAccountUniverse, std::num::ParseIntError};
 
-use crate::InvalidAccountUniverse;
-
-/// Error type for conversions from [`u64`] to [`SteamId`](crate::SteamId)
+/// Error type for conversions from [`u64`] to [`SteamId`]
+///
+/// [`SteamId`]: crate::SteamId
 #[allow(missing_copy_implementations)]
 #[derive(Debug, Display, Error)]
 #[display("invalid SteamID64: {_variant}")]
@@ -17,7 +17,9 @@ pub enum InvalidSteamId64
 	InvalidAccountType,
 }
 
-/// Error type for conversions from strings to [`SteamId`](crate::SteamId)
+/// Error type for conversions from strings to [`SteamId`]
+///
+/// [`SteamId`]: crate::SteamId
 #[derive(Debug, Display, Error, From)]
 #[display("failed to parse SteamID: {_variant}")]
 pub enum ParseSteamIdError

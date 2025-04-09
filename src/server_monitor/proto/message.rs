@@ -1,134 +1,176 @@
-use std::{error::Error, fmt};
-
-use serde::{Deserialize, Serialize};
-use tokio_websockets::proto::Message as RawMessage;
-
-use crate::{
-	checksum::Checksum,
-	maps::{CourseId, Map},
-	players::{PlayerId, PlayerIp, PlayerName, PlayerPreferences},
-	records::{CreatedRankedRecordData, RecordId, Teleports, Time},
+use {
+	crate::{
+		checksum::Checksum,
+		error::ResultExt,
+		maps::{CourseLocalId, Map},
+		players::{PlayerId, PlayerIp, PlayerName, PlayerPreferences},
+		records::{self, CreatedRankedRecordData, RecordId},
+	},
+	serde::{Deserialize, Serialize, Serializer},
+	std::error::Error,
+	tokio_websockets::Message as RawMessage,
 };
 
-/// A message sent between client and server
-#[derive(Debug, Serialize, Deserialize)]
-pub(in crate::server_monitor) struct Message<T>
+/// A WebSocket message ID
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(transparent)]
+pub(super) struct MessageId(u64);
+
+impl MessageId
+{
+	pub(super) fn as_u64(&self) -> u64
+	{
+		self.0
+	}
+}
+
+/// A WebSocket message
+#[derive(Debug, Serialize)]
+pub(super) struct Message<T>
 {
 	/// ID assigned by the client
-	id: u32,
+	id: MessageId,
 
-	/// The rest of the message
+	/// The rest of the message payload
 	#[serde(flatten)]
 	payload: T,
 }
 
-/// Messages we expect to receive from the client
+/// Payloads for incoming [`Message`]s
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
-pub(in crate::server_monitor) enum Incoming
+pub(super) enum Incoming
 {
-	/// The server has changed maps.
-	MapChange
+	/// The server changed map.
+	MapChanged
 	{
-		name: Box<str>
+		/// The name of the new map
+		name: Box<str>,
 	},
 
-	/// A player has joined the server.
+	/// A player joined the server.
 	PlayerJoin
 	{
+		/// The player's ID
 		id: PlayerId,
+
+		/// The player's name when they joined
 		name: PlayerName,
+
+		/// The player's IP address
 		ip_address: PlayerIp,
 	},
 
-	/// A player has left the server.
+	/// A player left the server.
 	PlayerLeave
 	{
+		/// The player's ID
 		id: PlayerId,
+
+		/// The player's name when they left
 		name: PlayerName,
+
+		/// The player's in-game preferences when they left
 		preferences: PlayerPreferences,
 	},
 
-	/// A player wants to submit a record.
-	NewRecord
+	/// A player is submitting a record.
+	SubmitRecord
 	{
-		player_id: PlayerId,
-		course_id: CourseId,
+		/// Local ID of the course the record was set on
+		course_local_id: CourseLocalId,
+
+		/// Checksum of the mode this record was set with
 		mode_checksum: Checksum,
+
+		/// ID of the player submitting the record
+		player_id: PlayerId,
+
+		/// The duration of the run
+		time: records::Time,
+
+		/// The number of teleports used
+		teleports: records::Teleports,
+
+		/// Checksums of the styles this record was set with
 		style_checksums: Vec<Checksum>,
-		time: Time,
-		teleports: Teleports,
 	},
 }
 
+/// Error for decoding [`Incoming`] messages
 #[derive(Debug, Display, Error)]
-#[display("failed to decode message: {kind}")]
-pub(in crate::server_monitor) struct DecodeMessageError
-{
-	kind: DecodeMessageErrorKind,
-	source: serde_json::Error,
-}
-
-#[derive(Debug, Display)]
-pub(in crate::server_monitor) enum DecodeMessageErrorKind
+pub(super) enum DecodeMessageError
 {
 	#[display("missing `id` field")]
-	MissingId,
-
-	#[display("failed to deserialize payload")]
-	DeserializePayload
+	NoId
 	{
-		message_id: u32
+		#[error(source)]
+		error: serde_json::Error,
+	},
+
+	#[display("invalid payload: {error}")]
+	InvalidPayload
+	{
+		id: MessageId,
+		#[error(source)]
+		error: serde_json::Error,
 	},
 }
 
-/// Messages we intend to send to the client
+/// Payloads for outgoing [`Message`]s
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
-pub(in crate::server_monitor) enum Outgoing<'a>
+pub(super) enum Outgoing<'a>
 {
 	/// A generic error message
 	Error
 	{
-		#[serde(rename = "error")]
-		message: Box<str>,
+		#[serde(serialize_with = "serialize_dyn_error")]
+		error: &'a (dyn Error + Send + Sync),
 	},
 
-	/// The server should broadcast a message in chat
-	BroadcastChatMessage
+	/// The server should broadcast a message in chat.
+	BroadcastMessage
 	{
-		message: &'a str
+		/// The message to broadcast
+		message: &'a str,
 	},
 
-	/// Response to [`Incoming::MapChange`]
-	MapChangeAck
+	/// Response to [`Incoming::MapChanged`]
+	MapChangedAck
 	{
-		map: Option<&'a Map>
+		/// Detailed information about the map
+		map_info: Option<&'a Map>,
 	},
 
 	/// Response to [`Incoming::PlayerJoin`]
 	PlayerJoinAck
 	{
-		player_id: PlayerId,
-		is_banned: bool,
+		/// The player's in-game preferences
 		preferences: &'a PlayerPreferences,
+
+		/// Whether the player is currently banned
+		is_banned: bool,
 	},
 
-	/// Response to [`Incoming::NewRecord`]
-	NewRecordAck
+	/// Response to [`Incoming::SubmitRecord`]
+	SubmitRecordAck
 	{
+		/// ID of the submitted record
 		record_id: RecordId,
+
+		/// Data about ranks, points, etc. if this record is a PB
 		ranked_data: Option<&'a CreatedRankedRecordData>,
 	},
 }
 
+/// Error for encoding [`Outgoing`] messages
 #[derive(Debug, Display, Error, From)]
-#[display("failed to encode message: {_0}")]
-pub(in crate::server_monitor) struct EncodeMessageError(serde_json::Error);
+pub(super) struct EncodeMessageError(serde_json::Error);
 
 impl<T> Message<T>
 {
-	pub(in crate::server_monitor) fn into_parts(self) -> (u32, T)
+	pub(super) fn into_parts(self) -> (MessageId, T)
 	{
 		(self.id, self.payload)
 	}
@@ -136,70 +178,78 @@ impl<T> Message<T>
 
 impl<T> Message<T>
 where
-	T: for<'de> Deserialize<'de> + fmt::Debug,
+	T: Serialize,
 {
-	/// Decodes an incoming message.
-	#[track_caller]
-	#[tracing::instrument(level = "trace", ret(level = "trace"), err(level = "debug"))]
-	pub(in crate::server_monitor) fn decode(raw: &RawMessage) -> Result<Self, DecodeMessageError>
+	/// Creates a new outgoing [`Message`] with an ID of 0.
+	pub(super) fn new(payload: T) -> Self
 	{
-		#[derive(Debug, Deserialize)]
-		struct JustId
-		{
-			id: u32,
-		}
-
-		debug_assert!(raw.is_binary() || raw.is_text());
-
-		let payload = raw.as_payload();
-		let JustId { id } = serde_json::from_slice(&payload[..]).map_err(|err| {
-			DecodeMessageError { kind: DecodeMessageErrorKind::MissingId, source: err }
-		})?;
-
-		serde_json::from_slice(&payload[..])
-			.map(|payload| Self { id, payload })
-			.map_err(|err| DecodeMessageError {
-				kind: DecodeMessageErrorKind::DeserializePayload { message_id: id },
-				source: err,
-			})
-	}
-}
-
-impl<T> Message<T>
-where
-	T: Serialize + fmt::Debug,
-{
-	/// Creates a new outgoing message.
-	///
-	/// If this is a reply, `message_id` should be the same as the incoming
-	/// message's. Otherwise it should be `0`.
-	pub(in crate::server_monitor) fn new(message_id: u32, payload: T) -> Self
-	{
-		Self { id: message_id, payload }
+		Self { id: MessageId(0), payload }
 	}
 
-	/// Encodes an outgoing message so it can be sent over a WebSocket.
-	#[tracing::instrument(level = "trace", ret(level = "trace"), err)]
-	pub(in crate::server_monitor) fn encode(&self) -> Result<RawMessage, EncodeMessageError>
+	/// Creates a new outgoing [`Message`] as a reply to an incoming message
+	/// with ID `to`.
+	pub(super) fn reply(to: MessageId, payload: T) -> Self
+	{
+		Self { id: to, payload }
+	}
+
+	/// Encodes `self` into a [`RawMessage`].
+	pub(super) fn encode(&self) -> Result<RawMessage, EncodeMessageError>
 	{
 		serde_json::to_string(self)
 			.map(RawMessage::text)
 			.map_err(EncodeMessageError::from)
 	}
+
+	/// Encodes `self` into a [`RawMessage`], logging an error if the conversion
+	/// failed.
+	pub(super) fn encode_lossy(&self) -> Option<RawMessage>
+	{
+		self.encode()
+			.inspect_err_dyn(|err| error!(error = err as &dyn Error, "failed to encode message"))
+			.ok()
+	}
 }
 
-impl Message<Outgoing<'_>>
+impl<'de, T> Message<T>
+where
+	T: Deserialize<'de>,
 {
-	/// Creates a new outgoing error message.
-	///
-	/// This should be used for errors rather than [`Message::new()`] because it
-	/// will also capture the original error value in our logs.
-	#[tracing::instrument(level = "debug", ret(level = "trace"))]
-	pub(in crate::server_monitor) fn error(message_id: u32, error: &(dyn Error + 'static)) -> Self
+	/// Decodes an incoming message payload.
+	pub(super) fn decode(bytes: &'de [u8]) -> Result<Self, DecodeMessageError>
 	{
-		Self {
-			id: message_id,
-			payload: Outgoing::Error { message: error.to_string().into_boxed_str() },
+		#[derive(Debug, Deserialize)]
+		struct JustId
+		{
+			id: MessageId,
+		}
+
+		let JustId { id } =
+			serde_json::from_slice(bytes).map_err(|err| DecodeMessageError::NoId { error: err })?;
+
+		match serde_json::from_slice::<T>(bytes) {
+			Ok(payload) => Ok(Self { id, payload }),
+			Err(err) => Err(DecodeMessageError::InvalidPayload { id, error: err }),
 		}
 	}
+}
+
+impl<'a> From<&'a DecodeMessageError> for Message<Outgoing<'a>>
+{
+	fn from(error: &'a DecodeMessageError) -> Self
+	{
+		match *error {
+			DecodeMessageError::NoId { ref error } => Message::new(Outgoing::Error { error }),
+			DecodeMessageError::InvalidPayload { id, ref error } => {
+				Message::reply(id, Outgoing::Error { error })
+			},
+		}
+	}
+}
+
+fn serialize_dyn_error<S>(error: &dyn Error, serializer: S) -> Result<S::Ok, S::Error>
+where
+	S: Serializer,
+{
+	format_args!("{error}").serialize(serializer)
 }

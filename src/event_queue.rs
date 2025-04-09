@@ -1,20 +1,29 @@
-use std::sync::{Arc, LazyLock};
+//! Global event queue
+//!
+//! This module contains a pub/sub queue for API events. [`subscribe()`] can be
+//! used to get a [`Stream`] of [`Event`]s. Subscribers which are too slow to
+//! consume events will lag behind and receive a [`Lag`] event anytime they do
+//! so.
+//!
+//! [`Lag`]: Event::Lag
 
-use axum::response::sse;
-use futures_util::{FutureExt, Stream, stream};
-use serde::Serialize;
-use tokio::sync::broadcast;
-use utoipa::ToSchema;
-
-use crate::{
-	maps::{MapId, MapName},
-	players::PlayerId,
-	records::RecordId,
-	servers::{self, ConnectedPlayerInfo, ServerId},
+use {
+	crate::{
+		maps::{MapId, MapName},
+		players::PlayerId,
+		records::RecordId,
+		servers::{self, ConnectedPlayerInfo, ServerId},
+	},
+	futures_util::{FutureExt, Stream, stream},
+	serde::Serialize,
+	std::sync::{Arc, LazyLock},
+	tokio::sync::broadcast,
+	utoipa::ToSchema,
 };
 
 static QUEUE: LazyLock<broadcast::Sender<Arc<Event>>> = LazyLock::new(|| broadcast::channel(32).0);
 
+/// An API event
 #[non_exhaustive]
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(untagged)]
@@ -45,7 +54,14 @@ pub enum Event
 	},
 
 	/// `server-connected` - A server has connected to the API.
-	ServerConnected(servers::ConnectionInfo),
+	ServerConnected
+	{
+		/// The ID of the server
+		id: ServerId,
+
+		/// Information about the connection
+		connection_info: servers::ConnectionInfo,
+	},
 
 	/// `server-disconnected` - A server has disconnected from the API.
 	ServerDisconnected
@@ -82,24 +98,22 @@ pub enum Event
 	},
 }
 
-impl TryFrom<&Event> for sse::Event
+impl Event
 {
-	type Error = axum::Error;
-
-	fn try_from(event: &Event) -> Result<Self, Self::Error>
+	/// Returns the name of the event.
+	#[expect(clippy::same_name_method)]
+	pub const fn name(&self) -> &'static str
 	{
-		let name = match *event {
+		match *self {
 			Event::Lag { .. } => "lag",
 			Event::MapCreated { .. } => "map-created",
 			Event::MapApproved { .. } => "map-approved",
-			Event::ServerConnected(..) => "server-connected",
+			Event::ServerConnected { .. } => "server-connected",
 			Event::ServerDisconnected { .. } => "server-disconnected",
 			Event::PlayerJoin { .. } => "player-join",
 			Event::PlayerLeave { .. } => "player-leave",
 			Event::RecordSubmitted { .. } => "record-submitted",
-		};
-
-		sse::Event::default().event(name).json_data(event)
+		}
 	}
 }
 
@@ -119,11 +133,11 @@ pub fn subscribe() -> impl Stream<Item = Arc<Event>>
 	})
 }
 
-#[tracing::instrument(ret(level = "debug"))]
+#[instrument(ret(level = "debug"))]
 pub(crate) fn dispatch(event: Event) -> usize
 {
 	QUEUE.send(Arc::new(event)).unwrap_or_else(|_| {
-		tracing::trace!("no active event listeners");
+		trace!("no active event listeners");
 		0_usize
 	})
 }

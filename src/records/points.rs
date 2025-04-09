@@ -1,7 +1,8 @@
-use std::{cmp, num::FpCategory};
-
-use serde::Serialize;
-use utoipa::ToSchema;
+use {
+	serde::Serialize,
+	std::{cmp, num::FpCategory},
+	utoipa::ToSchema,
+};
 
 const MAX: f64 = 10_000.0;
 

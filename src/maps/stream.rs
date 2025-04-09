@@ -15,10 +15,11 @@ impl<S> StreamState<S>
 }
 
 pub(super) macro from_raw($stream: expr) {{
-	use std::{collections::btree_map, mem};
-
-	use super::{CS2Filters, CSGOFilters, Filter};
-	use crate::mode::Mode;
+	use {
+		super::{CS2Filters, CSGOFilters, Filter},
+		crate::mode::Mode,
+		std::{collections::btree_map, mem},
+	};
 
 	futures_util::stream::unfold(StreamState::new($stream), async |mut state| {
 		loop {
@@ -101,7 +102,7 @@ pub(super) macro from_raw($stream: expr) {{
 									});
 								}
 							},
-							Mode::Vanilla => {
+							Mode::VanillaCS2 => {
 								if let Some(ref mut filters) = old_filters.cs2 {
 									filters.vnl = filter();
 								} else {
@@ -126,10 +127,11 @@ pub(super) macro from_raw($stream: expr) {{
 }}
 
 macro parse_row($row:expr) {{
-	use std::collections::BTreeMap;
-
-	use super::{CS2Filters, CSGOFilters, Course, Filter, Filters, Mapper};
-	use crate::mode::Mode;
+	use {
+		super::{CS2Filters, CSGOFilters, Course, Filter, Filters, Mapper},
+		crate::mode::Mode,
+		std::collections::BTreeMap,
+	};
 
 	Map {
 		id: $row.id,
@@ -158,7 +160,7 @@ macro parse_row($row:expr) {{
 				};
 
 				match $row.filter_mode {
-					Mode::Vanilla | Mode::Classic => Filters {
+					Mode::VanillaCS2 | Mode::Classic => Filters {
 						cs2: Some(CS2Filters { vnl: filter(), ckz: filter() }),
 						csgo: None,
 					},

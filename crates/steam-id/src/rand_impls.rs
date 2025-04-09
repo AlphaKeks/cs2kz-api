@@ -1,7 +1,8 @@
-use ::rand::distr::{Distribution, StandardUniform};
-use rand::Rng;
-
-use crate::{AccountNumber, AccountUniverse, SteamId};
+use {
+	crate::{AccountNumber, AccountUniverse, SteamId},
+	::rand::distr::{Distribution, StandardUniform},
+	rand::Rng,
+};
 
 impl Distribution<SteamId> for StandardUniform
 {

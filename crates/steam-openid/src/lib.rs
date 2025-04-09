@@ -9,18 +9,22 @@
 #[macro_use(Debug)]
 extern crate derive_more as _;
 
-use std::{error::Error, fmt, str};
+#[macro_use(instrument)]
+extern crate tracing as _;
 
-use bytes::Bytes;
-use http_body::Body as HttpBody;
-use http_body_util::BodyExt;
-use serde::{
-	Deserialize,
-	Serialize,
-	ser::{SerializeMap, Serializer},
+use {
+	bytes::Bytes,
+	http_body::Body as HttpBody,
+	http_body_util::BodyExt,
+	serde::{
+		Deserialize,
+		Serialize,
+		ser::{SerializeMap, Serializer},
+	},
+	std::{error::Error, fmt, str},
+	steam_id::SteamId,
+	url::Url,
 };
-use steam_id::SteamId;
-use url::Url;
 
 pub const LOGIN_URL: &str = "https://steamcommunity.com/openid/login";
 
@@ -29,7 +33,7 @@ pub const LOGIN_URL: &str = "https://steamcommunity.com/openid/login";
 /// Steam will redirect the user to `return_to` after the login process is complete. `userdata`
 /// will be injected into this URL such that Steam's request will include a `userdata` field in its
 /// query parameters.
-#[tracing::instrument(
+#[instrument(
     level = "trace",
     skip(userdata),
     fields(return_to = return_to.as_str()),
@@ -72,11 +76,8 @@ where
 						.substr_range(self.return_to.path())
 						.unwrap_or_else(|| panic!("`path` is derived from `return_to`"));
 
-					&return_to[..(if path_range.start == 0 {
-						return_to.len()
-					} else {
-						path_range.start
-					})]
+					&return_to
+						[..(if path_range.start == 0 { return_to.len() } else { path_range.start })]
 				};
 
 				serializer.serialize_entry("openid.ns", "http://specs.openid.net/auth/2.0")?;
@@ -181,7 +182,7 @@ where
 
 impl CallbackPayload
 {
-	#[tracing::instrument(skip(self, send_request), ret(level = "debug"), err(level = "debug"))]
+	#[instrument(skip(self, send_request), ret(level = "debug"), err(level = "debug"))]
 	pub async fn verify<S, E, ResponseBody>(
 		mut self,
 		expected_host: url::Host<&str>,

@@ -1,10 +1,11 @@
-use std::{
-	num::{NonZero, ParseIntError},
-	str::FromStr,
+use {
+	serde::{Deserialize, Serialize},
+	std::{
+		num::{NonZero, ParseIntError},
+		str::FromStr,
+	},
+	utoipa::ToSchema,
 };
-
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 #[derive(
 	Debug,

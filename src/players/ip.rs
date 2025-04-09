@@ -1,6 +1,7 @@
-use std::net::Ipv4Addr;
-
-use serde::{Deserialize, Serialize};
+use {
+	serde::{Deserialize, Serialize},
+	std::net::Ipv4Addr,
+};
 
 #[derive(Debug, Display, Clone, Copy, From, Into, Serialize, Deserialize, sqlx::Type)]
 #[serde(transparent)]

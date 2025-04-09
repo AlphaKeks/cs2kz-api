@@ -1,17 +1,17 @@
-mod rejection;
-
-use std::fmt;
-
-use axum::{
-	body::Bytes,
-	extract::{FromRequest, Request},
-	response::{IntoResponse, Response},
-};
-use headers::HeaderMapExt;
-use mime::Mime;
-use serde::{Deserialize, Serialize};
-
 pub(crate) use self::rejection::JsonRejection;
+use {
+	axum::{
+		body::Bytes,
+		extract::{FromRequest, Request},
+		response::{IntoResponse, Response},
+	},
+	headers::HeaderMapExt,
+	mime::Mime,
+	serde::{Deserialize, Serialize},
+	std::fmt,
+};
+
+mod rejection;
 
 #[derive(Debug)]
 pub(crate) struct Json<T>(pub T);
@@ -37,7 +37,7 @@ where
 {
 	type Rejection = JsonRejection<T>;
 
-	#[tracing::instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
+	#[instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
 	async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection>
 	{
 		if !has_json_content_type(req.headers()) {
@@ -52,23 +52,21 @@ where
 	}
 }
 
-#[tracing::instrument(level = "trace", ret(level = "trace"))]
+#[instrument(level = "trace", ret(level = "trace"))]
 fn has_json_content_type(headers: &http::HeaderMap) -> bool
 {
 	let Some(content_type) = headers.get(http::header::CONTENT_TYPE) else {
-		tracing::debug!("request headers do not contain a `Content-Type` header");
+		debug!("request headers do not contain a `Content-Type` header");
 		return false;
 	};
 
 	let Ok(content_type) = content_type.to_str() else {
-		tracing::debug!("request headers contain a `Content-Type` header, but it's not UTF-8");
+		debug!("request headers contain a `Content-Type` header, but it's not UTF-8");
 		return false;
 	};
 
 	let Ok(mime) = content_type.parse::<Mime>() else {
-		tracing::debug!(
-			"request headers contain a `Content-Type` header, but it's not a valid mime type"
-		);
+		debug!("request headers contain a `Content-Type` header, but it's not a valid mime type");
 		return false;
 	};
 

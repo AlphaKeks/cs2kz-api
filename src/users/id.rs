@@ -1,10 +1,10 @@
-use std::{error::Error, str::FromStr};
-
-use serde::{Deserialize, Serialize};
-use steam_id::{ParseSteamIdError, SteamId};
-use utoipa::ToSchema;
-
-use crate::players::PlayerId;
+use {
+	crate::players::PlayerId,
+	serde::{Deserialize, Serialize},
+	std::{error::Error, str::FromStr},
+	steam_id::{ParseSteamIdError, SteamId},
+	utoipa::ToSchema,
+};
 
 #[derive(
 	Debug,

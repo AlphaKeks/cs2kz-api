@@ -1,13 +1,14 @@
-use std::{error::Error, str::FromStr};
-
-use axum::{
-	extract::OptionalFromRequestParts,
-	response::{IntoResponse, Response},
+use {
+	axum::{
+		extract::OptionalFromRequestParts,
+		response::{IntoResponse, Response},
+	},
+	axum_extra::extract::CookieJar,
+	http::request,
+	serde::{Deserialize, Serialize},
+	std::{error::Error, str::FromStr},
+	uuid::Uuid,
 };
-use axum_extra::extract::CookieJar;
-use http::request;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, From, Into, Serialize, Deserialize)]
 #[debug("SessionId({})", _0.as_hyphenated())]
@@ -110,7 +111,7 @@ where
 {
 	type Rejection = SessionIdRejection;
 
-	#[tracing::instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
+	#[instrument(level = "debug", skip_all, ret(level = "debug"), err(level = "debug"))]
 	async fn from_request_parts(
 		parts: &mut request::Parts,
 		_state: &S,

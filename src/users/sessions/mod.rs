@@ -1,15 +1,15 @@
-mod id;
-
-use std::{fmt, ops, time::Duration};
-
-use futures_util::TryFutureExt;
-
 pub use self::id::{ParseSessionIdError, SessionId, SessionIdRejection};
-use crate::{
-	database::{DatabaseConnection, DatabaseError, DatabaseResult},
-	time::Timestamp,
-	users::{Permissions, ServerBudget, UserId, Username},
+use {
+	crate::{
+		database::{self, DatabaseError, DatabaseResult},
+		time::Timestamp,
+		users::{Permissions, ServerBudget, UserId, Username},
+	},
+	futures_util::TryFutureExt,
+	std::{fmt, ops, time::Duration},
 };
+
+mod id;
 
 #[derive(Debug)]
 pub struct Session
@@ -28,9 +28,9 @@ pub struct User
 	pub server_budget: ServerBudget,
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 pub async fn get_by_id(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	session_id: SessionId,
 ) -> DatabaseResult<Option<Session>>
 {
@@ -47,7 +47,7 @@ pub async fn get_by_id(
 		 WHERE s.id = ?",
 		session_id,
 	)
-	.fetch_optional(conn.as_raw())
+	.fetch_optional(db_conn.raw_mut())
 	.await
 	.map_err(DatabaseError::from)
 	.map(|maybe_row| {
@@ -64,11 +64,11 @@ pub async fn get_by_id(
 	})
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn create<Duration>(
 	#[builder(start_fn)] user_id: UserId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	expires_after: Duration,
 ) -> DatabaseResult<SessionId>
 where
@@ -84,38 +84,38 @@ where
 		user_id,
 		Timestamp::now() + expires_after,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.await?;
 
 	Ok(session_id)
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn extend(
 	#[builder(start_fn)] session_id: SessionId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	#[builder(into)] duration: Duration,
 ) -> DatabaseResult<bool>
 {
-	set_expires_at(conn, session_id, Timestamp::now() + duration).await
+	set_expires_at(db_conn, session_id, Timestamp::now() + duration).await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn expire(
 	#[builder(start_fn)] session_id: SessionId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<bool>
 {
-	set_expires_at(conn, session_id, Timestamp::now()).await
+	set_expires_at(db_conn, session_id, Timestamp::now()).await
 }
 
-#[tracing::instrument(skip(conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn expire_active(
 	#[builder(start_fn)] user_id: UserId,
-	#[builder(finish_fn)] conn: &mut DatabaseConnection<'_, '_>,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 ) -> DatabaseResult<bool>
 {
 	sqlx::query!(
@@ -124,20 +124,20 @@ pub async fn expire_active(
 		 WHERE user_id = ? AND expires_at > NOW()",
 		user_id,
 	)
-	.execute(conn.as_raw())
+	.execute(db_conn.raw_mut())
 	.map_ok(|query_result| query_result.rows_affected() > 0)
 	.map_err(DatabaseError::from)
 	.await
 }
 
 fn set_expires_at(
-	conn: &mut DatabaseConnection<'_, '_>,
+	db_conn: &mut database::Connection<'_, '_>,
 	session_id: SessionId,
 	expires_at: Timestamp,
 ) -> impl Future<Output = DatabaseResult<bool>>
 {
 	sqlx::query!("UPDATE UserSessions SET expires_at = ? WHERE id = ?", expires_at, session_id)
-		.execute(conn.as_raw())
+		.execute(db_conn.raw_mut())
 		.map_ok(|query_result| query_result.rows_affected() > 0)
 		.map_err(DatabaseError::from)
 }

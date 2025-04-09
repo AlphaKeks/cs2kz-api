@@ -1,11 +1,12 @@
-use std::{
-	fmt,
-	future,
-	pin::Pin,
-	task::{self, Poll, ready},
+use {
+	futures_util::{Stream, TryStream, TryStreamExt as _, stream::FusedStream},
+	std::{
+		fmt,
+		future,
+		pin::Pin,
+		task::{self, Poll, ready},
+	},
 };
-
-use futures_util::{Stream, TryStream, TryStreamExt as _, stream::FusedStream};
 
 pub trait StreamExt: Stream
 {
@@ -69,11 +70,11 @@ where
 		span.in_scope(|| {
 			Poll::Ready(match ready!(stream.poll_next(cx)) {
 				Some(item) => {
-					tracing::trace!(?item);
+					trace!(?item);
 					Some(item)
 				},
 				None => {
-					tracing::trace!("stream is exhausted");
+					trace!("stream is exhausted");
 					None
 				},
 			})
