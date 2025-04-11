@@ -3,7 +3,10 @@ use {
 		extract::{FromRequestParts, OptionalFromRequestParts},
 		response::{IntoResponse, Response},
 	},
-	cs2kz_api::users::{Permissions, ServerBudget, UserId, Username, sessions::SessionId},
+	cs2kz_api::{
+		time::Timestamp,
+		users::{Permissions, ServerBudget, UserId, Username, sessions::SessionId},
+	},
 	http::request,
 	std::{
 		convert::Infallible,
@@ -18,12 +21,12 @@ use {
 pub(crate) struct Session
 {
 	id: SessionId,
+	expires_at: Timestamp,
 	user_info: UserInfo,
 	is_valid: Arc<AtomicBool>,
 }
 
 #[derive(Debug, Clone, Builder)]
-#[builder(builder_type(vis = "pub(super)"))]
 pub(crate) struct UserInfo
 {
 	id: UserId,
@@ -34,14 +37,24 @@ pub(crate) struct UserInfo
 
 impl Session
 {
-	pub(super) fn new(id: SessionId, user_info: UserInfo) -> Self
+	pub(super) fn new(id: SessionId, expires_at: Timestamp, user_info: UserInfo) -> Self
 	{
-		Self { id, user_info, is_valid: Arc::new(AtomicBool::new(true)) }
+		Self { id, expires_at, user_info, is_valid: Arc::new(AtomicBool::new(true)) }
 	}
 
 	pub(crate) fn id(&self) -> SessionId
 	{
 		self.id
+	}
+
+	pub(crate) fn created_at(&self) -> Timestamp
+	{
+		self.id.created_at()
+	}
+
+	pub(crate) fn expires_at(&self) -> Timestamp
+	{
+		self.expires_at
 	}
 
 	pub(crate) fn user_info(&self) -> &UserInfo

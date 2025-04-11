@@ -47,12 +47,14 @@ impl FromStr for AccountUniverse
 	fn from_str(value: &str) -> Result<Self, Self::Err>
 	{
 		match value {
-			"individual" | "Individual" | "unspecified" | "Unspecified" => Ok(Self::Individual),
-			"public" | "Public" => Ok(Self::Public),
-			"beta" | "Beta" => Ok(Self::Beta),
-			"internal" | "Internal" => Ok(Self::Internal),
-			"dev" | "Dev" => Ok(Self::Dev),
-			"RC" => Ok(Self::RC),
+			"0" | "individual" | "Individual" | "unspecified" | "Unspecified" => {
+				Ok(Self::Individual)
+			},
+			"1" | "public" | "Public" => Ok(Self::Public),
+			"2" | "beta" | "Beta" => Ok(Self::Beta),
+			"3" | "internal" | "Internal" => Ok(Self::Internal),
+			"4" | "dev" | "Dev" => Ok(Self::Dev),
+			"5" | "RC" => Ok(Self::RC),
 			_ => Err(InvalidAccountUniverse(())),
 		}
 	}

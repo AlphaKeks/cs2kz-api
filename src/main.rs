@@ -49,7 +49,7 @@ use {
 	},
 	tokio_util::time::FutureExt as _,
 	tower::ServiceBuilder,
-	uuid::Uuid,
+	ulid::Ulid,
 };
 
 mod cli;
@@ -91,7 +91,7 @@ fn serve(
 	port: Option<u16>,
 ) -> eyre::Result<()>
 {
-	let execution_id = Uuid::now_v7();
+	let execution_id = Ulid::new();
 	let mut config =
 		Config::load_from_file(config_path).wrap_err("failed to load configuration file")?;
 
@@ -150,7 +150,7 @@ fn generate_openapi_schema() -> eyre::Result<()>
 
 #[instrument(skip(config, discord_tracing_layer_handle))]
 async fn run(
-	execution_id: Uuid,
+	execution_id: Ulid,
 	config: Config,
 	discord_tracing_layer_handle: tracing_subscriber::reload::Handle<
 		Option<cs2kz_api::discord::TracingLayer>,
@@ -382,6 +382,7 @@ async fn run(
 	// `/auth`
 	{
 		router = router
+			.route("/auth/web", routing::get(self::http::handlers::web_current_session))
 			.route("/auth/web/login", routing::get(self::http::handlers::web_login))
 			.route("/auth/web/logout", routing::get(self::http::handlers::web_logout))
 			.route(

@@ -6,23 +6,22 @@ use {
 		RequestId,
 		SetRequestIdLayer,
 	},
-	uuid::Uuid,
+	ulid::Ulid,
 };
 
 pub(crate) fn layers() -> (SetRequestIdLayer<impl MakeRequestId + Clone>, PropagateRequestIdLayer)
 {
-	(SetRequestIdLayer::x_request_id(MakeUuidv7RequestId), PropagateRequestIdLayer::x_request_id())
+	(SetRequestIdLayer::x_request_id(MakeUlidRequsetId), PropagateRequestIdLayer::x_request_id())
 }
 
 #[derive(Debug, Clone)]
-struct MakeUuidv7RequestId;
+struct MakeUlidRequsetId;
 
-impl MakeRequestId for MakeUuidv7RequestId
+impl MakeRequestId for MakeUlidRequsetId
 {
 	fn make_request_id<B>(&mut self, _: &http::Request<B>) -> Option<RequestId>
 	{
-		Uuid::now_v7()
-			.hyphenated()
+		Ulid::new()
 			.to_string()
 			.parse::<http::HeaderValue>()
 			.inspect_err_dyn(|error| warn!(error))

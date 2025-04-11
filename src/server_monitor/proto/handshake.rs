@@ -98,7 +98,41 @@ struct HelloAck<'a>
 	/// about
 	///
 	/// [`connected_players`]: Hello::connected_players
+	#[serde(serialize_with = "HelloAck::serialize_player_details")]
 	player_details: &'a BTreeMap<PlayerId, super::ConnectedPlayer>,
+}
+
+impl<'a> HelloAck<'a>
+{
+	fn serialize_player_details<S>(
+		player_details: &'a BTreeMap<PlayerId, super::ConnectedPlayer>,
+		serializer: S,
+	) -> Result<S::Ok, S::Error>
+	where
+		S: serde::Serializer,
+	{
+		use serde::ser::SerializeMap;
+
+		struct SerializePlayerId<'a>(&'a PlayerId);
+
+		impl Serialize for SerializePlayerId<'_>
+		{
+			fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+			where
+				S: serde::Serializer,
+			{
+				self.0.as_ref().serialize_u64_stringified(serializer)
+			}
+		}
+
+		let mut serializer = serializer.serialize_map(Some(player_details.len()))?;
+
+		for (player_id, player) in player_details {
+			serializer.serialize_entry(&SerializePlayerId(player_id), player)?;
+		}
+
+		serializer.end()
+	}
 }
 
 #[instrument(skip(socket, config, database), ret(level = "debug"), err(level = "debug"))]

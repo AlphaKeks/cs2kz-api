@@ -238,6 +238,37 @@ fn deserialize_allowed_origins<'de, D>(
 where
 	D: Deserializer<'de>,
 {
+	struct HeaderValueShim(http::HeaderValue);
+
+	impl<'de> Deserialize<'de> for HeaderValueShim
+	{
+		fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+		where
+			D: Deserializer<'de>,
+		{
+			struct HeaderValueVisitor;
+
+			impl de::Visitor<'_> for HeaderValueVisitor
+			{
+				type Value = HeaderValueShim;
+
+				fn expecting(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result
+				{
+					fmt.write_str("an HTTP header value")
+				}
+
+				fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+				where
+					E: de::Error,
+				{
+					value.parse::<http::HeaderValue>().map(HeaderValueShim).map_err(E::custom)
+				}
+			}
+
+			deserializer.deserialize_str(HeaderValueVisitor)
+		}
+	}
+
 	struct HeaderListVisitor;
 
 	impl<'de> de::Visitor<'de> for HeaderListVisitor
@@ -256,13 +287,8 @@ where
 			let size_hint = seq.size_hint().unwrap_or_default();
 			let mut header_values = Vec::with_capacity(size_hint);
 
-			while let Some(origin) = seq.next_element::<Url>()? {
-				match http::HeaderValue::from_str(origin.as_str()) {
-					Ok(header_value) => header_values.push(header_value),
-					Err(err) => {
-						return Err(de::Error::custom(format_args!("invalid CORS origin: {err}")));
-					},
-				}
+			while let Some(HeaderValueShim(header_value)) = seq.next_element::<HeaderValueShim>()? {
+				header_values.push(header_value);
 			}
 
 			Ok(header_values.into_boxed_slice())

@@ -808,10 +808,10 @@ dependencies = [
  "tracing-appender",
  "tracing-journald",
  "tracing-subscriber",
+ "ulid",
  "url",
  "utoipa",
  "utoipa-swagger-ui",
- "uuid",
  "zerocopy 0.8.24",
 ]
 
@@ -4068,6 +4068,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ulid"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "470dbf6591da1b39d43c14523b2b469c86879a53e8b758c8e090a470fe7b1fbe"
+dependencies = [
+ "rand 0.9.0",
+ "serde",
+ "web-time",
+]
+
+[[package]]
 name = "unicase"
 version = "2.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4169,8 +4180,8 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.100",
+ "ulid",
  "url",
- "uuid",
 ]
 
 [[package]]
@@ -4204,7 +4215,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "458f7a779bf54acc9f347480ac654f68407d3aab21269a6e3c9f922acd9e2da9"
 dependencies = [
  "getrandom 0.3.2",
- "serde",
 ]
 
 [[package]]

@@ -75,6 +75,8 @@ pub(crate) async fn middleware_fn(
 			.ok_or(SessionRejection::InvalidSessionId)?
 	};
 
+	debug_assert_eq!(session.id, session_id);
+
 	if session.expires_at <= Timestamp::now() {
 		return Err(SessionRejection::SessionExpired);
 	}
@@ -86,7 +88,7 @@ pub(crate) async fn middleware_fn(
 		.server_budget(session.user.server_budget)
 		.build();
 
-	let session = auth::Session::new(session.id, user_info);
+	let session = auth::Session::new(session.id, session.expires_at, user_info);
 
 	req.extensions_mut().insert(session.clone());
 

@@ -127,7 +127,7 @@ macro_rules! impl_sqlx {
 				::std::boxed::Box<dyn ::std::error::Error + ::std::marker::Send + ::std::marker::Sync>,
 			>
 			{
-				match ::sqlx::Decode::decode(value) {
+				match <$decode_ty as ::sqlx::Decode<$decode_lt, DB>>::decode(value) {
 					::std::result::Result::Ok($decode_value) => ::std::result::Result::map_err($decode_impl, ::std::convert::Into::into),
 					::std::result::Result::Err(err) => ::std::result::Result::Err(err),
 				}

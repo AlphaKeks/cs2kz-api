@@ -18,8 +18,8 @@ pub(crate) fn layer(allowed_origins: impl IntoIterator<Item = HeaderValue>) -> C
 		}))
 		.allow_headers(AllowHeaders::mirror_request())
 		.allow_methods(AllowMethods::mirror_request())
-		.allow_origin(AllowOrigin::predicate(move |origin, _request| -> bool {
-			allowed_origins.contains(origin)
+		.allow_origin(AllowOrigin::predicate(move |origin, request| -> bool {
+			self::allow_origin(&allowed_origins[..], origin, request)
 		}))
 		.expose_headers([header::COOKIE])
 }
@@ -30,12 +30,12 @@ fn allow_credentials(
 	request: &request::Parts,
 ) -> bool
 {
-	if !allowed_origins.contains(origin) {
-		return false;
-	}
-
 	macro sensitive_methods() {
 		Method::POST | Method::PUT | Method::PATCH | Method::DELETE
+	}
+
+	if !allowed_origins.contains(origin) {
+		return false;
 	}
 
 	match request.method {
@@ -48,4 +48,13 @@ fn allow_credentials(
 			.is_some_and(|method| matches!(method, sensitive_methods!())),
 		_ => false,
 	}
+}
+
+fn allow_origin(
+	allowed_origins: &[HeaderValue],
+	origin: &HeaderValue,
+	_request: &request::Parts,
+) -> bool
+{
+	allowed_origins.contains(origin)
 }

@@ -203,6 +203,10 @@ impl FromStr for SteamId
 			return Ok(Self::from_u64(value)?);
 		}
 
+		if let Ok(steam_id) = Self::parse_id2(value) {
+			return Ok(steam_id);
+		}
+
 		Err(ParseSteamIdError::UnknownFormat)
 	}
 }

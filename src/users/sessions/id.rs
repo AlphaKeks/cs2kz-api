@@ -1,4 +1,5 @@
 use {
+	crate::time::Timestamp,
 	axum::{
 		extract::OptionalFromRequestParts,
 		response::{IntoResponse, Response},
@@ -6,19 +7,19 @@ use {
 	axum_extra::extract::CookieJar,
 	http::request,
 	serde::{Deserialize, Serialize},
-	std::{error::Error, str::FromStr},
-	uuid::Uuid,
+	std::str::FromStr,
+	ulid::Ulid,
+	zerocopy::IntoBytes,
 };
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, From, Into, Serialize, Deserialize)]
-#[debug("SessionId({})", _0.as_hyphenated())]
-#[display("{}", _0.as_hyphenated())]
+#[debug("SessionId(\"{_0}\")")]
 #[serde(transparent)]
-pub struct SessionId(Uuid);
+pub struct SessionId(Ulid);
 
 #[derive(Debug, Display, From, Error)]
 #[display("failed to parse session ID")]
-pub struct ParseSessionIdError(uuid::Error);
+pub struct ParseSessionIdError(ulid::DecodeError);
 
 impl SessionId
 {
@@ -27,7 +28,19 @@ impl SessionId
 	#[expect(clippy::new_without_default)]
 	pub fn new() -> Self
 	{
-		Self(Uuid::new_v4())
+		Self(Ulid::new())
+	}
+
+	/// Returns the raw bytes that the session ID consists of.
+	pub fn as_bytes(&self) -> &[u8]
+	{
+		self.0.0.as_bytes()
+	}
+
+	/// Returns a timestamp for when this ID was generated.
+	pub fn created_at(&self) -> Timestamp
+	{
+		self.0.datetime().into()
 	}
 }
 
@@ -37,62 +50,21 @@ impl FromStr for SessionId
 
 	fn from_str(value: &str) -> Result<Self, Self::Err>
 	{
-		value.parse::<Uuid>().map(Self).map_err(ParseSessionIdError)
+		value.parse::<Ulid>().map(Self).map_err(ParseSessionIdError)
 	}
 }
 
-impl<DB> sqlx::Type<DB> for SessionId
-where
-	DB: sqlx::Database,
-	[u8]: sqlx::Type<DB>,
-{
-	fn type_info() -> <DB as sqlx::Database>::TypeInfo
-	{
-		<[u8]>::type_info()
-	}
-
-	fn compatible(ty: &<DB as sqlx::Database>::TypeInfo) -> bool
-	{
-		<[u8]>::compatible(ty)
-	}
-}
-
-impl<'q, DB> sqlx::Encode<'q, DB> for SessionId
-where
-	DB: sqlx::Database,
-	for<'a> &'a [u8]: sqlx::Encode<'q, DB>,
-{
-	fn encode_by_ref(
-		&self,
-		buf: &mut <DB as sqlx::Database>::ArgumentBuffer<'q>,
-	) -> Result<sqlx::encode::IsNull, Box<dyn Error + Send + Sync>>
-	{
-		(&self.0.as_bytes()[..]).encode_by_ref(buf)
-	}
-
-	fn produces(&self) -> Option<<DB as sqlx::Database>::TypeInfo>
-	{
-		(&self.0.as_bytes()[..]).produces()
-	}
-
-	fn size_hint(&self) -> usize
-	{
-		(&self.0.as_bytes()[..]).size_hint()
-	}
-}
-
-impl<'r, DB> sqlx::Decode<'r, DB> for SessionId
-where
-	DB: sqlx::Database,
-	&'r [u8]: sqlx::Decode<'r, DB>,
-{
-	fn decode(
-		value: <DB as sqlx::Database>::ValueRef<'r>,
-	) -> Result<Self, Box<dyn Error + Send + Sync>>
-	{
-		Ok(Self(Uuid::from_bytes(<&'r [u8]>::decode(value)?.try_into()?)))
-	}
-}
+impl_sqlx!(SessionId => {
+	Type as [u8];
+	Encode<'q, 'a> as &'a [u8] = |session_id| session_id.as_bytes();
+	Decode<'r> as &'r [u8] = |bytes| {
+		<[u8; 16]>::try_from(bytes)
+			.map(|mut bytes| {
+				bytes.reverse();
+				Self(Ulid::from_bytes(bytes))
+			})
+	};
+});
 
 #[derive(Debug, Display, Error, From)]
 pub struct SessionIdRejection(ParseSessionIdError);

@@ -2529,6 +2529,29 @@ pub(crate) async fn get_plugin_versions(
 //=================================================================================================
 // `/auth`
 
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct CurrentSessionInfo
+{
+	created_at: Timestamp,
+	expires_at: Timestamp,
+}
+
+/// Get information about your current session
+#[instrument(ret(level = "debug"))]
+#[utoipa::path(
+	get,
+	path = "/auth/web",
+	tag = "User Authentication",
+	responses(
+		(status = 200, body = CurrentSessionInfo),
+		(status = 401, description = "you are not logged in"),
+	),
+)]
+pub(crate) async fn web_current_session(session: auth::Session) -> Json<CurrentSessionInfo>
+{
+	Json(CurrentSessionInfo { created_at: session.created_at(), expires_at: session.expires_at() })
+}
+
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub(crate) struct WebLoginRequest

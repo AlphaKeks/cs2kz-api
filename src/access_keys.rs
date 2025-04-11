@@ -4,25 +4,25 @@
 //! for opaque access control. It implements all the necessary traits that
 //! downstream consumers may need.
 //!
-//! The current implementation uses [UUIDs] (version 7), but that may change in
-//! the future. The following public API should be maintained even if the
-//! underlying implementation changes:
+//! The current implementation uses [ULID], but that may change in the
+//! future. The following public API should be maintained even if the underlying
+//! implementation changes:
 //!
 //! - [`AccessKey::new()`] - for generating a new key
 //! - [`AccessKey::INVALID`] - a sentinel value representing an "invalid" key
 //! - [`AccessKey::is_invalid()`] - for checking whether a given key is
 //!   [`AccessKey::INVALID`]
 //!
-//! [UUIDs]: ::uuid
+//! [ULID]: ::ulid
 
 use {
 	crate::database::{self, DatabaseError, DatabaseResult},
 	futures_util::TryFutureExt,
 	serde::{Deserialize, Serialize},
 	std::str::FromStr,
+	ulid::Ulid,
 	utoipa::ToSchema,
-	uuid::Uuid,
-	zerocopy::TryFromBytes,
+	zerocopy::IntoBytes,
 };
 
 /// An API access key
@@ -32,13 +32,13 @@ use {
 /// [module-level documentation]: crate::access_keys
 #[repr(transparent)]
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
-#[schema(format = Uuid, example = "bf631097-05fa-439c-8538-e471874f03ba")]
-pub struct AccessKey(Uuid);
+#[schema(format = Ulid, example = "bf631097-05fa-439c-8538-e471874f03ba")]
+pub struct AccessKey(Ulid);
 
 /// Error for parsing strings into [`AccessKey`]s
 #[derive(Debug, Display, Error, From)]
 #[display("failed to parse access key")]
-pub struct ParseAccessKeyError(uuid::Error);
+pub struct ParseAccessKeyError(ulid::DecodeError);
 
 impl AccessKey
 {
@@ -47,13 +47,13 @@ impl AccessKey
 	/// If [`.is_invalid()`] is invoked on this value, it will return `true`.
 	///
 	/// [`.is_invalid()`]: AccessKey::is_invalid()
-	pub const INVALID: Self = Self(Uuid::nil());
+	pub const INVALID: Self = Self(Ulid::nil());
 
 	/// Generates a new (random) [`AccessKey`].
 	#[expect(clippy::new_without_default, reason = "keys are generated randomly")]
 	pub fn new() -> Self
 	{
-		Self(Uuid::now_v7())
+		Self(Ulid::new())
 	}
 
 	/// Returns whether `self` is an [invalid] [`AccessKey`].
@@ -65,9 +65,9 @@ impl AccessKey
 	}
 
 	/// Returns the raw bytes that the access key consists of.
-	pub const fn as_bytes(&self) -> &[u8]
+	pub fn as_bytes(&self) -> &[u8]
 	{
-		self.0.as_bytes().as_slice()
+		self.0.0.as_bytes()
 	}
 
 	/// Fetches the name[^table] of this access key.
@@ -92,7 +92,7 @@ impl FromStr for AccessKey
 
 	fn from_str(value: &str) -> Result<Self, Self::Err>
 	{
-		value.parse::<Uuid>().map(Self).map_err(ParseAccessKeyError::from)
+		value.parse::<Ulid>().map(Self).map_err(ParseAccessKeyError::from)
 	}
 }
 
@@ -100,8 +100,9 @@ impl_sqlx!(AccessKey => {
 	Type as [u8];
 	Encode<'q, 'a> as &'a [u8] = |access_key| access_key.as_bytes();
 	Decode<'r> as &'r [u8] = |bytes| {
-		uuid::Bytes::try_read_from_bytes(bytes)
-			.map(|bytes| Self(Uuid::from_bytes(bytes)))
-			.map_err(|err| err.map_src(Vec::from))
+		bytes
+			.try_into()
+			.map(Ulid::from_bytes)
+			.map(Self)
 	};
 });
