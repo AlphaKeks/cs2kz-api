@@ -10,6 +10,7 @@ use {
 		server_monitor::Config,
 		servers::{self, ServerId},
 		styles::Style,
+		time::Seconds,
 	},
 	axum_tws::WebSocketError,
 	futures_util::{Sink, SinkExt, Stream, StreamExt, TryStreamExt},
@@ -56,7 +57,7 @@ pub(super) enum HandshakeError
 
 /// Payload sent by the client during the handshake
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "kebab-case")]
+#[serde(tag = "type")]
 struct Hello
 {
 	/// Checksum of the CS2KZ plugin binary the server is currently running
@@ -78,9 +79,18 @@ struct ConnectedPlayer
 
 /// Payload sent by the server during the handshake
 #[derive(Debug, Serialize)]
-#[serde(tag = "type", rename_all = "kebab-case")]
+#[serde(tag = "type")]
 struct HelloAck<'a>
 {
+	/// Interval at which the client should send heartbeat pings
+	heartbeat_interval: Seconds,
+
+	/// Checksums for all modes the server is allowed to submit records for
+	mode_checksums: &'a HashMap<Mode, Checksum>,
+
+	/// Checksums for all styles the server is allowed to submit records for
+	style_checksums: &'a HashMap<Style, Checksum>,
+
 	/// Detailed information about the map the server is currently hosting
 	map_info: Option<&'a Map>,
 
@@ -144,6 +154,18 @@ where
 		.await?
 		.ok_or(HandshakeError::InvalidPluginVersion)?;
 
+	let mode_checksums = plugin::get_mode_checksums(version_id)
+		.exec(&mut db_conn)
+		.map_ok(|(mode, checksums)| (mode, checksums[os]))
+		.try_collect::<HashMap<_, _>>()
+		.await?;
+
+	let style_checksums = plugin::get_style_checksums(version_id)
+		.exec(&mut db_conn)
+		.map_ok(|(style, checksums)| (style, checksums[os]))
+		.try_collect::<HashMap<_, _>>()
+		.await?;
+
 	let session_id = servers::create_session(server_id)
 		.plugin_version_id(version_id)
 		.exec(&mut db_conn)
@@ -154,18 +176,26 @@ where
 		None => CurrentMap::Unknown { name: current_map },
 	};
 
-	let mut players = BTreeMap::default();
-	for (player_id, ConnectedPlayer { name, ip_address }) in connected_players {
-		let player = on_player_join(player_id, game)
-			.name(name)
-			.ip_address(ip_address)
-			.exec(&mut db_conn)
-			.await?;
+	let players = {
+		let mut players = BTreeMap::default();
 
-		players.insert(player_id, player);
-	}
+		for (player_id, ConnectedPlayer { name, ip_address }) in connected_players {
+			let player = on_player_join(player_id, game)
+				.name(name)
+				.ip_address(ip_address)
+				.exec(&mut db_conn)
+				.await?;
+
+			players.insert(player_id, player);
+		}
+
+		players
+	};
 
 	let ack = HelloAck {
+		heartbeat_interval: config.heartbeat_interval.into(),
+		mode_checksums: &mode_checksums,
+		style_checksums: &style_checksums,
 		map_info: match current_map {
 			CurrentMap::Known(ref map) => Some(map),
 			CurrentMap::Unknown { .. } => None,
@@ -178,17 +208,15 @@ where
 		Err(err) => return Err(HandshakeError::EncodeHelloAck(err)),
 	}
 
-	let mode_checksums = plugin::get_mode_checksums(version_id)
-		.exec(&mut db_conn)
-		.map_ok(|(mode, checksums)| (checksums[os], mode))
-		.try_collect::<HashMap<Checksum, Mode>>()
-		.await?;
+	let mode_checksums = mode_checksums
+		.into_iter()
+		.map(|(mode, checksum)| (checksum, mode))
+		.collect::<HashMap<_, _>>();
 
-	let style_checksums = plugin::get_style_checksums(version_id)
-		.exec(&mut db_conn)
-		.map_ok(|(style, checksums)| (checksums[os], style))
-		.try_collect::<HashMap<Checksum, Style>>()
-		.await?;
+	let style_checksums = style_checksums
+		.into_iter()
+		.map(|(style, checksum)| (checksum, style))
+		.collect::<HashMap<_, _>>();
 
 	Ok(ConnectionState {
 		server_id,

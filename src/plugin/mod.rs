@@ -43,15 +43,15 @@ pub struct Checksums
 	pub windows: Checksum,
 }
 
-impl ops::Index<Os> for Checksums
+impl ops::Index<OS> for Checksums
 {
 	type Output = Checksum;
 
-	fn index(&self, os: Os) -> &Self::Output
+	fn index(&self, os: OS) -> &Self::Output
 	{
 		match os {
-			Os::Linux => &self.linux,
-			Os::Windows => &self.windows,
+			OS::Linux => &self.linux,
+			OS::Windows => &self.windows,
 		}
 	}
 }
@@ -62,7 +62,7 @@ impl_rand!(Checksums => |rng| Checksums {
 });
 
 #[derive(Debug, Clone, Copy)]
-pub enum Os
+pub enum OS
 {
 	Linux,
 	Windows,
@@ -308,7 +308,7 @@ pub async fn get_latest_version_id(
 pub async fn validate_checksum(
 	#[builder(start_fn)] checksum: &Checksum,
 	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
-) -> DatabaseResult<Option<(PluginVersionId, Game, Os)>>
+) -> DatabaseResult<Option<(PluginVersionId, Game, OS)>>
 {
 	sqlx::query!(
 		"SELECT
@@ -327,7 +327,7 @@ pub async fn validate_checksum(
 	.map_ok(|maybe_row| {
 		maybe_row.map(|row| {
 			debug_assert!(row.is_linux ^ row.is_windows);
-			(row.id, row.game, if row.is_linux { Os::Linux } else { Os::Windows })
+			(row.id, row.game, if row.is_linux { OS::Linux } else { OS::Windows })
 		})
 	})
 	.map_err(DatabaseError::from)

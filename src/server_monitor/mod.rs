@@ -393,7 +393,7 @@ impl ServerMonitor
 		if let Err(mpsc::error::SendError(message)) =
 			tx.send(ServerMessage::BroadcastMessage { message, response_tx }).await
 		{
-			let ServerMessage::BroadcastMessage { message, response_tx } = message else {
+			let ServerMessage::BroadcastMessage { response_tx, .. } = message else {
 				unreachable!()
 			};
 
