@@ -15,12 +15,6 @@ impl<S> StreamState<S>
 }
 
 pub(super) macro from_raw($stream: expr) {{
-	use {
-		super::{CS2Filters, CSGOFilters, Filter},
-		crate::mode::Mode,
-		std::{collections::btree_map, mem},
-	};
-
 	futures_util::stream::unfold(StreamState::new($stream), async |mut state| {
 		loop {
 			let Some(curr) = state.curr.as_mut() else {
@@ -48,19 +42,18 @@ pub(super) macro from_raw($stream: expr) {{
 			let next = parse_row!(next_row);
 
 			if next.id != curr.id {
-				return Some((Ok(mem::replace(curr, next)), state));
+				return Some((Ok(std::mem::replace(curr, next)), state));
 			}
 
 			for (course_id, mut course) in next.courses {
 				match curr.courses.entry(course_id) {
-					btree_map::Entry::Vacant(entry) => {
+					std::collections::btree_map::Entry::Vacant(entry) => {
 						entry.insert(course);
 					},
-					btree_map::Entry::Occupied(mut entry) => {
+					std::collections::btree_map::Entry::Occupied(mut entry) => {
 						entry.get_mut().mappers.append(&mut course.mappers);
 
-						let old_filters = &mut entry.get_mut().filters;
-						let filter = || Filter {
+						let filter = || $crate::maps::Filter {
 							id: next_row.filter_id,
 							nub_tier: next_row.filter_nub_tier,
 							pro_tier: next_row.filter_pro_tier,
@@ -68,56 +61,38 @@ pub(super) macro from_raw($stream: expr) {{
 							notes: next_row.filter_notes.clone(),
 						};
 
-						match next_row.filter_mode {
-							Mode::KZTimer => {
-								if let Some(ref mut filters) = old_filters.csgo {
-									filters.kzt = filter();
-								} else {
-									old_filters.csgo = Some(CSGOFilters {
-										kzt: filter(),
-										skz: filter(),
-										vnl: filter(),
-									});
-								}
+						match (next_row.filter_mode, &mut entry.get_mut().filters) {
+							(
+								$crate::mode::Mode::VanillaCS2,
+								$crate::maps::Filters::CS2 { vnl, .. },
+							) => {
+								*vnl = filter();
 							},
-							Mode::SimpleKZ => {
-								if let Some(ref mut filters) = old_filters.csgo {
-									filters.skz = filter();
-								} else {
-									old_filters.csgo = Some(CSGOFilters {
-										kzt: filter(),
-										skz: filter(),
-										vnl: filter(),
-									});
-								}
+							(
+								$crate::mode::Mode::Classic,
+								$crate::maps::Filters::CS2 { ckz, .. },
+							) => {
+								*ckz = filter();
 							},
-							Mode::VanillaCSGO => {
-								if let Some(ref mut filters) = old_filters.csgo {
-									filters.vnl = filter();
-								} else {
-									old_filters.csgo = Some(CSGOFilters {
-										kzt: filter(),
-										skz: filter(),
-										vnl: filter(),
-									});
-								}
+							(
+								$crate::mode::Mode::KZTimer,
+								$crate::maps::Filters::CSGO { kzt, .. },
+							) => {
+								*kzt = filter();
 							},
-							Mode::VanillaCS2 => {
-								if let Some(ref mut filters) = old_filters.cs2 {
-									filters.vnl = filter();
-								} else {
-									old_filters.cs2 =
-										Some(CS2Filters { vnl: filter(), ckz: filter() });
-								}
+							(
+								$crate::mode::Mode::SimpleKZ,
+								$crate::maps::Filters::CSGO { skz, .. },
+							) => {
+								*skz = filter();
 							},
-							Mode::Classic => {
-								if let Some(ref mut filters) = old_filters.cs2 {
-									filters.ckz = filter();
-								} else {
-									old_filters.cs2 =
-										Some(CS2Filters { vnl: filter(), ckz: filter() });
-								}
+							(
+								$crate::mode::Mode::VanillaCSGO,
+								$crate::maps::Filters::CSGO { vnl, .. },
+							) => {
+								*vnl = filter();
 							},
+							_ => unreachable!(),
 						}
 					},
 				}
@@ -126,13 +101,7 @@ pub(super) macro from_raw($stream: expr) {{
 	})
 }}
 
-macro parse_row($row:expr) {{
-	use {
-		super::{CS2Filters, CSGOFilters, Course, Filter, Filters, Mapper},
-		crate::mode::Mode,
-		std::collections::BTreeMap,
-	};
-
+macro parse_row($row:expr) {
 	Map {
 		id: $row.id,
 		workshop_id: $row.workshop_id,
@@ -141,17 +110,17 @@ macro parse_row($row:expr) {{
 		game: $row.game,
 		state: $row.state,
 		checksum: $row.checksum,
-		courses: BTreeMap::from_iter([($row.course_id, Course {
+		courses: std::collections::BTreeMap::from_iter([($row.course_id, $crate::maps::Course {
 			id: $row.course_id,
 			local_id: $row.course_local_id,
 			name: $row.course_name,
 			description: $row.course_description,
-			mappers: BTreeMap::from_iter([($row.course_mapper_id, Mapper {
-				id: $row.course_mapper_id,
-				name: $row.course_mapper_name,
-			})]),
+			mappers: std::collections::BTreeMap::from_iter([(
+				$row.course_mapper_id,
+				$crate::maps::Mapper { id: $row.course_mapper_id, name: $row.course_mapper_name },
+			)]),
 			filters: {
-				let filter = || Filter {
+				let filter = || $crate::maps::Filter {
 					id: $row.filter_id,
 					nub_tier: $row.filter_nub_tier,
 					pro_tier: $row.filter_pro_tier,
@@ -160,18 +129,18 @@ macro parse_row($row:expr) {{
 				};
 
 				match $row.filter_mode {
-					Mode::VanillaCS2 | Mode::Classic => Filters {
-						cs2: Some(CS2Filters { vnl: filter(), ckz: filter() }),
-						csgo: None,
+					$crate::mode::Mode::VanillaCS2 | $crate::mode::Mode::Classic => {
+						$crate::maps::Filters::CS2 { vnl: filter(), ckz: filter() }
 					},
-					Mode::KZTimer | Mode::SimpleKZ | Mode::VanillaCSGO => Filters {
-						cs2: None,
-						csgo: Some(CSGOFilters { kzt: filter(), skz: filter(), vnl: filter() }),
+					$crate::mode::Mode::KZTimer
+					| $crate::mode::Mode::SimpleKZ
+					| $crate::mode::Mode::VanillaCSGO => {
+						$crate::maps::Filters::CSGO { kzt: filter(), skz: filter(), vnl: filter() }
 					},
 				}
 			},
 		})]),
-		created_by: Mapper { id: $row.mapper_id, name: $row.mapper_name },
+		created_by: $crate::maps::Mapper { id: $row.mapper_id, name: $row.mapper_name },
 		created_at: $row.created_at,
 	}
-}}
+}

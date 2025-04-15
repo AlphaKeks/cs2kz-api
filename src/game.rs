@@ -7,6 +7,7 @@ use {
 #[repr(u8)]
 #[derive(
 	Debug,
+	Display,
 	Default,
 	Clone,
 	Copy,

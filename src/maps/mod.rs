@@ -97,28 +97,18 @@ pub struct Course
 }
 
 #[derive(Debug, Serialize, ToSchema)]
-pub struct Filters
+#[serde(untagged)]
+pub enum Filters
 {
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub cs2: Option<CS2Filters>,
+	CS2
+	{
+		vnl: Filter, ckz: Filter
+	},
 
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub csgo: Option<CSGOFilters>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct CS2Filters
-{
-	pub vnl: Filter,
-	pub ckz: Filter,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct CSGOFilters
-{
-	pub kzt: Filter,
-	pub skz: Filter,
-	pub vnl: Filter,
+	CSGO
+	{
+		kzt: Filter, skz: Filter, vnl: Filter
+	},
 }
 
 #[derive(Debug, Serialize, ToSchema)]

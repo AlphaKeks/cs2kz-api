@@ -19,7 +19,7 @@ pub(crate) enum ProblemType
 	InvalidMapperName,
 	InvalidCourseId,
 	MapIsFrozen,
-	InvalidFilterForGame,
+	InconsistentFilters,
 
 	UnknownPlayerToBan,
 	PlayerAlreadyBanned,
@@ -58,7 +58,7 @@ impl ProblemType
 		Self::InvalidMapperName,
 		Self::InvalidCourseId,
 		Self::MapIsFrozen,
-		Self::InvalidFilterForGame,
+		Self::InconsistentFilters,
 		Self::UnknownPlayerToBan,
 		Self::PlayerAlreadyBanned,
 		Self::BanExpiresInThePast,
@@ -144,10 +144,10 @@ impl ProblemType
 				 allowed to make further changes. The `map_state` field of the response body \
 				 should tell you which state your map is currently in."
 			},
-			Self::InvalidFilterForGame => {
-				"You tried to create a new map with filters that don't match the game the map is \
-				 for. If you are creating a map for CS2, make sure the filters on all courses are \
-				 also for CS2, and vice-versa for CSGO."
+			Self::InconsistentFilters => {
+				"You tried to create a new map with filters for multiple games. If you are \
+				 creating a map for CS2, make sure the filters on all courses are also for CS2, \
+				 and vice-versa for CSGO."
 			},
 			Self::UnknownPlayerToBan => {
 				"You tried to ban a player the API doesn't know about."
@@ -208,7 +208,7 @@ impl ::problem_details::ProblemType for ProblemType
 			Self::InvalidMapperName => uri!("invalid-mapper-name"),
 			Self::InvalidCourseId => uri!("invalid-course-id"),
 			Self::MapIsFrozen => uri!("map-is-frozen"),
-			Self::InvalidFilterForGame => uri!("invalid-filter-for-game"),
+			Self::InconsistentFilters => uri!("inconsistent-filters"),
 			Self::UnknownPlayerToBan => uri!("unknown-player-to-ban"),
 			Self::PlayerAlreadyBanned => uri!("player-already-banned"),
 			Self::BanExpiresInThePast => uri!("ban-expires-in-the-past"),
@@ -233,7 +233,7 @@ impl ::problem_details::ProblemType for ProblemType
 			| Self::InvalidMapperId
 			| Self::InvalidMapperName
 			| Self::InvalidCourseId
-			| Self::InvalidFilterForGame
+			| Self::InconsistentFilters
 			| Self::ServerNameAlreadyInUse
 			| Self::ServerHostAndPortAlreadyInUse
 			| Self::UnknownPlayerToBan
@@ -264,7 +264,7 @@ impl ::problem_details::ProblemType for ProblemType
 			Self::InvalidMapperName => "invalid mapper name",
 			Self::InvalidCourseId => "invalid course ID",
 			Self::MapIsFrozen => "you may not update the map in its current state",
-			Self::InvalidFilterForGame => "filters don't match target game",
+			Self::InconsistentFilters => "inconsistent filters",
 			Self::UnknownPlayerToBan => "unknown player",
 			Self::PlayerAlreadyBanned => "player is already banned",
 			Self::BanExpiresInThePast => "ban would expire in the past",

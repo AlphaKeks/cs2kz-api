@@ -8,7 +8,7 @@ use {
 		database::{self, DatabaseResult},
 		event_queue::{self, Event},
 		game::Game,
-		maps::{self, CS2Filters, CSGOFilters, Filters, Map},
+		maps::{self, Filters, Map},
 		mode::Mode,
 		players::{self, PlayerId, PlayerIp, PlayerName, PlayerPreferences},
 		plugin::PluginVersionId,
@@ -445,11 +445,11 @@ async fn handle_incoming_payload(
 			debug_assert_eq!(state.game, mode.game());
 
 			let filter = match (&course.filters, mode) {
-				(Filters { cs2: Some(CS2Filters { vnl, .. }), .. }, Mode::VanillaCS2)
-				| (Filters { csgo: Some(CSGOFilters { vnl, .. }), .. }, Mode::VanillaCSGO) => vnl,
-				(Filters { cs2: Some(CS2Filters { ckz, .. }), .. }, Mode::Classic) => ckz,
-				(Filters { csgo: Some(CSGOFilters { kzt, .. }), .. }, Mode::KZTimer) => kzt,
-				(Filters { csgo: Some(CSGOFilters { skz, .. }), .. }, Mode::SimpleKZ) => skz,
+				(Filters::CS2 { vnl, .. }, Mode::VanillaCS2)
+				| (Filters::CSGO { vnl, .. }, Mode::VanillaCSGO) => vnl,
+				(Filters::CS2 { ckz, .. }, Mode::Classic) => ckz,
+				(Filters::CSGO { kzt, .. }, Mode::KZTimer) => kzt,
+				(Filters::CSGO { skz, .. }, Mode::SimpleKZ) => skz,
 				(filters, _) => unreachable!("{filters:#?}"),
 			};
 

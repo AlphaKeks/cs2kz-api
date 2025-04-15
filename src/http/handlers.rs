@@ -471,17 +471,15 @@ pub(crate) async fn get_record(
       "name": "word's backyard",
       "mappers": ["76561198260657129"],
       "filters": {
-        "cs2": {
-          "vnl": {
-            "nub_tier": "hard",
-            "pro_tier": "very-hard",
-            "ranked": true
-		  },
-          "ckz": {
-            "nub_tier": "advanced",
-            "pro_tier": "advanced",
-            "ranked": true
-		  }
+        "vnl": {
+          "nub_tier": "hard",
+          "pro_tier": "very-hard",
+          "ranked": true
+		},
+        "ckz": {
+          "nub_tier": "advanced",
+          "pro_tier": "advanced",
+          "ranked": true
 		}
 	  }
     },
@@ -489,17 +487,15 @@ pub(crate) async fn get_record(
       "name": "Old grotto (hard)",
       "mappers": ["76561198260657129"],
       "filters": {
-        "cs2": {
-          "vnl": {
-            "nub_tier": "very-hard",
-            "pro_tier": "death",
-            "ranked": true
-		  },
-          "ckz": {
-            "nub_tier": "medium",
-            "pro_tier": "advanced",
-            "ranked": true
-		  }
+        "vnl": {
+          "nub_tier": "very-hard",
+          "pro_tier": "death",
+          "ranked": true
+		},
+        "ckz": {
+          "nub_tier": "medium",
+          "pro_tier": "advanced",
+          "ranked": true
 		}
 	  }
     }
@@ -528,7 +524,7 @@ pub(crate) struct CreateCourseRequest
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
-#[serde(tag = "game", rename_all = "lowercase")]
+#[serde(untagged)]
 pub(crate) enum CreateFiltersRequest
 {
 	CS2
@@ -541,6 +537,17 @@ pub(crate) enum CreateFiltersRequest
 	{
 		kzt: CreateFilterRequest, skz: CreateFilterRequest, vnl: CreateFilterRequest
 	},
+}
+
+impl CreateFiltersRequest
+{
+	fn game(&self) -> Game
+	{
+		match *self {
+			Self::CS2 { .. } => Game::CS2,
+			Self::CSGO { .. } => Game::CSGO,
+		}
+	}
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -597,15 +604,17 @@ pub(crate) async fn create_map(
 		return Err(HandlerError::Unauthorized);
 	}
 
-	for filters in courses.values().map(|course| &course.filters) {
-		match (game, filters) {
-			(Game::CS2, CreateFiltersRequest::CS2 { .. })
-			| (Game::CSGO, CreateFiltersRequest::CSGO { .. }) => { /* ok */ },
-			_ => {
-				debug!("invalid filters");
-				return Err(ProblemDetails::new(ProblemType::InvalidFilterForGame).into());
-			},
-		}
+	if let Some((course_local_id, _)) =
+		courses.iter().find(|(_, course)| course.filters.game() != game)
+	{
+		debug!("invalid filters");
+		let mut problem_details = ProblemDetails::new(ProblemType::InconsistentFilters);
+		problem_details.set_detail(format!(
+			"expected filters for {game} but course {course_local_id} does not have such filters"
+		));
+		problem_details.add_extension_member("expected_game", &game);
+		problem_details.add_extension_member("offending_course_local_id", course_local_id);
+		return Err(problem_details.into());
 	}
 
 	let map_metadata = workshop::get_map_metadata(&steam_api_client, workshop_id)
@@ -683,8 +692,8 @@ pub(crate) async fn create_map(
 			}
 
 			let courses = courses.into_iter().map(|(local_id, course)| {
-				let (cs2_filters, csgo_filters) = match (game, course.filters) {
-					(Game::CS2, CreateFiltersRequest::CS2 { vnl, ckz }) => {
+				let (cs2_filters, csgo_filters) = match course.filters {
+					CreateFiltersRequest::CS2 { vnl, ckz } => {
 						let cs2_filters = NewCS2Filters::builder()
 							.vnl({
 								NewFilter::builder()
@@ -706,7 +715,7 @@ pub(crate) async fn create_map(
 
 						(Some(cs2_filters), None)
 					},
-					(Game::CSGO, CreateFiltersRequest::CSGO { kzt, skz, vnl }) => {
+					CreateFiltersRequest::CSGO { kzt, skz, vnl } => {
 						let csgo_filters = NewCSGOFilters::builder()
 							.kzt({
 								NewFilter::builder()
@@ -736,7 +745,6 @@ pub(crate) async fn create_map(
 
 						(None, Some(csgo_filters))
 					},
-					_ => unreachable!("we validated filters earlier"),
 				};
 
 				let filters = NewFilters::builder()
