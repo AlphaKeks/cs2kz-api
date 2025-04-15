@@ -113,8 +113,8 @@ impl ProblemType
 			},
 			Self::InvalidMapName => {
 				"You tried to create a map with a name that does not conform to \
-				 [the map approval rules](http://docs.cs2kz.org/mapping/approval#rules). Make sure \
-				 it starts with `kz_`, only uses allowed characters, and does not exceed 27 \
+				 [the map approval rules](https://docs.cs2kz.org/mapping/approval#rules). Make \
+				 sure it starts with `kz_`, only uses allowed characters, and does not exceed 27 \
 				 characters in length."
 			},
 			Self::InvalidMapperId => {

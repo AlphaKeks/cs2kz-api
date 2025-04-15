@@ -34,6 +34,7 @@ use {
 	cs2kz_api::{
 		database,
 		discord,
+		email,
 		points::{PointsDaemon, PointsDaemonHandle},
 		server_monitor::{ServerMonitor, ServerMonitorHandle},
 		steam,
@@ -185,9 +186,21 @@ async fn run(
 		})
 		.wrap_err("failed to spawn points daemon task")?;
 
+	let email_client = config.email.as_ref().map(email::Client::new).transpose()?;
+
+	if let Some(ref client) = email_client {
+		if !client.test_connection().await? {
+			warn!("email connection does not seem to be working");
+		}
+	}
+
 	let server_monitor_handle = if let Some(config) = config.server_monitor {
-		let server_monitor =
-			ServerMonitor::new(config, database.clone(), points_daemon_handle.clone());
+		let server_monitor = ServerMonitor::builder(config)
+			.database(database.clone())
+			.points_daemon(points_daemon_handle.clone())
+			.maybe_email_client(email_client)
+			.build();
+
 		let server_monitor_handle = server_monitor.handle();
 		let server_monitor_span = tracing::info_span!(parent: None, "server_monitor");
 

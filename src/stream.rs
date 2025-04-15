@@ -46,7 +46,7 @@ impl<S: TryStream> TryStreamExt for S
 {
 }
 
-#[pin_project(project = InstrumentedProj)]
+#[pin_project]
 #[derive(Debug)]
 pub struct Instrumented<S>
 where
@@ -65,19 +65,18 @@ where
 
 	fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>>
 	{
-		let InstrumentedProj { stream, span } = self.project();
+		let me = self.project();
+		let _guard = me.span.enter();
 
-		span.in_scope(|| {
-			Poll::Ready(match ready!(stream.poll_next(cx)) {
-				Some(item) => {
-					trace!(?item);
-					Some(item)
-				},
-				None => {
-					trace!("stream is exhausted");
-					None
-				},
-			})
+		Poll::Ready(match ready!(me.stream.poll_next(cx)) {
+			Some(item) => {
+				trace!(?item);
+				Some(item)
+			},
+			None => {
+				trace!("stream is exhausted");
+				None
+			},
 		})
 	}
 

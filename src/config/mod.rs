@@ -14,7 +14,7 @@ use {
 		Section,
 		eyre::{self, WrapErr},
 	},
-	cs2kz_api::{discord, server_monitor},
+	cs2kz_api::{discord, email, server_monitor},
 	serde::Deserialize,
 	std::{fs, path::Path},
 };
@@ -40,6 +40,7 @@ pub(crate) struct Config
 	pub depot_downloader: DepotDownloaderConfig,
 	pub server_monitor: Option<server_monitor::Config>,
 	pub discord: Option<discord::Config>,
+	pub email: Option<email::client::Config>,
 }
 
 impl Config

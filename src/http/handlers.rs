@@ -572,7 +572,7 @@ pub(crate) struct CreateMapResponse
 /// from there. If you plan on submitting your map for approval, make sure it
 /// follows [the rules].
 ///
-/// [the rules]: http://docs.cs2kz.org/mapping/approval#rules
+/// [the rules]: https://docs.cs2kz.org/mapping/approval#rules
 #[instrument(
 	skip(config, database, steam_api_client),
 	ret(level = "debug"),
@@ -1178,7 +1178,7 @@ pub(crate) struct CreateServerResponse
 /// This endpoint can be used to register KZ servers with the API. If you are
 /// a server owner, please make sure your server follows [the rules].
 ///
-/// [the rules]: http://docs.cs2kz.org/servers/approval#rules
+/// [the rules]: https://docs.cs2kz.org/servers/approval#rules
 #[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
 #[utoipa::path(
 	post,

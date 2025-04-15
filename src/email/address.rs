@@ -20,6 +20,14 @@ impl EmailAddress
 	}
 }
 
+impl AsRef<lettre::Address> for EmailAddress
+{
+	fn as_ref(&self) -> &lettre::Address
+	{
+		&*self.0
+	}
+}
+
 impl FromStr for EmailAddress
 {
 	type Err = ParseEmailAddressError;

@@ -385,12 +385,29 @@ pub async fn delete_access_key(
 
 #[instrument(skip(db_conn), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
+pub async fn mark_seen(
+	#[builder(start_fn)] server_id: ServerId,
+	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
+) -> DatabaseResult<bool>
+{
+	sqlx::query!("UPDATE Servers SET last_seen_at = NOW() WHERE id = ?", server_id)
+		.execute(db_conn.raw_mut())
+		.map_ok(|query_result| query_result.rows_affected() == 1)
+		.map_err(DatabaseError::from)
+		.await
+}
+
+#[instrument(skip(db_conn), ret(level = "debug"), err)]
+#[builder(finish_fn = exec)]
 pub async fn create_session(
 	#[builder(start_fn)] server_id: ServerId,
 	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	plugin_version_id: PluginVersionId,
 ) -> DatabaseResult<ServerSessionId>
 {
+	let server_exists = mark_seen(server_id).exec(db_conn).await?;
+	debug_assert!(server_exists);
+
 	sqlx::query!(
 		"INSERT INTO ServerSessions (server_id, plugin_version_id)
 		 VALUES (?, ?)

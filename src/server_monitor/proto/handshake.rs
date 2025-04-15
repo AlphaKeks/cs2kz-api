@@ -200,9 +200,13 @@ where
 		.try_collect::<HashMap<_, _>>()
 		.await?;
 
-	let session_id = servers::create_session(server_id)
-		.plugin_version_id(version_id)
-		.exec(&mut db_conn)
+	let session_id = db_conn
+		.in_transaction(async |conn| {
+			servers::create_session(server_id)
+				.plugin_version_id(version_id)
+				.exec(conn)
+				.await
+		})
 		.await?;
 
 	let current_map = match maps::get_by_name(&current_map).exec(&mut db_conn).await? {

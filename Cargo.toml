@@ -173,6 +173,14 @@ workspace = true
 
 [dependencies.lettre]
 workspace = true
+features = [
+  "tracing",
+  "builder",
+  "pool",
+  "tokio1-rustls-tls",
+  "webpki-roots",
+  "smtp-transport",
+]
 
 [dependencies.addr]
 workspace = true

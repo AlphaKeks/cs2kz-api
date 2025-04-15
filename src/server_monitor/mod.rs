@@ -1,13 +1,16 @@
 pub use self::config::Config;
 use {
 	crate::{
-		database,
+		database::{self, DatabaseError},
+		email::{self, EmailAddress},
 		event_queue::{self, Event},
 		points::PointsDaemonHandle,
 		servers::{self, ServerId},
+		stream::StreamExt as _,
+		time::Timestamp,
 	},
 	axum_tws::{WebSocketError, WebSocketUpgrade},
-	futures_util::{FutureExt, StreamExt, TryStreamExt, future, stream},
+	futures_util::{FutureExt, StreamExt as _, TryStreamExt, future, stream},
 	std::{
 		assert_matches::debug_assert_matches,
 		collections::hash_map::{self, HashMap},
@@ -18,6 +21,7 @@ use {
 	tokio::{
 		sync::{mpsc, oneshot},
 		task::{self, JoinSet},
+		time::{MissedTickBehavior, interval},
 	},
 	tokio_util::sync::CancellationToken,
 };
@@ -34,6 +38,7 @@ pub struct ServerMonitor
 	config: Config,
 	database: database::ConnectionPool,
 	points_daemon: PointsDaemonHandle,
+	email_client: Option<email::Client>,
 
 	tasks: JoinSet<TaskResult>,
 	server_ids: HashMap<task::Id, ServerId>,
@@ -49,8 +54,15 @@ pub struct ServerMonitorHandle
 	monitor_tx: mpsc::WeakSender<HandleMessage>,
 }
 
-#[derive(Debug, Display, Error)]
-pub enum ServerMonitorError {}
+#[derive(Debug, Display, Error, From)]
+pub enum ServerMonitorError
+{
+	#[from]
+	SendEmailError(email::client::SendEmailError),
+
+	#[from(DatabaseError, sqlx::Error)]
+	DatabaseError(DatabaseError),
+}
 
 #[derive(Debug, Display, Error)]
 pub enum ServerConnectingError
@@ -159,12 +171,15 @@ enum ServerMessage
 	},
 }
 
+#[bon::bon]
 impl ServerMonitor
 {
+	#[builder]
 	pub fn new(
-		config: Config,
+		#[builder(start_fn)] config: Config,
 		database: database::ConnectionPool,
 		points_daemon: PointsDaemonHandle,
+		email_client: Option<email::Client>,
 	) -> Self
 	{
 		let tasks = JoinSet::default();
@@ -176,6 +191,7 @@ impl ServerMonitor
 			config,
 			database,
 			points_daemon,
+			email_client,
 			tasks,
 			server_ids,
 			server_data,
@@ -192,22 +208,145 @@ impl ServerMonitor
 	#[instrument(skip(cancellation_token), err)]
 	pub async fn run(mut self, cancellation_token: CancellationToken) -> Result<()>
 	{
+		let mut inactivity_check_timer = interval(self.config.inactivity_check_interval);
+		inactivity_check_timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+		// The first call to `.tick()` should complete immediately.
+		// We do not want to run inactivity checks immediately upon startup, so
+		// we skip this tick before going into the main loop.
+		assert!(inactivity_check_timer.tick().now_or_never().is_some());
+
 		loop {
 			select! {
 				() = cancellation_token.cancelled() => {
 					info!("server monitor shutting down");
-					return Ok(());
+					break Ok(());
+				},
+
+				ticked_at = inactivity_check_timer.tick() => {
+					debug!(?ticked_at, "checking for server inactivity");
+					if let Err(err) = self.check_inactivity().await {
+						error!(
+							error = &err as &dyn Error,
+							"encountered error while checking server inactivity",
+						);
+					}
 				},
 
 				Some(join_result) = self.tasks.join_next_with_id() => {
+					trace!("joined server task");
 					self.on_task_complete(join_result).await;
 				},
 
 				Some(message) = self.handles_rx.recv() => {
+					trace!("received message");
 					self.on_handle_message(message).await;
 				},
 			};
 		}
+	}
+
+	#[instrument]
+	async fn check_inactivity(&mut self) -> Result<()>
+	{
+		let mut db_conn = self.database.acquire().await?;
+		let mut servers = sqlx::query!(
+			"SELECT
+			   s.id AS `id: ServerId`,
+			   s.last_seen_at AS `last_seen_at: Timestamp`,
+			   o.email_address AS `owner_email: EmailAddress`
+			 FROM Servers AS s
+			 INNER JOIN Users AS o ON o.id = s.owner_id",
+		)
+		.fetch(db_conn.raw_mut())
+		.map_ok(|row| (row.id, row.last_seen_at, row.owner_email))
+		.map_err(DatabaseError::from)
+		.fuse()
+		.instrumented(tracing::Span::current());
+
+		// servers that are currently connected and should have their
+		// `last_seen_at` column updated to "now"
+		let mut servers_to_update = Vec::default();
+
+		// servers that haven't been seen in `inactivity_check_threshold` or
+		// longer and should have their key revoked
+		let mut servers_to_deglobal = Vec::default();
+
+		// servers that haven't been seen in `inactivity_check_threshold / 2` or
+		// longer and should have their owner notified about it
+		let mut servers_to_warn = Vec::default();
+
+		while let Some((server_id, last_seen_at, owner_email)) = servers.try_next().await? {
+			let Some(last_seen_at) = last_seen_at else {
+				// server has never connected
+				servers_to_warn.push((server_id, owner_email));
+				continue;
+			};
+
+			let Ok(elapsed) = last_seen_at.elapsed().inspect_err(|duration| {
+				error!(id = %server_id, %last_seen_at, ?duration, "server was seen after 'now'?");
+			}) else {
+				// this is a bug -> just log it and fix `last_seen_at`
+				servers_to_update.push(server_id);
+				continue;
+			};
+
+			if self.server_data.contains_key(&server_id) {
+				servers_to_update.push(server_id);
+				continue;
+			}
+
+			if elapsed >= self.config.inactivity_check_threshold {
+				servers_to_deglobal.push((server_id, owner_email));
+			} else if elapsed >= (self.config.inactivity_check_threshold / 2) {
+				servers_to_warn.push((server_id, owner_email));
+			} else {
+				// server is not connected but hasn't exceeded any thresholds
+			}
+		}
+
+		drop(servers);
+
+		for id in servers_to_update {
+			let server_exists = servers::mark_seen(id).exec(&mut db_conn).await?;
+			debug_assert!(server_exists);
+		}
+
+		for (id, email) in servers_to_deglobal {
+			let server_exists = servers::delete_access_key(id).exec(&mut db_conn).await?;
+			debug_assert!(server_exists);
+
+			if let Some((email, email_client)) = Option::zip(email, self.email_client.as_ref()) {
+				let body = format! {
+					"The access key of your server {id} has been revoked due to inactivity. \
+					 Visit <https://forum.cs2kz.org> to appeal this action."
+				};
+
+				email_client
+					.build_message("Server inactivity")
+					.body(body)
+					.send(&email)
+					.await?;
+			}
+		}
+
+		for (id, email) in servers_to_warn {
+			if let Some((email, email_client)) = Option::zip(email, self.email_client.as_ref()) {
+				let body = format! {
+					"Your server {id} has been inactive for a while. If it does not connect to
+					 the API soon, its access key will be revoked. See \
+					 <https://docs.cs2kz.org/servers/approval#rules>."
+				};
+
+				email_client
+					.build_message("Server inactivity")
+					.body(body)
+					.send(&email)
+					.await?;
+			}
+		}
+
+		Ok(())
 	}
 
 	#[instrument]

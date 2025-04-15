@@ -1,6 +1,10 @@
 use {
 	serde::{Deserialize, Serialize},
-	std::{cmp, ops, time::SystemTime},
+	std::{
+		cmp,
+		ops,
+		time::{Duration, SystemTime},
+	},
 	utoipa::ToSchema,
 };
 
@@ -30,6 +34,24 @@ impl Timestamp
 	{
 		Self(time::OffsetDateTime::now_utc())
 	}
+
+	/// Computes the time difference between `self` and `earlier` as a [`Duration`].
+	///
+	/// A return value of `Err` indicates that `self` happened before `earlier`.
+	pub fn duration_since(self, earlier: Self) -> Result<Duration, Duration>
+	{
+		SystemTime::from(self)
+			.duration_since(earlier.into())
+			.map_err(|err| err.duration())
+	}
+
+	/// Computes the time difference between "now" and `self` as a [`Duration`].
+	///
+	/// A return value of `Err` indicates that `self` is in the future.
+	pub fn elapsed(self) -> Result<Duration, Duration>
+	{
+		Self::now().duration_since(self)
+	}
 }
 
 impl From<SystemTime> for Timestamp
@@ -37,6 +59,14 @@ impl From<SystemTime> for Timestamp
 	fn from(system_time: SystemTime) -> Self
 	{
 		Self(system_time.into())
+	}
+}
+
+impl From<Timestamp> for SystemTime
+{
+	fn from(timestamp: Timestamp) -> Self
+	{
+		timestamp.0.into()
 	}
 }
 
