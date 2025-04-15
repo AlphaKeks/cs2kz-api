@@ -1,7 +1,7 @@
 pub use self::{
 	id::{ParseUserIdError, UserId},
 	name::{InvalidUsername, Username},
-	permissions::{Iter as PermissionsIter, Permission, Permissions},
+	permissions::{InvalidPermission, Iter as PermissionsIter, Permission, Permissions},
 	server_budget::ServerBudget,
 };
 use {

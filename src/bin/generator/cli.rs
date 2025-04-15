@@ -4,7 +4,7 @@ use {
 		maps::{FilterId, MapState},
 		players::PlayerId,
 		servers::ServerId,
-		users::UserId,
+		users::{Permission, UserId},
 	},
 	std::num::NonZero,
 };
@@ -34,6 +34,11 @@ pub(crate) enum Args
 
 	#[command(subcommand)]
 	Records(Records),
+
+	Permissions
+	{
+		user_id: UserId, permissions: Vec<Permission>
+	},
 }
 
 #[derive(Debug, clap::Subcommand)]

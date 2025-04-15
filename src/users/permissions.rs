@@ -1,6 +1,6 @@
 use {
 	serde::{Deserialize, Deserializer, Serialize, Serializer, de, ser::SerializeSeq},
-	std::{fmt, ops},
+	std::{fmt, ops, str::FromStr},
 	utoipa::ToSchema,
 	zerocopy::{Immutable, IntoBytes, KnownLayout, TryFromBytes, try_transmute_ref},
 };
@@ -100,6 +100,13 @@ pub enum Permission
 #[schema(value_type = [Permission])]
 pub struct Permissions(u64);
 
+#[derive(Debug, Display, Error)]
+#[display("invalid permission: {reason}")]
+pub struct InvalidPermission
+{
+	reason: Box<str>,
+}
+
 /// An [`Iterator`] over [`Permission`]s
 #[derive(Debug, Clone)]
 pub struct Iter
@@ -188,6 +195,16 @@ impl ops::BitXor for Permission
 	fn bitxor(self, rhs: Permission) -> Self::Output
 	{
 		Permissions((self as u64) ^ (rhs as u64))
+	}
+}
+
+impl FromStr for Permission
+{
+	type Err = InvalidPermission;
+
+	fn from_str(value: &str) -> Result<Self, Self::Err>
+	{
+		Self::deserialize(serde::de::value::StrDeserializer::new(value))
 	}
 }
 
@@ -395,6 +412,26 @@ impl ops::BitXorAssign<Permission> for Permissions
 	fn bitxor_assign(&mut self, rhs: Permission)
 	{
 		self.0 ^= rhs as u64;
+	}
+}
+
+impl FromIterator<Permission> for Permissions
+{
+	fn from_iter<I>(iter: I) -> Self
+	where
+		I: IntoIterator<Item = Permission>,
+	{
+		iter.into_iter().fold(Self::default(), ops::BitOr::bitor)
+	}
+}
+
+impl serde::de::Error for InvalidPermission
+{
+	fn custom<T>(msg: T) -> Self
+	where
+		T: fmt::Display,
+	{
+		Self { reason: msg.to_string().into_boxed_str() }
 	}
 }
 

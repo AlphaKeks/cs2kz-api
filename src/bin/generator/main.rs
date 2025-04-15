@@ -2,7 +2,7 @@
 #![feature(non_exhaustive_omitted_patterns_lint)]
 #![feature(unqualified_local_imports)]
 
-#[macro_use(info)]
+#[macro_use(info, warn)]
 extern crate tracing as _;
 
 use {
@@ -130,6 +130,20 @@ async fn main() -> eyre::Result<()>
 			},
 			cli::Args::Records(cli::Records::Delete { count }) => {
 				delete_records(db_conn, count).await
+			},
+			cli::Args::Permissions { user_id, permissions } => {
+				let updated = users::set_permissions(user_id, permissions.into_iter().collect())
+					.exec(db_conn)
+					.await
+					.wrap_err("failed to set permissions")?;
+
+				if updated {
+					info!("assigned permissions");
+				} else {
+					warn!("user does not exist");
+				}
+
+				Ok(())
 			},
 		})
 		.await
