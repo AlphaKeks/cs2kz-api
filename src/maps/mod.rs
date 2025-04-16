@@ -523,12 +523,13 @@ where
 	}
 
 	let map_id = sqlx::query!(
-		"INSERT INTO Maps (workshop_id, name, description, state, checksum, created_by)
-		 VALUES (?, ?, ?, ?, ?, ?)
+		"INSERT INTO Maps (workshop_id, name, description, game, state, checksum, created_by)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
 		 RETURNING id",
 		workshop_id,
 		name,
 		description,
+		game,
 		state,
 		checksum,
 		created_by,
