@@ -632,9 +632,14 @@ pub(crate) async fn create_map(
 			HandlerError::Problem(problem_details)
 		})?;
 
-	if &map_metadata.creator_id != session.user_info().id().as_ref() {
-		debug!("user is not the mapper");
-		return Err(HandlerError::Unauthorized);
+	#[expect(clippy::collapsible_else_if)]
+	if runtime::environment::get().is_development() {
+		warn!("not checking whether the user is the actual mapper");
+	} else {
+		if map_metadata.creator_id != *session.user_info().id().as_ref() {
+			debug!("user is not the mapper");
+			return Err(HandlerError::Unauthorized);
+		}
 	}
 
 	let map_name = map_metadata.name.parse::<MapName>().map_err(|err| {
