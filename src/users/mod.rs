@@ -29,6 +29,7 @@ pub struct User
 	pub id: UserId,
 	pub name: Username,
 	pub permissions: Permissions,
+	pub server_budget: ServerBudget,
 	pub created_at: Timestamp,
 }
 
@@ -93,6 +94,7 @@ pub fn get(
 		   id AS `id: UserId`,
 		   name AS `name: Username`,
 		   permissions AS `permissions: Permissions`,
+		   server_budget AS `server_budget: ServerBudget`,
 		   created_at AS `created_at: Timestamp`
 		 FROM Users
 		 WHERE permissions >= ?
@@ -124,6 +126,7 @@ pub async fn get_by_id(
 		   id AS `id: UserId`,
 		   name AS `name: Username`,
 		   permissions AS `permissions: Permissions`,
+		   server_budget AS `server_budget: ServerBudget`,
 		   created_at AS `created_at: Timestamp`
 		 FROM Users
 		 WHERE id = ?",

@@ -1,0 +1,44 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT\n\t\t\t   s.id AS `id: ServerId`,\n\t\t\t   s.last_seen_at AS `last_seen_at: Timestamp`,\n\t\t\t   o.email_address AS `owner_email: EmailAddress`\n\t\t\t FROM Servers AS s\n\t\t\t INNER JOIN Users AS o ON o.id = s.owner_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: ServerId",
+        "type_info": {
+          "type": "Short",
+          "flags": "NOT_NULL | PRIMARY_KEY | UNSIGNED | AUTO_INCREMENT",
+          "max_size": 5
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "last_seen_at: Timestamp",
+        "type_info": {
+          "type": "Timestamp",
+          "flags": "UNSIGNED | BINARY",
+          "max_size": 19
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "owner_email: EmailAddress",
+        "type_info": {
+          "type": "VarString",
+          "flags": "UNIQUE_KEY",
+          "max_size": 1020
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "7229e930973ec3e7a66d39846c4491af4242f3b8b30803147aac9aa1b040801e"
+}

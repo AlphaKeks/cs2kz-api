@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT\n\t\t   id AS `id: UserId`,\n\t\t   name AS `name: Username`,\n\t\t   permissions AS `permissions: Permissions`,\n\t\t   created_at AS `created_at: Timestamp`\n\t\t FROM Users\n\t\t WHERE id = ?",
+  "query": "SELECT\n\t\t   id AS `id: UserId`,\n\t\t   name AS `name: Username`,\n\t\t   permissions AS `permissions: Permissions`,\n\t\t   server_budget AS `server_budget: ServerBudget`,\n\t\t   created_at AS `created_at: Timestamp`\n\t\t FROM Users\n\t\t WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -32,6 +32,15 @@
       },
       {
         "ordinal": 3,
+        "name": "server_budget: ServerBudget",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "created_at: Timestamp",
         "type_info": {
           "type": "Timestamp",
@@ -47,8 +56,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "449a4cab28b2712fda9ef0c483903f614277a7da16b55fa7da275290df0343ce"
+  "hash": "aa06799433790a03e1d73e2b245dfb0d3ec93f5b1487053d5f5cb49f9dfeb275"
 }

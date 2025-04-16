@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT\n\t\t   id AS `id: UserId`,\n\t\t   name AS `name: Username`,\n\t\t   permissions AS `permissions: Permissions`,\n\t\t   created_at AS `created_at: Timestamp`\n\t\t FROM Users\n\t\t WHERE permissions >= ?\n\t\t AND (permissions & ?) = ?\n\t\t ORDER BY created_at ASC\n\t\t LIMIT ?, ?",
+  "query": "SELECT\n\t\t   id AS `id: UserId`,\n\t\t   name AS `name: Username`,\n\t\t   permissions AS `permissions: Permissions`,\n\t\t   server_budget AS `server_budget: ServerBudget`,\n\t\t   created_at AS `created_at: Timestamp`\n\t\t FROM Users\n\t\t WHERE permissions >= ?\n\t\t AND (permissions & ?) = ?\n\t\t ORDER BY created_at ASC\n\t\t LIMIT ?, ?",
   "describe": {
     "columns": [
       {
@@ -32,6 +32,15 @@
       },
       {
         "ordinal": 3,
+        "name": "server_budget: ServerBudget",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | UNSIGNED",
+          "max_size": 3
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "created_at: Timestamp",
         "type_info": {
           "type": "Timestamp",
@@ -47,8 +56,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "5adb54883f949f5af525b85deae3ce7d0ae6207765cd08de56a3472fe80e405d"
+  "hash": "8bf3e4794767408cc401affaa874427a9342917a97f4e8f85ff0ec1e194a837a"
 }
