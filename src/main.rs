@@ -173,6 +173,8 @@ async fn run(
 		.await
 		.wrap_err("failed to connect to database")?;
 
+	database.run_migrations().await?;
+
 	let points_daemon = PointsDaemon::new(database.clone());
 	let points_daemon_handle = points_daemon.handle();
 	let points_daemon_span = tracing::info_span!(parent: None, "points_daemon");

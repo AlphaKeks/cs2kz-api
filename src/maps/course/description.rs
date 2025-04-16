@@ -1,10 +1,10 @@
 use {
 	serde::{Deserialize, Deserializer, Serialize, de},
-	std::{error::Error, str::FromStr, sync::Arc},
+	std::{str::FromStr, sync::Arc},
 	utoipa::ToSchema,
 };
 
-#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, ToSchema)]
+#[derive(Debug, Display, Default, Clone, PartialEq, Eq, Hash, Serialize, ToSchema)]
 #[serde(transparent)]
 #[schema(value_type = str, example = "Main")]
 pub struct CourseDescription(Arc<str>);
@@ -12,14 +12,15 @@ pub struct CourseDescription(Arc<str>);
 #[non_exhaustive]
 #[derive(Debug, Display, Error)]
 #[display("invalid course description: {_variant}")]
-pub enum InvalidCourseDescription
-{
-	#[display("may not be empty")]
-	Empty,
-}
+pub enum InvalidCourseDescription {}
 
 impl CourseDescription
 {
+	fn validate(_value: &str) -> Result<(), InvalidCourseDescription>
+	{
+		Ok(())
+	}
+
 	pub fn as_str(&self) -> &str
 	{
 		&self.0
@@ -32,11 +33,7 @@ impl FromStr for CourseDescription
 
 	fn from_str(value: &str) -> Result<Self, Self::Err>
 	{
-		if value.is_empty() {
-			return Err(InvalidCourseDescription::Empty);
-		}
-
-		Ok(Self(value.into()))
+		Self::validate(value).map(|()| Self(value.into()))
 	}
 }
 
@@ -63,61 +60,26 @@ impl<'de> Deserialize<'de> for CourseDescription
 			{
 				value.parse().map_err(E::custom)
 			}
+
+			fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+			where
+				E: de::Error,
+			{
+				CourseDescription::validate(&value)
+					.map(|()| CourseDescription(value.into()))
+					.map_err(E::custom)
+			}
 		}
 
 		deserializer.deserialize_string(CourseDescriptionVisitor)
 	}
 }
 
-impl<DB> sqlx::Type<DB> for CourseDescription
-where
-	DB: sqlx::Database,
-	str: sqlx::Type<DB>,
-{
-	fn type_info() -> <DB as sqlx::Database>::TypeInfo
-	{
-		str::type_info()
-	}
-
-	fn compatible(ty: &<DB as sqlx::Database>::TypeInfo) -> bool
-	{
-		str::compatible(ty)
-	}
-}
-
-impl<'q, DB> sqlx::Encode<'q, DB> for CourseDescription
-where
-	DB: sqlx::Database,
-	for<'a> &'a str: sqlx::Encode<'q, DB>,
-{
-	fn encode_by_ref(
-		&self,
-		buf: &mut <DB as sqlx::Database>::ArgumentBuffer<'q>,
-	) -> Result<sqlx::encode::IsNull, Box<dyn Error + Send + Sync>>
-	{
-		self.as_str().encode_by_ref(buf)
-	}
-
-	fn produces(&self) -> Option<<DB as sqlx::Database>::TypeInfo>
-	{
-		self.as_str().produces()
-	}
-
-	fn size_hint(&self) -> usize
-	{
-		self.as_str().size_hint()
-	}
-}
-
-impl<'r, DB> sqlx::Decode<'r, DB> for CourseDescription
-where
-	DB: sqlx::Database,
-	&'r str: sqlx::Decode<'r, DB>,
-{
-	fn decode(
-		value: <DB as sqlx::Database>::ValueRef<'r>,
-	) -> Result<Self, Box<dyn Error + Send + Sync>>
-	{
-		Ok(<&str>::decode(value)?.parse()?)
-	}
-}
+impl_sqlx!(CourseDescription => {
+	Type as str;
+	Encode<'q, 'a> as &'a str = |description| description.as_str();
+	Decode<'r> as String = |value| {
+		CourseDescription::validate(&value)
+			.map(|()| CourseDescription(value.into()))
+	};
+});

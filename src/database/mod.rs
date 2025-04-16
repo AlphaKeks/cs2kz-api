@@ -6,12 +6,13 @@
 
 pub use self::{
 	connection::Connection,
-	error::{DatabaseError, DatabaseResult},
+	error::{DatabaseError, DatabaseResult, MigrationError},
 };
 use {
 	futures_util::TryFutureExt,
 	sqlx::{
 		MySql,
+		migrate::Migrator,
 		mysql::{MySqlPool, MySqlPoolOptions},
 	},
 	std::{fmt, num::NonZero},
@@ -22,6 +23,8 @@ mod connection;
 mod error;
 
 pub(crate) type QueryBuilder<'args> = sqlx::QueryBuilder<'args, MySql>;
+
+static MIGRATIONS: Migrator = sqlx::migrate!();
 
 /// A pool of [`Connection`]s
 ///
@@ -63,6 +66,13 @@ impl ConnectionPool
 			.connect(url.as_str())
 			.map_ok(|connection_pool| Self { inner: connection_pool })
 			.map_err(DatabaseError::from)
+	}
+
+	/// Runs outstanding database migrations.
+	#[instrument(level = "trace", skip(self), err(level = "warn"))]
+	pub async fn run_migrations(&self) -> Result<(), MigrationError>
+	{
+		MIGRATIONS.run(&self.inner).map_err(MigrationError::from).await
 	}
 
 	/// Acquires a handle to a connection in the pool.

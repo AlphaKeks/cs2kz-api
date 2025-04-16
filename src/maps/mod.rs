@@ -55,7 +55,7 @@ pub struct Map
 	pub id: MapId,
 	pub workshop_id: WorkshopId,
 	pub name: MapName,
-	pub description: Option<MapDescription>,
+	pub description: MapDescription,
 	pub game: Game,
 	pub state: MapState,
 
@@ -88,7 +88,7 @@ pub struct Course
 	/// This is unique across all courses within a map.
 	pub local_id: CourseLocalId,
 	pub name: CourseName,
-	pub description: Option<CourseDescription>,
+	pub description: CourseDescription,
 
 	#[serde(serialize_with = "crate::serde::ser::map_values")]
 	pub mappers: BTreeMap<UserId, Mapper>,
@@ -118,7 +118,7 @@ pub struct Filter
 	pub nub_tier: Tier,
 	pub pro_tier: Tier,
 	pub ranked: bool,
-	pub notes: Option<FilterNotes>,
+	pub notes: FilterNotes,
 }
 
 #[instrument(skip(db_conn), ret(level = "debug"), err)]
@@ -456,7 +456,8 @@ pub struct NewCourse<NewMappers: IntoIterator<Item = UserId>>
 	#[builder(start_fn)]
 	local_id: CourseLocalId,
 	name: CourseName,
-	description: Option<CourseDescription>,
+	#[builder(default)]
+	description: CourseDescription,
 	mappers: NewMappers,
 	filters: NewFilters,
 }
@@ -489,7 +490,9 @@ pub struct NewFilter
 	nub_tier: Tier,
 	pro_tier: Tier,
 	ranked: bool,
-	notes: Option<FilterNotes>,
+
+	#[builder(default)]
+	notes: FilterNotes,
 }
 
 #[instrument(skip(db_conn), ret(level = "debug"), err)]
@@ -498,7 +501,7 @@ pub async fn create<I, CourseMappers>(
 	#[builder(start_fn)] workshop_id: WorkshopId,
 	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: MapName,
-	description: Option<MapDescription>,
+	#[builder(default)] description: MapDescription,
 	game: Game,
 	#[builder(default = MapState::WIP)] state: MapState,
 	checksum: Checksum,
@@ -591,7 +594,7 @@ where
 					.nub_tier(filter.nub_tier)
 					.pro_tier(filter.pro_tier)
 					.ranked(filter.ranked)
-					.maybe_notes(filter.notes)
+					.notes(filter.notes)
 					.exec(&mut *db_conn)
 					.await?;
 
@@ -607,7 +610,7 @@ where
 					.nub_tier(filter.nub_tier)
 					.pro_tier(filter.pro_tier)
 					.ranked(filter.ranked)
-					.maybe_notes(filter.notes)
+					.notes(filter.notes)
 					.exec(&mut *db_conn)
 					.await?;
 
@@ -654,7 +657,7 @@ async fn create_filter(
 	nub_tier: Tier,
 	pro_tier: Tier,
 	ranked: bool,
-	notes: Option<FilterNotes>,
+	#[builder(default)] notes: FilterNotes,
 ) -> DatabaseResult<FilterId>
 {
 	let filter_id = sqlx::query!(
@@ -734,7 +737,9 @@ pub struct CourseUpdate<
 	RemovedMappers: IntoIterator<Item = UserId>,
 	FilterUpdates: IntoIterator<Item = (Mode, FilterUpdate)>,
 > {
+	#[builder(required)]
 	name: Option<CourseName>,
+	#[builder(required)]
 	description: Option<CourseDescription>,
 	added_mappers: AddedMappers,
 	removed_mappers: RemovedMappers,
@@ -744,9 +749,13 @@ pub struct CourseUpdate<
 #[derive(Debug, Builder)]
 pub struct FilterUpdate
 {
+	#[builder(required)]
 	nub_tier: Option<Tier>,
+	#[builder(required)]
 	pro_tier: Option<Tier>,
+	#[builder(required)]
 	ranked: Option<bool>,
+	#[builder(required)]
 	notes: Option<FilterNotes>,
 }
 
@@ -773,7 +782,7 @@ pub async fn update<I, AddedMappers, RemovedMappers, FilterUpdates>(
 	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	workshop_id: WorkshopId,
 	name: MapName,
-	description: Option<MapDescription>,
+	#[builder(required)] description: Option<MapDescription>,
 	checksum: Checksum,
 	course_updates: I,
 ) -> Result<(), UpdateMapError>
@@ -828,8 +837,8 @@ where
 			.ok_or(UpdateMapError::InvalidCourseLocalId(local_id))?;
 
 		update_course(course_id)
-			.maybe_name(course_update.name)
-			.maybe_description(course_update.description)
+			.name(course_update.name)
+			.description(course_update.description)
 			.added_mappers(course_update.added_mappers)
 			.removed_mappers(course_update.removed_mappers)
 			.filter_updates(course_update.filter_updates)
@@ -847,8 +856,8 @@ where
 async fn update_course<AddedMappers, RemovedMappers, FilterUpdates>(
 	#[builder(start_fn)] course_id: CourseId,
 	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
-	name: Option<CourseName>,
-	description: Option<CourseDescription>,
+	#[builder(required)] name: Option<CourseName>,
+	#[builder(required)] description: Option<CourseDescription>,
 	added_mappers: AddedMappers,
 	removed_mappers: RemovedMappers,
 	filter_updates: FilterUpdates,

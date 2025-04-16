@@ -44,7 +44,7 @@
         "name": "notes: FilterNotes",
         "type_info": {
           "type": "Blob",
-          "flags": "BLOB",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
           "max_size": 262140
         }
       }
@@ -57,7 +57,7 @@
       false,
       false,
       false,
-      true
+      false
     ]
   },
   "hash": "b8aef23738e9caba6f0d492d6b0eacc775641a0606531309b31f926cd0bab6b4"

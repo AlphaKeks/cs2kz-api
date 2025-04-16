@@ -7,6 +7,11 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 #[display("database error: {_0}")]
 pub struct DatabaseError(sqlx::Error);
 
+/// An error running migrations
+#[derive(Debug, Display, Error, From)]
+#[display("failed to run database migrations: {_0}")]
+pub struct MigrationError(sqlx::migrate::MigrateError);
+
 impl DatabaseError
 {
 	/// Helper function construct a [`DatabaseError`] from a failed attempt to

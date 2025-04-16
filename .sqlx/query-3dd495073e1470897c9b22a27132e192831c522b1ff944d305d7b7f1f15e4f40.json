@@ -35,7 +35,7 @@
         "name": "description: MapDescription",
         "type_info": {
           "type": "Blob",
-          "flags": "BLOB",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
           "max_size": 262140
         }
       },
@@ -125,7 +125,7 @@
         "name": "course_description: CourseDescription",
         "type_info": {
           "type": "Blob",
-          "flags": "BLOB",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
           "max_size": 262140
         }
       },
@@ -197,7 +197,7 @@
         "name": "filter_notes: FilterNotes",
         "type_info": {
           "type": "Blob",
-          "flags": "BLOB",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
           "max_size": 262140
         }
       }
@@ -209,7 +209,6 @@
       false,
       false,
       false,
-      true,
       false,
       false,
       false,
@@ -219,7 +218,6 @@
       false,
       false,
       false,
-      true,
       false,
       false,
       false,
@@ -227,7 +225,9 @@
       false,
       false,
       false,
-      true
+      false,
+      false,
+      false
     ]
   },
   "hash": "3dd495073e1470897c9b22a27132e192831c522b1ff944d305d7b7f1f15e4f40"

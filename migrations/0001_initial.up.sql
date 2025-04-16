@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS Maps (
   id INT2 UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   workshop_id INT4 UNSIGNED NOT NULL,
   name VARCHAR(27) NOT NULL CHECK(name != ''),
-  description TEXT CHECK(description != ''),
+  description TEXT NOT NULL,
   game INT1 UNSIGNED NOT NULL,
   state INT1 NOT NULL,
   checksum BINARY(16) NOT NULL,
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS Courses (
   map_id INT2 UNSIGNED NOT NULL REFERENCES Maps(id) ON DELETE CASCADE,
   local_id INT2 UNSIGNED NOT NULL,
   name VARCHAR(255) NOT NULL CHECK(name != ''),
-  description TEXT CHECK(description != ''),
+  description TEXT NOT NULL,
   CONSTRAINT UC_local_id UNIQUE (map_id, local_id),
   CONSTRAINT UC_name UNIQUE (map_id, name),
   FULLTEXT (name)
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS Filters (
   nub_tier INT1 UNSIGNED NOT NULL,
   pro_tier INT1 UNSIGNED NOT NULL,
   ranked BOOLEAN NOT NULL,
-  notes TEXT CHECK(notes != ''),
+  notes TEXT NOT NULL,
   CONSTRAINT UC_mode UNIQUE (course_id, mode)
 );
 

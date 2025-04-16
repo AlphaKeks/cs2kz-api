@@ -504,7 +504,10 @@ pub(crate) async fn get_record(
 pub(crate) struct CreateMapRequest
 {
 	workshop_id: WorkshopId,
-	description: Option<MapDescription>,
+
+	#[serde(default)]
+	description: MapDescription,
+
 	game: Game,
 
 	#[serde(deserialize_with = "cs2kz_api::serde::de::non_empty")]
@@ -515,7 +518,9 @@ pub(crate) struct CreateMapRequest
 pub(crate) struct CreateCourseRequest
 {
 	name: CourseName,
-	description: Option<CourseDescription>,
+
+	#[serde(default)]
+	description: CourseDescription,
 
 	#[serde(deserialize_with = "cs2kz_api::serde::de::non_empty")]
 	mappers: BTreeSet<UserId>,
@@ -556,7 +561,9 @@ pub(crate) struct CreateFilterRequest
 	nub_tier: Tier,
 	pro_tier: Tier,
 	ranked: bool,
-	notes: Option<FilterNotes>,
+
+	#[serde(default)]
+	notes: FilterNotes,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -700,7 +707,7 @@ pub(crate) async fn create_map(
 									.nub_tier(vnl.nub_tier)
 									.pro_tier(vnl.pro_tier)
 									.ranked(vnl.ranked)
-									.maybe_notes(vnl.notes)
+									.notes(vnl.notes)
 									.build()
 							})
 							.ckz({
@@ -708,7 +715,7 @@ pub(crate) async fn create_map(
 									.nub_tier(ckz.nub_tier)
 									.pro_tier(ckz.pro_tier)
 									.ranked(ckz.ranked)
-									.maybe_notes(ckz.notes)
+									.notes(ckz.notes)
 									.build()
 							})
 							.build();
@@ -722,7 +729,7 @@ pub(crate) async fn create_map(
 									.nub_tier(kzt.nub_tier)
 									.pro_tier(kzt.pro_tier)
 									.ranked(kzt.ranked)
-									.maybe_notes(kzt.notes)
+									.notes(kzt.notes)
 									.build()
 							})
 							.skz({
@@ -730,7 +737,7 @@ pub(crate) async fn create_map(
 									.nub_tier(skz.nub_tier)
 									.pro_tier(skz.pro_tier)
 									.ranked(skz.ranked)
-									.maybe_notes(skz.notes)
+									.notes(skz.notes)
 									.build()
 							})
 							.vnl({
@@ -738,7 +745,7 @@ pub(crate) async fn create_map(
 									.nub_tier(vnl.nub_tier)
 									.pro_tier(vnl.pro_tier)
 									.ranked(vnl.ranked)
-									.maybe_notes(vnl.notes)
+									.notes(vnl.notes)
 									.build()
 							})
 							.build();
@@ -754,7 +761,7 @@ pub(crate) async fn create_map(
 
 				NewCourse::builder(local_id)
 					.name(course.name)
-					.maybe_description(course.description)
+					.description(course.description)
 					.mappers(course.mappers)
 					.filters(filters)
 					.build()
@@ -762,7 +769,7 @@ pub(crate) async fn create_map(
 
 			maps::create(workshop_id)
 				.name(map_name)
-				.maybe_description(description)
+				.description(description)
 				.game(game)
 				.state(MapState::WIP)
 				.checksum(vpk_checksum)
@@ -1074,18 +1081,18 @@ pub(crate) async fn update_map(
 				let filter_updates =
 					course_update.filter_updates.into_iter().map(|(mode, filter_update)| {
 						let filter_update = FilterUpdate::builder()
-							.maybe_nub_tier(filter_update.nub_tier)
-							.maybe_pro_tier(filter_update.pro_tier)
-							.maybe_ranked(filter_update.ranked)
-							.maybe_notes(filter_update.notes)
+							.nub_tier(filter_update.nub_tier)
+							.pro_tier(filter_update.pro_tier)
+							.ranked(filter_update.ranked)
+							.notes(filter_update.notes)
 							.build();
 
 						(mode, filter_update)
 					});
 
 				let course_update = CourseUpdate::builder()
-					.maybe_name(course_update.name)
-					.maybe_description(course_update.description)
+					.name(course_update.name)
+					.description(course_update.description)
 					.added_mappers(course_update.added_mappers)
 					.removed_mappers(course_update.removed_mappers)
 					.filter_updates(filter_updates)
@@ -1097,7 +1104,7 @@ pub(crate) async fn update_map(
 			maps::update(map_id)
 				.workshop_id(workshop_id)
 				.name(map_name)
-				.maybe_description(description)
+				.description(description)
 				.checksum(checksum)
 				.course_updates(course_updates)
 				.exec(db_conn)
