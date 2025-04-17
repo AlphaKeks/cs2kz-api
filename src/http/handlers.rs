@@ -1390,6 +1390,14 @@ pub(crate) async fn update_server(
 	Json(UpdateServerRequest { name, host, port, game }): Json<UpdateServerRequest>,
 ) -> HandlerResult<NoContent>
 {
+	if !session
+		.user_info()
+		.permissions()
+		.contains(&Permission::ModifyServerMetadata)
+	{
+		return Err(HandlerError::Unauthorized);
+	}
+
 	let updated = database
 		.in_transaction(async |db_conn| {
 			servers::update(server_id)
