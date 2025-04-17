@@ -1386,26 +1386,44 @@ pub(crate) struct UpdateServerRequest
 )]
 pub(crate) async fn update_server(
 	State(database): State<database::ConnectionPool>,
+	session: auth::Session,
 	Path(server_id): Path<ServerId>,
 	Json(UpdateServerRequest { name, host, port, game }): Json<UpdateServerRequest>,
 ) -> HandlerResult<NoContent>
 {
+	let mut db_conn = None;
+
 	if !session
 		.user_info()
 		.permissions()
 		.contains(&Permission::ModifyServerMetadata)
 	{
-		return Err(HandlerError::Unauthorized);
+		debug!("user does not have permissions");
+
+		let owner_id = servers::get_owner_id(server_id)
+			.exec(db_conn.insert(database.acquire().await?))
+			.await?
+			.ok_or(HandlerError::NotFound)?;
+
+		if session.user_info().id() != owner_id {
+			debug!("user is not the server owner");
+			return Err(HandlerError::Unauthorized);
+		}
 	}
 
-	let updated = database
-		.in_transaction(async |db_conn| {
+	let db_conn = match db_conn {
+		Some(ref mut db_conn) => db_conn,
+		None => db_conn.insert(database.acquire().await?),
+	};
+
+	let updated = db_conn
+		.in_transaction(async |conn| {
 			servers::update(server_id)
 				.maybe_name(name)
 				.maybe_host(host)
 				.maybe_port(port)
 				.maybe_game(game)
-				.exec(db_conn)
+				.exec(conn)
 				.await
 		})
 		.await?;
