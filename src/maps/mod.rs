@@ -91,6 +91,7 @@ pub struct Course
 	pub description: CourseDescription,
 
 	#[serde(serialize_with = "crate::serde::ser::map_values")]
+	#[schema(value_type = [Mapper])]
 	pub mappers: BTreeMap<UserId, Mapper>,
 
 	pub filters: Filters,
