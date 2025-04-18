@@ -7,7 +7,7 @@ pub use self::{
 use {
 	crate::{
 		database::{self, DatabaseError, DatabaseResult},
-		players::{PlayerId, PlayerIp},
+		players::{PlayerId, PlayerIp, PlayerName},
 		stream::StreamExt as _,
 		time::Timestamp,
 		users::UserId,
@@ -106,12 +106,19 @@ pub async fn create(
 pub struct Ban
 {
 	pub id: BanId,
-	pub player_id: PlayerId,
+	pub player: BannedPlayer,
 	pub reason: BanReason,
 	pub banned_by: BannedBy,
 	pub created_at: Timestamp,
 	pub expires_at: Timestamp,
 	pub unban: Option<Unban>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct BannedPlayer
+{
+	pub id: PlayerId,
+	pub name: PlayerName,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -157,7 +164,8 @@ pub fn get(
 	sqlx::query!(
 		"SELECT
 		   b.id AS `id: BanId`,
-		   b.player_id AS `player_id: PlayerId`,
+		   p.id AS `player_id: PlayerId`,
+		   p.name AS `player_name: PlayerName`,
 		   b.reason AS `reason: BanReason`,
 		   b.banned_by AS `banned_by: BannedBy`,
 		   b.created_at AS `created_at: Timestamp`,
@@ -166,6 +174,7 @@ pub fn get(
 		   ub.unbanned_by AS `unbanned_by: UserId`,
 		   ub.created_at AS `unban_created_at: Timestamp`
 		 FROM Bans AS b
+		 INNER JOIN Players AS p ON p.id = b.player_id
 		 LEFT JOIN Unbans AS ub ON ub.id = b.id
 		 WHERE b.player_id = COALESCE(?, b.player_id)
 		 AND b.banned_by = COALESCE(?, b.banned_by)
@@ -204,7 +213,7 @@ pub fn get(
 
 		Ok(Ban {
 			id: row.id,
-			player_id: row.player_id,
+			player: BannedPlayer { id: row.player_id, name: row.player_name },
 			reason: row.reason,
 			banned_by: row.banned_by,
 			created_at: row.created_at,
@@ -224,7 +233,8 @@ pub async fn get_by_id(
 	sqlx::query!(
 		"SELECT
 		   b.id AS `id: BanId`,
-		   b.player_id AS `player_id: PlayerId`,
+		   p.id AS `player_id: PlayerId`,
+		   p.name AS `player_name: PlayerName`,
 		   b.reason AS `reason: BanReason`,
 		   b.banned_by AS `banned_by: BannedBy`,
 		   b.created_at AS `created_at: Timestamp`,
@@ -233,6 +243,7 @@ pub async fn get_by_id(
 		   ub.unbanned_by AS `unbanned_by: UserId`,
 		   ub.created_at AS `unban_created_at: Timestamp`
 		 FROM Bans AS b
+		 INNER JOIN Players AS p ON p.id = b.player_id
 		 LEFT JOIN Unbans AS ub ON ub.id = b.id
 		 WHERE b.id = ?",
 		ban_id,
@@ -267,7 +278,7 @@ pub async fn get_by_id(
 
 		Ok(Some(Ban {
 			id: row.id,
-			player_id: row.player_id,
+			player: BannedPlayer { id: row.player_id, name: row.player_name },
 			reason: row.reason,
 			banned_by: row.banned_by,
 			created_at: row.created_at,
