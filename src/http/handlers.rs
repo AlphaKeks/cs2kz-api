@@ -1525,8 +1525,8 @@ pub(crate) async fn delete_server_access_key(
 		return Err(HandlerError::Unauthorized);
 	}
 
-	let updated = database
-		.in_transaction(async |db_conn| servers::delete_access_key(server_id).exec(db_conn).await)
+	let servers_updated = database
+		.in_transaction(async |db_conn| servers::delete_access_key([server_id]).exec(db_conn).await)
 		.await?;
 
 	match server_monitor.disconnect_server(server_id).await {
@@ -1541,7 +1541,7 @@ pub(crate) async fn delete_server_access_key(
 		},
 	}
 
-	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
+	if servers_updated > 0 { Ok(NoContent) } else { Err(HandlerError::NotFound) }
 }
 
 //=================================================================================================

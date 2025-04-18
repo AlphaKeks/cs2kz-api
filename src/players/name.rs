@@ -1,6 +1,6 @@
 use {
 	serde::{Deserialize, Deserializer, Serialize, de},
-	std::{error::Error, str::FromStr, sync::Arc},
+	std::{str::FromStr, sync::Arc},
 	utoipa::ToSchema,
 };
 
@@ -20,6 +20,15 @@ pub enum InvalidPlayerName
 
 impl PlayerName
 {
+	fn validate(value: &str) -> Result<(), InvalidPlayerName>
+	{
+		if value.is_empty() {
+			return Err(InvalidPlayerName::Empty);
+		}
+
+		Ok(())
+	}
+
 	pub fn as_str(&self) -> &str
 	{
 		&self.0
@@ -32,11 +41,7 @@ impl FromStr for PlayerName
 
 	fn from_str(value: &str) -> Result<Self, Self::Err>
 	{
-		if value.is_empty() {
-			return Err(InvalidPlayerName::Empty);
-		}
-
-		Ok(Self(value.into()))
+		Self::validate(value).map(|()| Self(value.into()))
 	}
 }
 
@@ -63,61 +68,26 @@ impl<'de> Deserialize<'de> for PlayerName
 			{
 				value.parse().map_err(E::custom)
 			}
+
+			fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+			where
+				E: de::Error,
+			{
+				PlayerName::validate(&value)
+					.map(|()| PlayerName(value.into()))
+					.map_err(E::custom)
+			}
 		}
 
 		deserializer.deserialize_string(PlayerNameVisitor)
 	}
 }
 
-impl<DB> sqlx::Type<DB> for PlayerName
-where
-	DB: sqlx::Database,
-	str: sqlx::Type<DB>,
-{
-	fn type_info() -> <DB as sqlx::Database>::TypeInfo
-	{
-		str::type_info()
-	}
-
-	fn compatible(ty: &<DB as sqlx::Database>::TypeInfo) -> bool
-	{
-		str::compatible(ty)
-	}
-}
-
-impl<'q, DB> sqlx::Encode<'q, DB> for PlayerName
-where
-	DB: sqlx::Database,
-	for<'a> &'a str: sqlx::Encode<'q, DB>,
-{
-	fn encode_by_ref(
-		&self,
-		buf: &mut <DB as sqlx::Database>::ArgumentBuffer<'q>,
-	) -> Result<sqlx::encode::IsNull, Box<dyn Error + Send + Sync>>
-	{
-		self.as_str().encode_by_ref(buf)
-	}
-
-	fn produces(&self) -> Option<<DB as sqlx::Database>::TypeInfo>
-	{
-		self.as_str().produces()
-	}
-
-	fn size_hint(&self) -> usize
-	{
-		self.as_str().size_hint()
-	}
-}
-
-impl<'r, DB> sqlx::Decode<'r, DB> for PlayerName
-where
-	DB: sqlx::Database,
-	&'r str: sqlx::Decode<'r, DB>,
-{
-	fn decode(
-		value: <DB as sqlx::Database>::ValueRef<'r>,
-	) -> Result<Self, Box<dyn Error + Send + Sync>>
-	{
-		Ok(<&str>::decode(value)?.parse()?)
-	}
-}
+impl_sqlx!(PlayerName => {
+	Type as str;
+	Encode<'q, 'a> as &'a str = |name| name.as_str();
+	Decode<'r> as String = |value| {
+		PlayerName::validate(&value)
+			.map(|()| PlayerName(value.into()))
+	};
+});

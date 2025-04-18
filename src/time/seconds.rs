@@ -1,6 +1,6 @@
 use {
 	serde::{Deserialize, Deserializer, Serialize, Serializer},
-	std::{error::Error, time::Duration},
+	std::time::Duration,
 	utoipa::ToSchema,
 };
 
@@ -49,55 +49,8 @@ impl<'de> Deserialize<'de> for Seconds
 	}
 }
 
-impl<DB> sqlx::Type<DB> for Seconds
-where
-	DB: sqlx::Database,
-	f64: sqlx::Type<DB>,
-{
-	fn type_info() -> <DB as sqlx::Database>::TypeInfo
-	{
-		f64::type_info()
-	}
-
-	fn compatible(ty: &<DB as sqlx::Database>::TypeInfo) -> bool
-	{
-		f64::compatible(ty)
-	}
-}
-
-impl<'q, DB> sqlx::Encode<'q, DB> for Seconds
-where
-	DB: sqlx::Database,
-	f64: sqlx::Encode<'q, DB>,
-{
-	fn encode_by_ref(
-		&self,
-		buf: &mut <DB as sqlx::Database>::ArgumentBuffer<'q>,
-	) -> Result<sqlx::encode::IsNull, Box<dyn Error + Send + Sync>>
-	{
-		self.as_f64().encode_by_ref(buf)
-	}
-
-	fn produces(&self) -> Option<<DB as sqlx::Database>::TypeInfo>
-	{
-		self.as_f64().produces()
-	}
-
-	fn size_hint(&self) -> usize
-	{
-		self.as_f64().size_hint()
-	}
-}
-
-impl<'r, DB> sqlx::Decode<'r, DB> for Seconds
-where
-	DB: sqlx::Database,
-	f64: sqlx::Decode<'r, DB>,
-{
-	fn decode(
-		value: <DB as sqlx::Database>::ValueRef<'r>,
-	) -> Result<Self, Box<dyn Error + Send + Sync>>
-	{
-		f64::decode(value).map(Self::from)
-	}
-}
+impl_sqlx!(Seconds => {
+	Type as f64;
+	Encode<'q> as f64 = |seconds| seconds.as_f64();
+	Decode<'r> as f64 = |value| Ok::<_, !>(Seconds::from(value));
+});

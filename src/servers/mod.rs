@@ -8,7 +8,7 @@ pub use self::{
 use {
 	crate::{
 		access_keys::AccessKey,
-		database::{self, DatabaseError, DatabaseResult},
+		database::{self, DatabaseError, DatabaseResult, QueryBuilder},
 		game::Game,
 		players::{PlayerId, PlayerName},
 		plugin::PluginVersionId,
@@ -19,6 +19,7 @@ use {
 	futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt},
 	serde::Serialize,
 	sqlx::Row,
+	std::iter,
 	utoipa::ToSchema,
 };
 
@@ -364,35 +365,59 @@ pub async fn reset_access_key(
 	.await
 }
 
-#[instrument(skip(db_conn), ret(level = "debug"), err)]
+#[instrument(skip(db_conn, servers), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn delete_access_key(
-	#[builder(start_fn)] server_id: ServerId,
+	#[builder(start_fn)] servers: impl IntoIterator<Item = ServerId>,
 	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
-) -> DatabaseResult<bool>
+) -> DatabaseResult<u64>
 {
-	sqlx::query!(
-		"UPDATE Servers
-		 SET access_key = NULL
-		 WHERE id = ?",
-		server_id,
-	)
-	.execute(db_conn.raw_mut())
-	.map_ok(|query_result| query_result.rows_affected() > 0)
-	.map_err(DatabaseError::from)
-	.await
+	let mut iter = servers.into_iter();
+
+	let Some(first) = iter.next() else {
+		return Ok(0);
+	};
+
+	let mut query = QueryBuilder::new("UPDATE Servers SET access_key = NULL WHERE id IN");
+
+	query.push_tuples(iter::once(first).chain(iter), |mut query, server_id| {
+		query.push_bind(server_id);
+	});
+
+	query
+		.build()
+		.persistent(false)
+		.execute(db_conn.raw_mut())
+		.map_ok(|query_result| query_result.rows_affected())
+		.map_err(DatabaseError::from)
+		.await
 }
 
-#[instrument(skip(db_conn), ret(level = "debug"), err)]
+/// Updates the `last_seen_at` value for all given servers.
+///
+/// Returns the number of servers updated.
+#[instrument(skip(db_conn, servers), ret(level = "debug"), err)]
 #[builder(finish_fn = exec)]
 pub async fn mark_seen(
-	#[builder(start_fn)] server_id: ServerId,
+	#[builder(start_fn)] servers: &[ServerId],
 	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
-) -> DatabaseResult<bool>
+) -> DatabaseResult<u64>
 {
-	sqlx::query!("UPDATE Servers SET last_seen_at = NOW() WHERE id = ?", server_id)
+	if servers.is_empty() {
+		return Ok(0);
+	}
+
+	let mut query = QueryBuilder::new("UPDATE Servers SET last_seen_at = NOW() WHERE id IN");
+
+	query.push_tuples(servers, |mut query, &server_id| {
+		query.push_bind(server_id);
+	});
+
+	query
+		.build()
+		.persistent(false)
 		.execute(db_conn.raw_mut())
-		.map_ok(|query_result| query_result.rows_affected() == 1)
+		.map_ok(|query_result| query_result.rows_affected())
 		.map_err(DatabaseError::from)
 		.await
 }
@@ -405,8 +430,8 @@ pub async fn create_session(
 	plugin_version_id: PluginVersionId,
 ) -> DatabaseResult<ServerSessionId>
 {
-	let server_exists = mark_seen(server_id).exec(db_conn).await?;
-	debug_assert!(server_exists);
+	let servers_updated = mark_seen(&[server_id]).exec(db_conn).await?;
+	debug_assert_eq!(servers_updated, 1);
 
 	sqlx::query!(
 		"INSERT INTO ServerSessions (server_id, plugin_version_id)

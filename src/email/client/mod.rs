@@ -51,13 +51,13 @@ impl Client
 	pub async fn send_message(
 		&self,
 		#[builder(start_fn)] subject: impl fmt::Display,
-		#[builder(finish_fn)] to: &EmailAddress,
+		#[builder(finish_fn)] to: EmailAddress,
 		body: impl fmt::Display,
 	) -> Result<(), SendEmailError>
 	{
 		let to = lettre::message::Mailbox {
 			name: None,
-			email: <EmailAddress as AsRef<lettre::Address>>::as_ref(to).clone(),
+			email: <EmailAddress as AsRef<lettre::Address>>::as_ref(&to).clone(),
 		};
 
 		let message = lettre::Message::builder()

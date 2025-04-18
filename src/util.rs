@@ -1,12 +1,14 @@
-/// Returns a guard which will execute the given function `f` when it is
-/// dropped.
+/// Creates a "drop guard" which will run the given function `f` on drop.
 pub(crate) fn drop_guard<F>(f: F) -> impl Drop
 where
 	F: FnOnce(),
 {
-	struct DropGuard<F>(Option<F>)
+	struct DropGuard<F>
 	where
-		F: FnOnce();
+		F: FnOnce(),
+	{
+		f: Option<F>,
+	}
 
 	impl<F> Drop for DropGuard<F>
 	where
@@ -14,11 +16,12 @@ where
 	{
 		fn drop(&mut self)
 		{
-			if let Some(f) = self.0.take() {
-				f();
+			match self.f.take() {
+				Some(f) => f(),
+				None => unreachable!("`Drop::drop()` is only called once"),
 			}
 		}
 	}
 
-	DropGuard(Some(f))
+	DropGuard { f: Some(f) }
 }

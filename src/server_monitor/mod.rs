@@ -10,7 +10,13 @@ use {
 		time::Timestamp,
 	},
 	axum_tws::{WebSocketError, WebSocketUpgrade},
-	futures_util::{FutureExt, StreamExt as _, TryStreamExt, future, stream},
+	futures_util::{
+		FutureExt,
+		StreamExt as _,
+		TryStreamExt,
+		future,
+		stream::{self, FuturesUnordered},
+	},
 	std::{
 		assert_matches::debug_assert_matches,
 		collections::hash_map::{self, HashMap},
@@ -214,7 +220,7 @@ impl ServerMonitor
 		// The first call to `.tick()` should complete immediately.
 		// We do not want to run inactivity checks immediately upon startup, so
 		// we skip this tick before going into the main loop.
-		assert!(inactivity_check_timer.tick().now_or_never().is_some());
+		inactivity_check_timer.tick().await;
 
 		loop {
 			select! {
@@ -307,44 +313,68 @@ impl ServerMonitor
 
 		drop(servers);
 
-		for id in servers_to_update {
-			let server_exists = servers::mark_seen(id).exec(&mut db_conn).await?;
-			debug_assert!(server_exists);
-		}
+		let servers_updated = servers::mark_seen(&servers_to_update[..]).exec(&mut db_conn).await?;
 
-		for (id, email) in servers_to_deglobal {
-			let server_exists = servers::delete_access_key(id).exec(&mut db_conn).await?;
-			debug_assert!(server_exists);
+		debug_assert_eq!(servers_updated, servers_to_update.len() as u64);
 
-			if let Some((email, email_client)) = Option::zip(email, self.email_client.as_ref()) {
+		let servers_updated = servers::delete_access_key({
+			// NOTE: this should be `servers_to_deglobal.iter().map(|&(id, _)| id)`, but that does
+			//       not seem to compile
+			//
+			// https://github.com/rust-lang/rust/issues/110338
+			(0..servers_to_deglobal.len()).map(|idx| servers_to_deglobal[idx].0)
+		})
+		.exec(&mut db_conn)
+		.await?;
+
+		debug_assert_eq!(servers_updated, servers_to_deglobal.len() as u64);
+
+		servers_to_deglobal
+			.into_iter()
+			.filter_map(|(server_id, email)| match (email, self.email_client.as_ref()) {
+				(Some(email_address), Some(email_client)) => {
+					Some((server_id, email_address, email_client))
+				},
+				_ => None,
+			})
+			.map(|(server_id, email_address, email_client)| {
 				let body = format! {
-					"The access key of your server {id} has been revoked due to inactivity. \
-					 Visit <https://forum.cs2kz.org> to appeal this action."
+					"The access key of your server {server_id} has been revoked due to \
+					 inactivity. Visit <https://forum.cs2kz.org> to appeal this action."
 				};
 
 				email_client
 					.build_message("Server inactivity")
 					.body(body)
-					.send(&email)
-					.await?;
-			}
-		}
+					.send(email_address)
+			})
+			.collect::<FuturesUnordered<_>>()
+			.try_collect::<()>()
+			.await?;
 
-		for (id, email) in servers_to_warn {
-			if let Some((email, email_client)) = Option::zip(email, self.email_client.as_ref()) {
+		servers_to_warn
+			.into_iter()
+			.filter_map(|(server_id, email)| match (email, self.email_client.as_ref()) {
+				(Some(email_address), Some(email_client)) => {
+					Some((server_id, email_address, email_client))
+				},
+				_ => None,
+			})
+			.map(|(server_id, email_address, email_client)| {
 				let body = format! {
-					"Your server {id} has been inactive for a while. If it does not connect to
-					 the API soon, its access key will be revoked. See \
-					 <https://docs.cs2kz.org/servers/approval#rules>."
+					"Your server {server_id} has been inactive for a while. If it does not connect \
+					 to the API soon, its access key will be revoked. \
+					 See <https://docs.cs2kz.org/servers/approval#rules>."
 				};
 
 				email_client
 					.build_message("Server inactivity")
 					.body(body)
-					.send(&email)
-					.await?;
-			}
-		}
+					.send(email_address)
+			})
+			.collect::<FuturesUnordered<_>>()
+			.try_collect::<()>()
+			.await?;
 
 		Ok(())
 	}

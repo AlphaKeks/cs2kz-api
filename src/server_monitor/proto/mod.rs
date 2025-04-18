@@ -17,6 +17,7 @@ use {
 		server_monitor::{Config, ServerMessage},
 		servers::{self, ServerId, ServerSessionId},
 		styles::{Style, Styles},
+		util,
 	},
 	axum_tws::WebSocketError,
 	color_eyre::eyre::{self, Context},
@@ -183,7 +184,9 @@ where
 
 			Some(message) = rx.recv() => match message {
 				ServerMessage::Disconnect { response_tx } => {
-					let _guard = crate::util::drop_guard(move || {
+					// We want to send a response even if the `socket.send()`
+					// call below fails.
+					let _guard = util::drop_guard(|| {
 						let _ = response_tx.send(true);
 					});
 

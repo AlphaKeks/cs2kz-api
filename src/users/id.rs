@@ -1,7 +1,7 @@
 use {
 	crate::players::PlayerId,
 	serde::{Deserialize, Serialize},
-	std::{error::Error, str::FromStr},
+	std::str::FromStr,
 	steam_id::{ParseSteamIdError, SteamId},
 	utoipa::ToSchema,
 };
@@ -59,55 +59,8 @@ impl FromStr for UserId
 
 impl_rand!(UserId => |rng| UserId(rng.random::<SteamId>()));
 
-impl<DB> sqlx::Type<DB> for UserId
-where
-	DB: sqlx::Database,
-	u64: sqlx::Type<DB>,
-{
-	fn type_info() -> <DB as sqlx::Database>::TypeInfo
-	{
-		u64::type_info()
-	}
-
-	fn compatible(ty: &<DB as sqlx::Database>::TypeInfo) -> bool
-	{
-		u64::compatible(ty)
-	}
-}
-
-impl<'q, DB> sqlx::Encode<'q, DB> for UserId
-where
-	DB: sqlx::Database,
-	u64: sqlx::Encode<'q, DB>,
-{
-	fn encode_by_ref(
-		&self,
-		buf: &mut <DB as sqlx::Database>::ArgumentBuffer<'q>,
-	) -> Result<sqlx::encode::IsNull, Box<dyn Error + Send + Sync>>
-	{
-		self.0.as_ref().encode_by_ref(buf)
-	}
-
-	fn produces(&self) -> Option<<DB as sqlx::Database>::TypeInfo>
-	{
-		self.0.as_ref().produces()
-	}
-
-	fn size_hint(&self) -> usize
-	{
-		self.0.as_ref().size_hint()
-	}
-}
-
-impl<'r, DB> sqlx::Decode<'r, DB> for UserId
-where
-	DB: sqlx::Database,
-	u64: sqlx::Decode<'r, DB>,
-{
-	fn decode(
-		value: <DB as sqlx::Database>::ValueRef<'r>,
-	) -> Result<Self, Box<dyn Error + Send + Sync>>
-	{
-		Ok(Self(u64::decode(value)?.try_into()?))
-	}
-}
+impl_sqlx!(UserId => {
+	Type as u64;
+	Encode<'q> as u64 = |user_id| <UserId as AsRef<SteamId>>::as_ref(&user_id).as_u64();
+	Decode<'r> as u64 = |value| SteamId::from_u64(value).map(UserId);
+});

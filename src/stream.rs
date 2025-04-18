@@ -13,22 +13,33 @@ pub trait StreamExt: Stream
 	fn instrumented(self, span: tracing::Span) -> Instrumented<Self>
 	where
 		Self: Sized + FusedStream,
+		Self::Item: fmt::Debug;
+}
+
+impl<S: Stream> StreamExt for S
+{
+	fn instrumented(self, span: tracing::Span) -> Instrumented<Self>
+	where
+		Self: Sized + FusedStream,
 		Self::Item: fmt::Debug,
 	{
 		Instrumented { stream: self, span }
 	}
 }
 
-impl<S: Stream> StreamExt for S
-{
-}
-
 pub trait TryStreamExt: TryStream
 {
-	fn try_collect_into<C>(
-		self,
-		collection: &mut C,
-	) -> impl Future<Output = Result<&mut C, Self::Error>>
+	/// Collects all remaining items into the given `collection` but
+	/// short-circuits on the first error (if any).
+	async fn try_collect_into<C>(self, collection: &mut C) -> Result<&mut C, Self::Error>
+	where
+		Self: Sized,
+		C: Extend<Self::Ok>;
+}
+
+impl<S: TryStream> TryStreamExt for S
+{
+	async fn try_collect_into<C>(self, collection: &mut C) -> Result<&mut C, Self::Error>
 	where
 		Self: Sized,
 		C: Extend<Self::Ok>,
@@ -39,11 +50,8 @@ pub trait TryStreamExt: TryStream
 			collection.extend_one(item);
 			future::ready(Ok(collection))
 		})
+		.await
 	}
-}
-
-impl<S: TryStream> TryStreamExt for S
-{
 }
 
 #[pin_project]
@@ -67,17 +75,15 @@ where
 	{
 		let me = self.project();
 		let _guard = me.span.enter();
+		let maybe_item = ready!(me.stream.poll_next(cx));
 
-		Poll::Ready(match ready!(me.stream.poll_next(cx)) {
-			Some(item) => {
-				trace!(?item);
-				Some(item)
-			},
-			None => {
-				trace!("stream is exhausted");
-				None
-			},
-		})
+		if let Some(ref item) = maybe_item {
+			trace!(?item);
+		} else {
+			trace!("stream is exhausted");
+		}
+
+		Poll::Ready(maybe_item)
 	}
 
 	fn size_hint(&self) -> (usize, Option<usize>)

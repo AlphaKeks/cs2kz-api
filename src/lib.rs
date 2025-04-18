@@ -4,6 +4,7 @@
 #![feature(decl_macro)]
 #![feature(extend_one)]
 #![feature(let_chains)]
+#![feature(never_type)]
 #![feature(non_exhaustive_omitted_patterns_lint)]
 #![feature(round_char_boundary)]
 #![feature(try_blocks)]

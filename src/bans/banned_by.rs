@@ -1,7 +1,7 @@
 use {
 	crate::{servers::ServerId, users::UserId},
 	serde::{Deserialize, Serialize},
-	std::{error::Error, num::NonZero},
+	std::num::NonZero,
 	steam_id::SteamId,
 	utoipa::ToSchema,
 };
@@ -53,55 +53,8 @@ impl TryFrom<u64> for BannedBy
 	}
 }
 
-impl<DB> sqlx::Type<DB> for BannedBy
-where
-	DB: sqlx::Database,
-	u64: sqlx::Type<DB>,
-{
-	fn type_info() -> <DB as sqlx::Database>::TypeInfo
-	{
-		u64::type_info()
-	}
-
-	fn compatible(ty: &<DB as sqlx::Database>::TypeInfo) -> bool
-	{
-		u64::compatible(ty)
-	}
-}
-
-impl<'q, DB> sqlx::Encode<'q, DB> for BannedBy
-where
-	DB: sqlx::Database,
-	u64: sqlx::Encode<'q, DB>,
-{
-	fn encode_by_ref(
-		&self,
-		buf: &mut <DB as sqlx::Database>::ArgumentBuffer<'q>,
-	) -> Result<sqlx::encode::IsNull, Box<dyn Error + Send + Sync>>
-	{
-		self.as_u64().encode_by_ref(buf)
-	}
-
-	fn produces(&self) -> Option<<DB as sqlx::Database>::TypeInfo>
-	{
-		self.as_u64().produces()
-	}
-
-	fn size_hint(&self) -> usize
-	{
-		self.as_u64().size_hint()
-	}
-}
-
-impl<'r, DB> sqlx::Decode<'r, DB> for BannedBy
-where
-	DB: sqlx::Database,
-	u64: sqlx::Decode<'r, DB>,
-{
-	fn decode(
-		value: <DB as sqlx::Database>::ValueRef<'r>,
-	) -> Result<Self, Box<dyn Error + Send + Sync>>
-	{
-		Ok(u64::decode(value)?.try_into()?)
-	}
-}
+impl_sqlx!(BannedBy => {
+	Type as u64;
+	Encode<'q> as u64 = |banned_by| banned_by.as_u64();
+	Decode<'r> as u64 = |value| BannedBy::try_from(value);
+});

@@ -1,6 +1,6 @@
 use {
 	serde::{Deserialize, Deserializer, Serialize, de},
-	std::{error::Error, str::FromStr, sync::Arc},
+	std::{str::FromStr, sync::Arc},
 	utoipa::ToSchema,
 };
 
@@ -27,17 +27,7 @@ pub enum InvalidMapName
 
 impl MapName
 {
-	pub fn as_str(&self) -> &str
-	{
-		&self.0
-	}
-}
-
-impl FromStr for MapName
-{
-	type Err = InvalidMapName;
-
-	fn from_str(value: &str) -> Result<Self, Self::Err>
+	fn validate(value: &str) -> Result<(), InvalidMapName>
 	{
 		if !value.starts_with("kz_") {
 			return Err(InvalidMapName::MissingPrefix);
@@ -59,7 +49,22 @@ impl FromStr for MapName
 			return Err(InvalidMapName::InvalidLength);
 		}
 
-		Ok(Self(value.into()))
+		Ok(())
+	}
+
+	pub fn as_str(&self) -> &str
+	{
+		&self.0
+	}
+}
+
+impl FromStr for MapName
+{
+	type Err = InvalidMapName;
+
+	fn from_str(value: &str) -> Result<Self, Self::Err>
+	{
+		Self::validate(value).map(|()| Self(value.into()))
 	}
 }
 
@@ -86,61 +91,26 @@ impl<'de> Deserialize<'de> for MapName
 			{
 				value.parse().map_err(E::custom)
 			}
+
+			fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+			where
+				E: de::Error,
+			{
+				MapName::validate(&value)
+					.map(|()| MapName(value.into()))
+					.map_err(E::custom)
+			}
 		}
 
 		deserializer.deserialize_string(MapNameVisitor)
 	}
 }
 
-impl<DB> sqlx::Type<DB> for MapName
-where
-	DB: sqlx::Database,
-	str: sqlx::Type<DB>,
-{
-	fn type_info() -> <DB as sqlx::Database>::TypeInfo
-	{
-		str::type_info()
-	}
-
-	fn compatible(ty: &<DB as sqlx::Database>::TypeInfo) -> bool
-	{
-		str::compatible(ty)
-	}
-}
-
-impl<'q, DB> sqlx::Encode<'q, DB> for MapName
-where
-	DB: sqlx::Database,
-	for<'a> &'a str: sqlx::Encode<'q, DB>,
-{
-	fn encode_by_ref(
-		&self,
-		buf: &mut <DB as sqlx::Database>::ArgumentBuffer<'q>,
-	) -> Result<sqlx::encode::IsNull, Box<dyn Error + Send + Sync>>
-	{
-		self.as_str().encode_by_ref(buf)
-	}
-
-	fn produces(&self) -> Option<<DB as sqlx::Database>::TypeInfo>
-	{
-		self.as_str().produces()
-	}
-
-	fn size_hint(&self) -> usize
-	{
-		self.as_str().size_hint()
-	}
-}
-
-impl<'r, DB> sqlx::Decode<'r, DB> for MapName
-where
-	DB: sqlx::Database,
-	&'r str: sqlx::Decode<'r, DB>,
-{
-	fn decode(
-		value: <DB as sqlx::Database>::ValueRef<'r>,
-	) -> Result<Self, Box<dyn Error + Send + Sync>>
-	{
-		Ok(<&str>::decode(value)?.parse()?)
-	}
-}
+impl_sqlx!(MapName => {
+	Type as str;
+	Encode<'q, 'a> as &'a str = |name| name.as_str();
+	Decode<'r> as String = |value| {
+		MapName::validate(&value)
+			.map(|()| MapName(value.into()))
+	};
+});

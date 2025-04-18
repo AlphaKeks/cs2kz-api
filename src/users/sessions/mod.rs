@@ -130,14 +130,15 @@ pub async fn expire_active(
 	.await
 }
 
-fn set_expires_at(
+async fn set_expires_at(
 	db_conn: &mut database::Connection<'_, '_>,
 	session_id: SessionId,
 	expires_at: Timestamp,
-) -> impl Future<Output = DatabaseResult<bool>>
+) -> DatabaseResult<bool>
 {
 	sqlx::query!("UPDATE UserSessions SET expires_at = ? WHERE id = ?", expires_at, session_id)
 		.execute(db_conn.raw_mut())
 		.map_ok(|query_result| query_result.rows_affected() > 0)
 		.map_err(DatabaseError::from)
+		.await
 }

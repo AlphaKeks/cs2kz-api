@@ -24,8 +24,6 @@ mod error;
 
 pub(crate) type QueryBuilder<'args> = sqlx::QueryBuilder<'args, MySql>;
 
-static MIGRATIONS: Migrator = sqlx::migrate!();
-
 /// A pool of [`Connection`]s
 ///
 /// This can be used to [acquire individual connections], which are then passed
@@ -44,7 +42,7 @@ impl ConnectionPool
 {
 	/// Attempts to establish a database connection.
 	#[builder]
-	pub fn new(
+	pub async fn new(
 		/// The URL of the database we should connect to
 		url: &Url,
 
@@ -54,7 +52,7 @@ impl ConnectionPool
 
 		/// The maximum number of connections to keep in the pool
 		max_connections: Option<NonZero<u32>>,
-	) -> impl Future<Output = DatabaseResult<Self>>
+	) -> DatabaseResult<Self>
 	{
 		let pool_options = MySqlPoolOptions::default().min_connections(min_connections.get());
 		let pool_options = match max_connections {
@@ -66,12 +64,14 @@ impl ConnectionPool
 			.connect(url.as_str())
 			.map_ok(|connection_pool| Self { inner: connection_pool })
 			.map_err(DatabaseError::from)
+			.await
 	}
 
 	/// Runs outstanding database migrations.
 	#[instrument(level = "trace", skip(self), err(level = "warn"))]
 	pub async fn run_migrations(&self) -> Result<(), MigrationError>
 	{
+		static MIGRATIONS: Migrator = sqlx::migrate!();
 		MIGRATIONS.run(&self.inner).map_err(MigrationError::from).await
 	}
 

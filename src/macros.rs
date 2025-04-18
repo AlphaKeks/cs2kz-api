@@ -80,7 +80,11 @@ macro_rules! impl_sqlx {
 			>
 			{
 				let $encode_self = self;
-				::sqlx::Encode::encode({ $encode_impl }, buf)
+
+				#[allow(clippy::needless_borrow)]
+				{
+					::sqlx::Encode::encode({ $encode_impl }, buf)
+				}
 			}
 
 			#[::tracing::instrument(level = "trace", skip(buf), err)]
@@ -93,19 +97,31 @@ macro_rules! impl_sqlx {
 			>
 			{
 				let $encode_self = self;
-				::sqlx::Encode::encode(&{ $encode_impl }, buf)
+
+				#[allow(clippy::needless_borrow)]
+				{
+					::sqlx::Encode::encode(&{ $encode_impl }, buf)
+				}
 			}
 
 			fn produces(&self) -> Option<<DB as ::sqlx::Database>::TypeInfo>
 			{
 				let $encode_self = self;
-				::sqlx::Encode::produces(&{ $encode_impl })
+
+				#[allow(clippy::needless_borrow)]
+				{
+					::sqlx::Encode::produces(&{ $encode_impl })
+				}
 			}
 
 			fn size_hint(&self) -> ::std::primitive::usize
 			{
 				let $encode_self = self;
-				::sqlx::Encode::size_hint(&{ $encode_impl })
+
+				#[allow(clippy::needless_borrow)]
+				{
+					::sqlx::Encode::size_hint(&{ $encode_impl })
+				}
 			}
 		}
 
