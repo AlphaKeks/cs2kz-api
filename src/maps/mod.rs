@@ -63,6 +63,7 @@ pub struct Map
 	pub checksum: Checksum,
 
 	#[serde(serialize_with = "crate::serde::ser::map_values")]
+	#[schema(value_type = [Course])]
 	pub courses: BTreeMap<CourseId, Course>,
 	pub created_by: Mapper,
 	pub created_at: Timestamp,
