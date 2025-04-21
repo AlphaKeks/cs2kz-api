@@ -799,14 +799,12 @@ pub(crate) struct GetMapsQuery
 	name: Option<Box<str>>,
 
 	/// Only include maps made for this game
-	#[serde(default = "GetMapsQuery::default_game")]
-	#[param(default = GetMapsQuery::default_game)]
+	#[serde(default)]
+	#[param(default)]
 	game: Game,
 
 	/// Only include maps in this state
-	#[serde(default = "GetMapsQuery::default_state")]
-	#[param(default = GetMapsQuery::default_state)]
-	state: MapState,
+	state: Option<MapState>,
 
 	/// Pagination offset
 	#[serde(default)]
@@ -815,19 +813,6 @@ pub(crate) struct GetMapsQuery
 	/// Limit the number of results returned
 	#[serde(default)]
 	limit: Limit<1000, 1000>,
-}
-
-impl GetMapsQuery
-{
-	fn default_game() -> Game
-	{
-		Game::CS2
-	}
-
-	fn default_state() -> MapState
-	{
-		MapState::Approved
-	}
 }
 
 /// Global KZ Maps
@@ -853,14 +838,14 @@ pub(crate) async fn get_maps(
 	let mut response = PaginationResponse::new({
 		maps::count(game)
 			.maybe_name(name.as_deref())
-			.state(state)
+			.maybe_state(state)
 			.exec(&mut db_conn)
 			.await?
 	});
 
 	maps::get(game)
 		.maybe_name(name.as_deref())
-		.state(state)
+		.maybe_state(state)
 		.offset(offset.value())
 		.limit(limit.value())
 		.exec(&mut db_conn)

@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT COUNT(*)\n\t\t FROM Maps\n\t\t WHERE game = ?\n\t\t AND state = ?\n\t\t AND name LIKE COALESCE(?, name)",
+  "query": "SELECT COUNT(*)\n\t\t FROM Maps\n\t\t WHERE game = ?\n\t\t AND state = COALESCE(?, state)\n\t\t AND name LIKE COALESCE(?, name)",
   "describe": {
     "columns": [
       {
@@ -20,5 +20,5 @@
       false
     ]
   },
-  "hash": "bf71bb2982cb454e6ea1fcfc90341acc7691db3f1c01434fd3829dc2a36f6ffb"
+  "hash": "e26f971390a8b1f5f7afe92d9c14ab923f21ba076706530cd710d41d57bbf8bd"
 }

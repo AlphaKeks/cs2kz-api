@@ -129,14 +129,14 @@ pub async fn count(
 	#[builder(start_fn)] game: Game,
 	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: Option<&str>,
-	#[builder(default = MapState::Approved)] state: MapState,
+	state: Option<MapState>,
 ) -> DatabaseResult<u64>
 {
 	sqlx::query_scalar!(
 		"SELECT COUNT(*)
 		 FROM Maps
 		 WHERE game = ?
-		 AND state = ?
+		 AND state = COALESCE(?, state)
 		 AND name LIKE COALESCE(?, name)",
 		game,
 		state,
@@ -154,7 +154,7 @@ pub fn get(
 	#[builder(start_fn)] game: Game,
 	#[builder(finish_fn)] db_conn: &mut database::Connection<'_, '_>,
 	name: Option<&str>,
-	#[builder(default = MapState::Approved)] state: MapState,
+	state: Option<MapState>,
 	#[builder(default = 0)] offset: u64,
 	limit: u64,
 ) -> impl Stream<Item = DatabaseResult<Map>>
@@ -164,7 +164,7 @@ pub fn get(
 		   SELECT *, MATCH (name) AGAINST (?) AS name_score
 		   FROM Maps
 		   WHERE game = ?
-		   AND state = ?
+		   AND state = COALESCE(?, state)
 		   AND name LIKE COALESCE(?, name)
 		   ORDER BY name_score DESC, id DESC
 		   LIMIT ?, ?
