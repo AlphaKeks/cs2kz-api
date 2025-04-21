@@ -1066,7 +1066,7 @@ pub(crate) async fn update_map(
 	};
 
 	db_conn
-		.in_transaction(async |db_conn| {
+		.in_transaction(async |conn| {
 			let course_updates = course_updates.into_iter().map(|(local_id, course_update)| {
 				let filter_updates =
 					course_update.filter_updates.into_iter().map(|(mode, filter_update)| {
@@ -1097,7 +1097,7 @@ pub(crate) async fn update_map(
 				.description(description)
 				.checksum(checksum)
 				.course_updates(course_updates)
-				.exec(db_conn)
+				.exec(conn)
 				.await
 		})
 		.await?;
@@ -1139,13 +1139,50 @@ pub(crate) async fn update_map_state(
 	Json(UpdateMapStateRequest { state }): Json<UpdateMapStateRequest>,
 ) -> HandlerResult<NoContent>
 {
+	let mut db_conn = None;
+
 	if !session.user_info().permissions().contains(&Permission::UpdateMaps) {
 		debug!("user does not have permissions");
-		return Err(HandlerError::Unauthorized);
+
+		let db_conn = db_conn.insert(database.acquire().await?);
+		let metadata = maps::get_metadata(map_id)
+			.exec(db_conn)
+			.await?
+			.ok_or(HandlerError::NotFound)?;
+
+		if metadata.created_by != session.user_info().id() {
+			debug!("user is not the mapper");
+			return Err(HandlerError::Unauthorized);
+		}
+
+		let state @ (MapState::Graveyard | MapState::WIP) = metadata.state else {
+			debug!(state = ?metadata.state, "user cannot update frozen map");
+
+			let mut problem_details = ProblemDetails::new(ProblemType::MapIsFrozen);
+			problem_details.add_extension_member("map_state", &metadata.state);
+			problem_details.set_detail(match metadata.state {
+				MapState::Graveyard | MapState::WIP => unreachable!(),
+				MapState::Pending => {
+					"you already submitted the map for approval and have to wait for a decision \
+					 before you can update it again"
+				},
+				MapState::Approved => "your map has already been approved",
+				MapState::Completed => "you have already marked your map as 'completed'",
+			});
+
+			return Err(HandlerError::Problem(problem_details));
+		};
+
+		debug!(?state, "user is updating their map");
 	}
 
-	let updated = database
-		.in_transaction(async |db_conn| maps::set_state(map_id, state).exec(db_conn).await)
+	let db_conn = match db_conn {
+		Some(ref mut db_conn) => db_conn,
+		None => db_conn.insert(database.acquire().await?),
+	};
+
+	let updated = db_conn
+		.in_transaction(async |conn| maps::set_state(map_id, state).exec(conn).await)
 		.await?;
 
 	if updated { Ok(NoContent) } else { Err(HandlerError::NotFound) }
