@@ -1144,9 +1144,8 @@ pub(crate) async fn update_map_state(
 	if !session.user_info().permissions().contains(&Permission::UpdateMaps) {
 		debug!("user does not have permissions");
 
-		let db_conn = db_conn.insert(database.acquire().await?);
 		let metadata = maps::get_metadata(map_id)
-			.exec(db_conn)
+			.exec(db_conn.insert(database.acquire().await?))
 			.await?
 			.ok_or(HandlerError::NotFound)?;
 
@@ -1156,7 +1155,7 @@ pub(crate) async fn update_map_state(
 		}
 
 		let state @ (MapState::Graveyard | MapState::WIP) = metadata.state else {
-			debug!(state = ?metadata.state, "user cannot update frozen map");
+			debug!(state = ?metadata.state, "user cannot update frozen map's state");
 
 			let mut problem_details = ProblemDetails::new(ProblemType::MapIsFrozen);
 			problem_details.add_extension_member("map_state", &metadata.state);
@@ -1177,7 +1176,7 @@ pub(crate) async fn update_map_state(
 	}
 
 	let db_conn = match db_conn {
-		Some(ref mut db_conn) => db_conn,
+		Some(ref mut conn) => conn,
 		None => db_conn.insert(database.acquire().await?),
 	};
 
