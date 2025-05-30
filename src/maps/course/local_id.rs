@@ -32,6 +32,18 @@ pub struct CourseLocalId(NonZero<u16>);
 #[derive(Debug, Display, From, Error)]
 pub struct ParseCourseLocalIdError(ParseIntError);
 
+impl CourseLocalId
+{
+	#[track_caller]
+	pub fn new(value: u16) -> Self
+	{
+		match NonZero::new(value) {
+			Some(value) => Self(value),
+			None => panic!("attempted to construct `CourseLocalId` with a value of 0"),
+		}
+	}
+}
+
 impl FromStr for CourseLocalId
 {
 	type Err = ParseCourseLocalIdError;

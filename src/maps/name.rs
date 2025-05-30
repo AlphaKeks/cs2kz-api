@@ -4,6 +4,8 @@ use {
 	utoipa::ToSchema,
 };
 
+const MAX_LEN: usize = 27;
+
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, ToSchema)]
 #[serde(transparent)]
 #[schema(value_type = str, example = "kz_grotto")]
@@ -34,7 +36,7 @@ impl MapName
 		}
 
 		let len = value.chars().try_fold(0_usize, |len, char| {
-			if len == 27_usize {
+			if len == MAX_LEN {
 				return Err(InvalidMapName::InvalidLength);
 			}
 
@@ -42,10 +44,10 @@ impl MapName
 				return Err(InvalidMapName::InvalidCharacter(char));
 			}
 
-			Ok(len + 1_usize)
+			Ok(len + 1)
 		})?;
 
-		if len < 4_usize {
+		if len < 4 {
 			return Err(InvalidMapName::InvalidLength);
 		}
 

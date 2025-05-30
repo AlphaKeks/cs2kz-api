@@ -77,6 +77,14 @@ pub mod de
 		fn is_empty(&self) -> bool;
 	}
 
+	impl<T> IsEmpty for Vec<T>
+	{
+		fn is_empty(&self) -> bool
+		{
+			<[T]>::is_empty(self)
+		}
+	}
+
 	impl<K, V> IsEmpty for BTreeMap<K, V>
 	{
 		fn is_empty(&self) -> bool

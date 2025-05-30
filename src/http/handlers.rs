@@ -430,8 +430,8 @@ pub(crate) async fn get_record(
 #[schema(example = json!({
   "workshop_id": 3121168339_u32,
   "description": "KZ but in a GROTTO! Make your way through an obstacle course based in a cave.",
-  "courses": {
-    "1": {
+  "courses": [
+    {
       "name": "Main",
       "mappers": ["76561198260657129"],
       "filters": {
@@ -449,7 +449,7 @@ pub(crate) async fn get_record(
 		}
 	  }
     },
-    "2": {
+    {
       "name": "Garden",
       "mappers": ["76561198260657129"],
       "filters": {
@@ -467,7 +467,7 @@ pub(crate) async fn get_record(
 		}
 	  }
     },
-    "3": {
+    {
       "name": "word's backyard",
       "mappers": ["76561198260657129"],
       "filters": {
@@ -483,7 +483,7 @@ pub(crate) async fn get_record(
 		}
 	  }
     },
-    "4": {
+    {
       "name": "Old grotto (hard)",
       "mappers": ["76561198260657129"],
       "filters": {
@@ -499,7 +499,7 @@ pub(crate) async fn get_record(
 		}
 	  }
     }
-  }
+  ]
 }))]
 pub(crate) struct CreateMapRequest
 {
@@ -511,7 +511,7 @@ pub(crate) struct CreateMapRequest
 	game: Game,
 
 	#[serde(deserialize_with = "cs2kz_api::serde::de::non_empty")]
-	courses: BTreeMap<CourseLocalId, CreateCourseRequest>,
+	courses: Vec<CreateCourseRequest>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -611,16 +611,14 @@ pub(crate) async fn create_map(
 		return Err(HandlerError::Unauthorized);
 	}
 
-	if let Some((course_local_id, _)) =
-		courses.iter().find(|(_, course)| course.filters.game() != game)
-	{
+	if let Some(course_local_id) = courses.iter().position(|course| course.filters.game() != game) {
 		debug!("invalid filters");
 		let mut problem_details = ProblemDetails::new(ProblemType::InconsistentFilters);
 		problem_details.set_detail(format!(
 			"expected filters for {game} but course {course_local_id} does not have such filters"
 		));
 		problem_details.add_extension_member("expected_game", &game);
-		problem_details.add_extension_member("offending_course_local_id", course_local_id);
+		problem_details.add_extension_member("offending_course_local_id", &(course_local_id + 1));
 		return Err(problem_details.into());
 	}
 
@@ -675,7 +673,7 @@ pub(crate) async fn create_map(
 
 	let map_id = database
 		.in_transaction(async move |db_conn| {
-			for course in courses.values() {
+			for course in &courses {
 				let mut mappers =
 					FuturesUnordered::from_iter(course.mappers.iter().map(|&user_id| {
 						steam::users::get(&steam_api_client, *user_id.as_ref())
@@ -703,7 +701,11 @@ pub(crate) async fn create_map(
 				}
 			}
 
-			let courses = courses.into_iter().map(|(local_id, course)| {
+			let courses = courses.into_iter().enumerate().map(|(idx, course)| {
+				let local_id = u16::try_from(idx + 1).unwrap_or_else(|_| {
+					unreachable!("we would have run out of memory by now");
+				});
+				let local_id = CourseLocalId::new(local_id);
 				let (cs2_filters, csgo_filters) = match course.filters {
 					CreateFiltersRequest::CS2 { vnl, ckz } => {
 						let cs2_filters = NewCS2Filters::builder()
