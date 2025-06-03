@@ -655,17 +655,19 @@ pub(crate) async fn create_map(
 	let map_id = database
 		.in_transaction(async move |db_conn| {
 			for course in &courses {
-				let mut mappers =
-					FuturesUnordered::from_iter(course.mappers.iter().map(|&user_id| {
-						steam::users::get(&steam_api_client, *user_id.as_ref())
-							.map_err(CreateMapError::SteamApiError)
-							.and_then(async move |maybe_user| {
-								maybe_user.ok_or(CreateMapError::InvalidMapperId(user_id))
-							})
-					}));
+				let mappers = steam::users::get_many(
+					&steam_api_client,
+					course.mappers.iter().map(|user_id| *user_id.as_ref()),
+				)
+				.map_err(CreateMapError::SteamApiError)
+				.await?;
 
-				while let Some(mapper) = mappers.try_next().await? {
-					let mapper_id = UserId::from(mapper.id);
+				for &mapper_id in &course.mappers {
+					let mapper = mappers
+						.iter()
+						.find(|mapper| mapper.id == *mapper_id.as_ref())
+						.ok_or(CreateMapError::InvalidMapperId(mapper_id))?;
+
 					let mapper_name = mapper.name.parse::<Username>().map_err(|err| {
 						CreateMapError::InvalidMapperName { id: mapper_id, error: err }
 					})?;

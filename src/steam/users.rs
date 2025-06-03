@@ -1,6 +1,7 @@
 use {
 	crate::steam,
 	serde::{Deserialize, Serialize},
+	std::fmt::Write as _,
 	steam_id::SteamId,
 	url::Url,
 };
@@ -55,6 +56,33 @@ pub async fn get(
 		profile_url: player.profileurl,
 		avatar_url: player.avatarmedium,
 	}))
+}
+
+#[instrument(skip(api_client, user_ids), ret(level = "debug"), err(level = "debug"))]
+pub async fn get_many(
+	api_client: &steam::api::Client,
+	user_ids: impl IntoIterator<Item = SteamId>,
+) -> steam::api::Result<Vec<User>>
+{
+	let mut url = format!("{URL}?key={key}", key = api_client.api_key());
+
+	for user_id in user_ids {
+		let _ = write!(&mut url, "&steamids={}", user_id.as_u64());
+	}
+
+	let request = api_client.as_ref().get(url);
+	let Response { players } = steam::api::send_request(request).await?;
+	let users = players
+		.into_iter()
+		.map(|player| User {
+			id: player.steamid,
+			name: player.personaname,
+			profile_url: player.profileurl,
+			avatar_url: player.avatarmedium,
+		})
+		.collect::<Vec<_>>();
+
+	Ok(users)
 }
 
 #[derive(Debug, serde::Deserialize)]
