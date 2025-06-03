@@ -32,6 +32,13 @@ pub struct Checksum
 	bytes: [u8; RAW_LEN],
 }
 
+/// A builder for a [`Checksum`]
+#[derive(Debug, Default, Clone)]
+pub struct ChecksumBuilder
+{
+	state: Md5,
+}
+
 /// Error for parsing strings into [`Checksum`]s
 #[derive(Debug, Display, Error)]
 pub enum ParseChecksumError
@@ -49,6 +56,11 @@ pub enum ParseChecksumError
 
 impl Checksum
 {
+	pub fn builder() -> ChecksumBuilder
+	{
+		ChecksumBuilder::default()
+	}
+
 	pub const fn as_bytes(&self) -> &[u8]
 	{
 		self.bytes.as_slice()
@@ -57,10 +69,9 @@ impl Checksum
 	/// Computes a [`Checksum`] from the given `bytes`.
 	pub fn from_bytes(bytes: &[u8]) -> Self
 	{
-		let mut hasher = Md5::default();
-		hasher.update(bytes);
-
-		Self { bytes: hasher.finalize().into() }
+		let mut builder = Self::builder();
+		builder.feed_bytes(bytes);
+		builder.build()
 	}
 
 	/// Computes a [`Checksum`] from all bytes read from the given `reader`
@@ -70,10 +81,29 @@ impl Checksum
 	where
 		R: ?Sized + io::Read,
 	{
-		let mut hasher = Md5::default();
-		io::copy(reader, &mut hasher)?;
+		let mut builder = Self::builder();
+		builder.feed_reader(reader)?;
+		Ok(builder.build())
+	}
+}
 
-		Ok(Self { bytes: hasher.finalize().into() })
+impl ChecksumBuilder
+{
+	pub fn feed_bytes(&mut self, bytes: &[u8])
+	{
+		self.state.update(bytes);
+	}
+
+	pub fn feed_reader<R>(&mut self, reader: &mut R) -> io::Result<u64>
+	where
+		R: ?Sized + io::Read,
+	{
+		io::copy(reader, &mut self.state)
+	}
+
+	pub fn build(self) -> Checksum
+	{
+		Checksum { bytes: self.state.finalize().into() }
 	}
 }
 

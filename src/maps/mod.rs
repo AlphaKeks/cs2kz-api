@@ -20,10 +20,14 @@ use {
 	crate::{
 		checksum::Checksum,
 		database::{self, DatabaseError, DatabaseResult, QueryBuilder},
+		error::ResultExt,
 		event_queue::{self, Event},
 		game::Game,
 		mode::Mode,
-		steam::{self, workshop::WorkshopId},
+		steam::{
+			self,
+			workshop::{self, WorkshopId},
+		},
 		stream::StreamExt as _,
 		time::Timestamp,
 		users::{InvalidUsername, UserId, Username},
@@ -34,8 +38,12 @@ use {
 	std::{
 		collections::{HashMap, btree_map::BTreeMap},
 		fmt,
+		fs::{self, File},
+		io,
+		path::Path,
 		pin::pin,
 	},
+	tokio::task,
 	tracing::Instrument,
 	utoipa::ToSchema,
 };
@@ -982,4 +990,66 @@ pub async fn delete(
 	.map_ok(|query_result| query_result.rows_affected())
 	.map_err(DatabaseError::from)
 	.await
+}
+
+#[instrument(ret(level = "debug"), err)]
+pub async fn download_and_hash(
+	workshop_id: WorkshopId,
+	exe_path: &Path,
+	out_dir: &Path,
+) -> io::Result<Checksum>
+{
+	workshop::download(workshop_id, exe_path, out_dir)
+		.await
+		.inspect_err_dyn(|error| error!(error, "failed to download workshop map"))?;
+
+	let span = tracing::info_span!("read_depot_downloader_result", ?out_dir);
+	span.follows_from(tracing::Span::current());
+
+	let out_dir = out_dir.to_owned();
+
+	task::spawn_blocking(move || {
+		let _guard = span.entered();
+		let mut checksum = Checksum::builder();
+		let out_dir_entries = fs::read_dir(&out_dir)
+			.inspect_err_dyn(|error| error!(error, "failed to read directory"))?;
+
+		for entry in out_dir_entries {
+			let entry = entry.inspect_err_dyn(|error| {
+				error!(error, "failed to read directory entry");
+			})?;
+
+			let filename = match entry.file_name().into_string() {
+				Ok(name) => name,
+				Err(name) => {
+					warn!("entry {name:?} is not valid UTF-8?");
+					continue;
+				},
+			};
+
+			let Some((prefix, rest)) = filename.split_once('_') else {
+				continue;
+			};
+
+			let Some((_, "vpk")) = rest.split_once('.') else {
+				continue;
+			};
+
+			if !prefix.parse::<WorkshopId>().is_ok_and(|prefix| prefix == workshop_id) {
+				continue;
+			}
+
+			let path = entry.path();
+			let mut file = File::open(&path)
+				.inspect_err_dyn(|error| error!(error, "failed to open {path:?}"))?;
+
+			checksum
+				.feed_reader(&mut file)
+				.inspect_err_dyn(|error| error!(error, "failed to read {path:?}"))?;
+		}
+
+		Ok(checksum.build())
+	})
+	.await
+	.unwrap_or_else(|err| panic!("{err}"))
 }

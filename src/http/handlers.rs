@@ -96,12 +96,10 @@ use {
 	std::{
 		collections::{BTreeMap, BTreeSet, HashMap},
 		error::Error,
-		fs::File,
 		pin::pin,
 		sync::{Arc, LazyLock},
 	},
 	steam_openid::VerifyCallbackPayloadErrorKind,
-	tokio::task,
 	tokio_util::sync::CancellationToken,
 	url::Url,
 	utoipa::{IntoParams, ToSchema},
@@ -646,30 +644,13 @@ pub(crate) async fn create_map(
 		HandlerError::Problem(problem_details)
 	})?;
 
-	let vpk_checksum = {
-		let path = workshop::download(
-			workshop_id,
-			config.depot_downloader.exe_path.as_ref(),
-			config.depot_downloader.out_dir.as_ref(),
-		)
-		.await
-		.inspect_err_dyn(|error| error!(error, "failed to download workshop map"))
-		.map_err(|_| HandlerError::Internal)?;
-
-		let span = tracing::info_span!("read_depot_downloader_result");
-		span.follows_from(tracing::Span::current());
-
-		task::spawn_blocking(move || {
-			let _guard = span.entered();
-			File::open(path.as_ref())
-				.inspect_err_dyn(|error| error!(error, "failed to open {path:?}"))
-				.and_then(|mut file| Checksum::from_reader(&mut file))
-				.inspect_err_dyn(|error| error!(error, "failed to read {path:?}"))
-		})
-		.await
-		.unwrap_or_else(|err| panic!("{err}"))
-		.map_err(|_| HandlerError::Internal)?
-	};
+	let vpk_checksum = maps::download_and_hash(
+		workshop_id,
+		&config.depot_downloader.exe_path,
+		&config.depot_downloader.out_dir,
+	)
+	.await
+	.map_err(|_| HandlerError::Internal)?;
 
 	let map_id = database
 		.in_transaction(async move |db_conn| {
@@ -1023,30 +1004,13 @@ pub(crate) async fn update_map(
 				HandlerError::Problem(problem_details)
 			})?;
 
-		let checksum = {
-			let path = workshop::download(
-				workshop_id,
-				config.depot_downloader.exe_path.as_ref(),
-				config.depot_downloader.out_dir.as_ref(),
-			)
-			.await
-			.inspect_err_dyn(|error| error!(error, "failed to download workshop map"))
-			.map_err(|_| HandlerError::Internal)?;
-
-			let span = tracing::info_span!("read_depot_downloader_result");
-			span.follows_from(tracing::Span::current());
-
-			task::spawn_blocking(move || {
-				let _guard = span.entered();
-				File::open(path.as_ref())
-					.inspect_err_dyn(|error| error!(error, "failed to open {path:?}"))
-					.and_then(|mut file| Checksum::from_reader(&mut file))
-					.inspect_err_dyn(|error| error!(error, "failed to read {path:?}"))
-			})
-			.await
-			.unwrap_or_else(|err| panic!("{err}"))
-			.map_err(|_| HandlerError::Internal)?
-		};
+		let checksum = maps::download_and_hash(
+			workshop_id,
+			&config.depot_downloader.exe_path,
+			&config.depot_downloader.out_dir,
+		)
+		.await
+		.map_err(|_| HandlerError::Internal)?;
 
 		(metadata, checksum)
 	};

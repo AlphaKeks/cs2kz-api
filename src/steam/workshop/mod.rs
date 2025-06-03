@@ -1,4 +1,4 @@
-pub use self::id::WorkshopId;
+pub use self::id::{ParseWorkshopIdError, WorkshopId};
 use {
 	crate::steam,
 	futures_util::{StreamExt, TryFutureExt, stream},
@@ -67,7 +67,7 @@ pub async fn download(
 	id: WorkshopId,
 	depot_downloader_path: &Path,
 	out_dir: &Path,
-) -> io::Result<Box<Path>>
+) -> io::Result<()>
 {
 	trace!(target: "cs2kz_api::depot_downloader", "acquiring permit");
 
@@ -138,7 +138,7 @@ pub async fn download(
 		warn!(?timeout, "DepotDownloader output task did not exit within timeout");
 	}
 
-	Ok(out_dir.join(format!("{id}.vpk")).into_boxed_path())
+	Ok(())
 }
 
 #[derive(Debug, Deserialize)]
