@@ -38,6 +38,7 @@ pub struct Server
 	pub port: ServerPort,
 	pub game: Game,
 	pub owner: ServerOwner,
+	pub is_global: bool,
 	pub connection_info: Option<ConnectionInfo>,
 	pub created_at: Timestamp,
 }
@@ -116,6 +117,7 @@ pub fn get(
 		   s.game AS `game: Game`,
 		   o.id AS `owner_id: UserId`,
 		   o.name AS `owner_name: Username`,
+		   (s.access_key IS NOT NULL) AS `is_global: bool`,
 		   s.created_at AS `created_at: Timestamp`,
 		   MATCH (s.name) AGAINST (?) AS name_score
 		 FROM Servers AS s
@@ -147,6 +149,7 @@ pub fn get(
 		port: row.port,
 		game: row.game,
 		owner: ServerOwner { id: row.owner_id, name: row.owner_name },
+		is_global: row.is_global,
 		connection_info: None,
 		created_at: row.created_at,
 	})
@@ -168,6 +171,7 @@ pub async fn get_by_id(
 		   s.game AS `game: Game`,
 		   o.id AS `owner_id: UserId`,
 		   o.name AS `owner_name: Username`,
+		   (s.access_key IS NOT NULL) AS `is_global: bool`,
 		   s.created_at AS `created_at: Timestamp`
 		 FROM Servers AS s
 		 INNER JOIN Users AS o ON o.id = s.owner_id
@@ -184,6 +188,7 @@ pub async fn get_by_id(
 			port: row.port,
 			game: row.game,
 			owner: ServerOwner { id: row.owner_id, name: row.owner_name },
+			is_global: row.is_global,
 			connection_info: None,
 			created_at: row.created_at,
 		})

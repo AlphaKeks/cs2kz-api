@@ -1241,6 +1241,10 @@ pub(crate) struct GetServersQuery
 	/// Only include servers owned by the specified user
 	owned_by: Option<UserId>,
 
+	/// Include servers that currently don't have an API key
+	#[serde(default)]
+	include_degloballed: bool,
+
 	/// Pagination offset
 	#[serde(default)]
 	offset: Offset,
@@ -1270,7 +1274,7 @@ pub(crate) struct GetServersQuery
 pub(crate) async fn get_servers(
 	State(database): State<database::ConnectionPool>,
 	State(server_monitor): State<ServerMonitorHandle>,
-	Query(GetServersQuery { name, host, game, owned_by, offset, limit }): Query<GetServersQuery>,
+	Query(GetServersQuery { name, host, game, owned_by, include_degloballed, offset, limit }): Query<GetServersQuery>,
 ) -> HandlerResult<Json<PaginationResponse<Server>>>
 {
 	let mut db_conn = database.acquire().await?;
@@ -1280,6 +1284,7 @@ pub(crate) async fn get_servers(
 			.maybe_host(host.as_deref())
 			.game(game)
 			.maybe_owned_by(owned_by)
+			.require_access_key(!include_degloballed)
 			.exec(&mut db_conn)
 			.await?
 	});
@@ -1289,6 +1294,7 @@ pub(crate) async fn get_servers(
 			.maybe_name(name.as_deref())
 			.maybe_host(host.as_deref())
 			.maybe_owned_by(owned_by)
+			.require_access_key(!include_degloballed)
 			.offset(offset.value())
 			.limit(limit.value())
 			.exec(&mut db_conn)

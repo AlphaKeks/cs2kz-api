@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT\n\t\t   s.id AS `id: ServerId`,\n\t\t   s.name AS `name: ServerName`,\n\t\t   s.host AS `host: ServerHost`,\n\t\t   s.port AS `port: ServerPort`,\n\t\t   s.game AS `game: Game`,\n\t\t   o.id AS `owner_id: UserId`,\n\t\t   o.name AS `owner_name: Username`,\n\t\t   s.created_at AS `created_at: Timestamp`\n\t\t FROM Servers AS s\n\t\t INNER JOIN Users AS o ON o.id = s.owner_id\n\t\t WHERE s.id = ?",
+  "query": "SELECT\n\t\t   s.id AS `id: ServerId`,\n\t\t   s.name AS `name: ServerName`,\n\t\t   s.host AS `host: ServerHost`,\n\t\t   s.port AS `port: ServerPort`,\n\t\t   s.game AS `game: Game`,\n\t\t   o.id AS `owner_id: UserId`,\n\t\t   o.name AS `owner_name: Username`,\n\t\t   (s.access_key IS NOT NULL) AS `is_global: bool`,\n\t\t   s.created_at AS `created_at: Timestamp`\n\t\t FROM Servers AS s\n\t\t INNER JOIN Users AS o ON o.id = s.owner_id\n\t\t WHERE s.id = ?",
   "describe": {
     "columns": [
       {
@@ -68,6 +68,15 @@
       },
       {
         "ordinal": 7,
+        "name": "is_global: bool",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | BINARY",
+          "max_size": 1
+        }
+      },
+      {
+        "ordinal": 8,
         "name": "created_at: Timestamp",
         "type_info": {
           "type": "Timestamp",
@@ -87,8 +96,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "e4eea97eb7ebb975ca4cab1b4ebf967baa0703e1bd4662481bcfa73fff66b593"
+  "hash": "f5c8f9908baf480be31ae0835ba27f4bcfa828a593bd980baa1c048707dea809"
 }
