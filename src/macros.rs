@@ -100,7 +100,7 @@ macro_rules! impl_sqlx {
 
 				#[allow(clippy::needless_borrow)]
 				{
-					::sqlx::Encode::encode(&{ $encode_impl }, buf)
+					::sqlx::Encode::encode_by_ref(&{ $encode_impl }, buf)
 				}
 			}
 

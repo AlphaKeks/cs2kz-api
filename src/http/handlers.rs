@@ -84,13 +84,7 @@ use {
 			sessions::SessionId,
 		},
 	},
-	futures_util::{
-		Stream,
-		StreamExt as _,
-		TryFutureExt,
-		TryStreamExt as _,
-		stream::{self, FuturesUnordered},
-	},
+	futures_util::{Stream, StreamExt as _, TryFutureExt, TryStreamExt as _, stream},
 	headers::{Authorization, authorization::Bearer},
 	serde::{Deserialize, Serialize},
 	std::{
