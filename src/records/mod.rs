@@ -216,31 +216,21 @@ pub async fn create(
 
 		// Predict our rank by doing a binary search.
 		let rank = {
-			let mut to_search = &leaderboard_entries[..];
-			let mut skipped = 0;
+			let to_search = &leaderboard_entries[..];
+			let (Ok(idx) | Err(idx)) = to_search.binary_search_by_key(&time, |entry| entry.time);
 
-			Rank(loop {
-				// If `binary_search()` returns `Ok`, an existing record has the
-				// exact same time as this new record. If there are multiple
-				// such records, it is not guaranteed which of them will be
-				// returned. Because older records win a tie on `time`, we need
-				// to find the right-most index that does *not* match our time
-				// (returns `Err`).
-				match to_search.binary_search_by_key(&time, |entry| entry.time) {
-					// we found an identical time -> binary search *again* but
-					// strictly *after* this index
-					Ok(idx) => {
-						to_search = &to_search[(idx + 1)..];
-						skipped += (idx + 1);
-					},
+			// If there are multiple identical times we want the right-most
+			// slot.
+			let idx = idx
+				+ to_search
+					.get((idx + 1)..)
+					.unwrap_or_default()
+					.iter()
+					.take_while(|entry| entry.time == time)
+					.count();
 
-					// we found the index at which we *would* be if the
-					// leaderboard contained us -> return that
-					Err(idx) => {
-						break (idx + skipped);
-					},
-				}
-			})
+			// Ranks are 1-indexed
+			Rank(idx + 1)
 		};
 
 		let points = 'points: {
@@ -525,8 +515,8 @@ pub fn get(
 		.bind(player)
 		.bind(course)
 		.bind(mode)
-		.bind(dbg!(offset))
-		.bind(dbg!(limit))
+		.bind(offset)
+		.bind(limit)
 		.fetch(conn)
 		.map_err(DatabaseError::from)
 		.fuse()
