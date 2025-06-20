@@ -12,7 +12,7 @@ use {
 		mode::Mode,
 		players::{self, PlayerId, PlayerName, PlayerRating},
 		points::CalculateLeaderboardPortionForNewRecordError,
-		servers::ServerSessionId,
+		servers::{ServerId, ServerName, ServerSessionId},
 		stream::StreamExt as _,
 		styles::Styles,
 		time::Timestamp,
@@ -43,12 +43,17 @@ pub struct Record
 	#[sqlx(flatten)]
 	pub course: CourseInfo,
 
+	#[sqlx(flatten)]
+	pub server: ServerInfo,
+
 	pub mode: Mode,
 	pub styles: Styles,
 	pub time: Time,
 	pub teleports: Teleports,
 	pub nub_points: Option<Points>,
+	pub nub_rank: Option<Rank>,
 	pub pro_points: Option<Points>,
+	pub pro_rank: Option<Rank>,
 	pub created_at: Timestamp,
 }
 
@@ -83,6 +88,19 @@ pub struct CourseInfo
 
 	#[sqlx(rename = "course_name")]
 	pub name: CourseName,
+
+	pub nub_tier: Tier,
+	pub pro_tier: Tier,
+}
+
+#[derive(Debug, Serialize, ToSchema, sqlx::FromRow)]
+pub struct ServerInfo
+{
+	#[sqlx(rename = "server_id")]
+	pub id: ServerId,
+
+	#[sqlx(rename = "server_name")]
+	pub name: ServerName,
 }
 
 #[derive(Debug, Serialize, ToSchema, sqlx::FromRow)]
@@ -471,7 +489,31 @@ pub fn get(
 	query.reset();
 
 	query.push(format_args! {
-		"SELECT
+		"WITH OrderedBestRecords AS (
+		   SELECT
+		     br.*,
+		     RANK () OVER (
+		       PARTITION BY r.filter_id
+		       ORDER BY
+		         r.time ASC,
+		         r.created_at ASC
+		     ) AS rank
+		   FROM Records AS r
+		   INNER JOIN BestRecords AS br ON br.record_id = r.id
+		 ),
+		 OrderedBestProRecords AS (
+		   SELECT
+		     br.*,
+		     RANK () OVER (
+		       PARTITION BY r.filter_id
+		       ORDER BY
+		         r.time ASC,
+		         r.created_at ASC
+		     ) AS rank
+		   FROM Records AS r
+		   INNER JOIN BestProRecords AS br ON br.record_id = r.id
+		 )
+		 SELECT
 		   r.id,
 		   p.id AS player_id,
 		   p.name AS player_name,
@@ -480,20 +522,28 @@ pub fn get(
 		   c.id AS course_id,
 		   c.local_id AS course_local_id,
 		   c.name AS course_name,
+		   f.nub_tier,
+		   f.pro_tier,
+		   s.id AS server_id,
+		   s.name AS server_name,
 		   f.mode,
 		   r.styles,
 		   r.time,
 		   r.teleports,
-		   BestRecords.points AS nub_points,
-		   BestProRecords.points AS pro_points,
+		   br.points AS nub_points,
+		   br.rank AS nub_rank,
+		   bpr.points AS pro_points,
+		   bpr.rank AS pro_rank,
 		   r.created_at
 		 FROM Records AS r
-		 {best_nub_records_join_kind} JOIN BestRecords ON BestRecords.record_id = r.id
-		 {best_pro_records_join_kind} JOIN BestProRecords ON BestProRecords.record_id = r.id
+		 {best_nub_records_join_kind} JOIN OrderedBestRecords AS br ON br.record_id = r.id
+		 {best_pro_records_join_kind} JOIN OrderedBestProRecords AS bpr ON bpr.record_id = r.id
 		 INNER JOIN Players AS p ON p.id = r.player_id
 		 INNER JOIN Filters AS f ON f.id = r.filter_id
 		 INNER JOIN Courses AS c ON c.id = f.course_id
 		 INNER JOIN Maps AS m ON m.id = c.map_id
+		 INNER JOIN ServerSessions AS ss ON ss.id = r.session_id
+		 INNER JOIN Servers AS s ON s.id = ss.server_id
 		 WHERE {0}
 		 AND r.player_id = COALESCE(?, r.player_id)
 		 AND c.id = COALESCE(?, c.id)
@@ -504,8 +554,8 @@ pub fn get(
 		best_nub_records_join_kind = if top { "INNER" } else { "LEFT" },
 		best_pro_records_join_kind = if top && pro { "INNER" } else { "LEFT" },
 		order_by = match (top, pro) {
-			(true, true) => "BestProRecords.points DESC, r.id DESC",
-			(true, false) => "BestRecords.points DESC, r.id DESC",
+			(true, true) => "bpr.points DESC, r.id DESC",
+			(true, false) => "br.points DESC, r.id DESC",
 			(false, _) => "r.id ASC",
 		},
 	});
