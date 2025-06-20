@@ -432,22 +432,35 @@ pub async fn count(
 	player: Option<PlayerId>,
 	course: Option<CourseId>,
 	mode: Option<Mode>,
+	top: bool,
+	pro: bool,
 ) -> DatabaseResult<u64>
 {
-	sqlx::query_scalar!(
+	sqlx::query_scalar::<_, i64>(&format! {
 		"SELECT COUNT(DISTINCT r.id)
 		 FROM Records AS r
+		 {}
 		 INNER JOIN Filters AS f ON f.id = r.filter_id
-		 WHERE r.player_id = COALESCE(?, r.player_id)
+		 WHERE {}
+		 AND r.player_id = COALESCE(?, r.player_id)
 		 AND f.course_id = COALESCE(?, f.course_id)
 		 AND f.mode = COALESCE(?, f.mode)",
-		player,
-		course,
-		mode,
-	)
+		match (top, pro) {
+			(true, true) => "INNER JOIN BestProRecords AS br ON br.record_id = r.id",
+			(true, false) => "INNER JOIN BestRecords AS br ON br.record_id = r.id",
+			_ => "",
+		},
+		match (top, pro) {
+			(false, true) => "r.teleports = 0",
+			_ => "TRUE",
+		},
+	})
+	.bind(player)
+	.bind(course)
+	.bind(mode)
 	.fetch_one(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
-	.and_then(async |row| row.try_into().map_err(DatabaseError::convert_count))
+	.and_then(async |count| count.try_into().map_err(DatabaseError::convert_count))
 	.await
 }
 
@@ -458,11 +471,16 @@ pub fn get(
 	player: Option<PlayerId>,
 	course: Option<CourseId>,
 	mode: Option<Mode>,
+	top: bool,
+	pro: bool,
 	#[builder(default = 0)] offset: u64,
 	limit: u64,
 ) -> impl Stream<Item = DatabaseResult<Record>>
 {
-	sqlx::query_as::<_, Record>({
+	let (conn, query) = db_conn.parts();
+	query.reset();
+
+	query.push(format_args! {
 		"SELECT
 		   r.id,
 		   p.id AS player_id,
@@ -480,27 +498,39 @@ pub fn get(
 		   BestProRecords.points AS pro_points,
 		   r.created_at
 		 FROM Records AS r
-		 LEFT JOIN BestRecords ON BestRecords.record_id = r.id
-		 LEFT JOIN BestProRecords ON BestProRecords.record_id = r.id
+		 {best_nub_records_join_kind} JOIN BestRecords ON BestRecords.record_id = r.id
+		 {best_pro_records_join_kind} JOIN BestProRecords ON BestProRecords.record_id = r.id
 		 INNER JOIN Players AS p ON p.id = r.player_id
 		 INNER JOIN Filters AS f ON f.id = r.filter_id
 		 INNER JOIN Courses AS c ON c.id = f.course_id
 		 INNER JOIN Maps AS m ON m.id = c.map_id
-		 WHERE r.player_id = COALESCE(?, r.player_id)
+		 WHERE {0}
+		 AND r.player_id = COALESCE(?, r.player_id)
 		 AND c.id = COALESCE(?, c.id)
 		 AND f.mode = COALESCE(?, f.mode)
-		 ORDER BY r.id DESC
-		 LIMIT ?, ?"
-	})
-	.bind(player)
-	.bind(course)
-	.bind(mode)
-	.bind(offset)
-	.bind(limit)
-	.fetch(db_conn.raw_mut())
-	.map_err(DatabaseError::from)
-	.fuse()
-	.instrumented(tracing::Span::current())
+		 ORDER BY {order_by}
+		 LIMIT ?, ?",
+		if pro { "r.teleports = 0" } else { "TRUE" },
+		best_nub_records_join_kind = if top { "INNER" } else { "LEFT" },
+		best_pro_records_join_kind = if top && pro { "INNER" } else { "LEFT" },
+		order_by = match (top, pro) {
+			(true, true) => "BestProRecords.points DESC, r.id DESC",
+			(true, false) => "BestRecords.points DESC, r.id DESC",
+			(false, _) => "r.id ASC",
+		},
+	});
+
+	query
+		.build_query_as()
+		.bind(player)
+		.bind(course)
+		.bind(mode)
+		.bind(dbg!(offset))
+		.bind(dbg!(limit))
+		.fetch(conn)
+		.map_err(DatabaseError::from)
+		.fuse()
+		.instrumented(tracing::Span::current())
 }
 
 #[instrument(skip(db_conn), ret(level = "debug"), err)]

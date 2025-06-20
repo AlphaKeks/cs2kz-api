@@ -270,10 +270,6 @@ async fn run(
 				"/leaderboards/records/{leaderboard}",
 				routing::get(self::http::handlers::get_records_leaderboard),
 			)
-			.route(
-				"/leaderboards/course/{course_id}/{mode}/{leaderboard}",
-				routing::get(self::http::handlers::get_course_leaderboard),
-			);
 	}
 
 	// `/records`

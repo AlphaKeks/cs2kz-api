@@ -268,57 +268,6 @@ pub(crate) async fn get_records_leaderboard(
 	Ok(Json(RecordsLeaderboard(entries)))
 }
 
-#[derive(Debug, Deserialize, IntoParams)]
-#[into_params(parameter_in = Query)]
-pub(crate) struct GetCourseLeaderboardQuery
-{
-	/// Limit the number of results returned
-	#[serde(default)]
-	limit: Limit<100, 1000>,
-}
-
-/// Course Leaderboards
-///
-/// This endpoint returns the leaderboard for a specific course in a specific
-/// mode.
-#[instrument(skip(database), ret(level = "debug"), err(Debug, level = "debug"))]
-#[utoipa::path(
-	get,
-	path = "/leaderboards/course/{course_id}/{mode}/{leaderboard}",
-	tag = "Leaderboards",
-	params(
-		("course_id" = CourseId, Path),
-		("mode" = Mode, Path),
-		("leaderboard" = Leaderboard, Path),
-		GetCourseLeaderboardQuery,
-	),
-	responses(
-		(status = 200, body = [Record]),
-		(status = 400, body = ProblemDetails, description = "invalid path parameter(s)"),
-	),
-)]
-pub(crate) async fn get_course_leaderboard(
-	State(database): State<database::ConnectionPool>,
-	Path((course_id, mode, leaderboard)): Path<(CourseId, Mode, Leaderboard)>,
-	Query(GetCourseLeaderboardQuery { limit }): Query<GetCourseLeaderboardQuery>,
-) -> HandlerResult<Json<Vec<Record>>>
-{
-	let mut db_conn = database.acquire().await?;
-
-	let filter_id = maps::get_filter_id(course_id, mode)
-		.exec(&mut db_conn)
-		.await?
-		.ok_or(HandlerError::NotFound)?;
-
-	let records = records::get_detailed_leaderboard(filter_id, leaderboard)
-		.size(limit.value())
-		.exec(&mut db_conn)
-		.try_collect::<Vec<_>>()
-		.await?;
-
-	Ok(Json(records))
-}
-
 //=================================================================================================
 // `/records`
 
@@ -334,6 +283,14 @@ pub(crate) struct GetRecordsQuery
 
 	/// Only include records set on this mode
 	mode: Option<Mode>,
+
+	/// Only include PBs
+	#[serde(default)]
+	top: bool,
+
+	/// Only include PRO records
+	#[serde(default)]
+	pro: bool,
 
 	/// Pagination offset
 	#[serde(default)]
@@ -360,7 +317,9 @@ pub(crate) struct GetRecordsQuery
 )]
 pub(crate) async fn get_records(
 	State(database): State<database::ConnectionPool>,
-	Query(GetRecordsQuery { player, course, mode, offset, limit }): Query<GetRecordsQuery>,
+	Query(GetRecordsQuery { player, course, mode, top, pro, offset, limit }): Query<
+		GetRecordsQuery,
+	>,
 ) -> HandlerResult<Json<PaginationResponse<Record>>>
 {
 	let mut db_conn = database.acquire().await?;
@@ -369,6 +328,8 @@ pub(crate) async fn get_records(
 			.maybe_player(player)
 			.maybe_course(course)
 			.maybe_mode(mode)
+			.top(top)
+			.pro(pro)
 			.exec(&mut db_conn)
 			.await?
 	});
@@ -377,6 +338,8 @@ pub(crate) async fn get_records(
 		.maybe_player(player)
 		.maybe_course(course)
 		.maybe_mode(mode)
+		.top(top)
+		.pro(pro)
 		.offset(offset.value())
 		.limit(limit.value())
 		.exec(&mut db_conn)

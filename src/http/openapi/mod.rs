@@ -42,7 +42,6 @@ pub(crate) static SCHEMA: OnceLock<OpenApi> = OnceLock::new();
     paths(
 		crate::http::handlers::get_rating_leaderboard,
 		crate::http::handlers::get_records_leaderboard,
-		crate::http::handlers::get_course_leaderboard,
 
 		crate::http::handlers::get_records,
 		crate::http::handlers::get_record,
