@@ -622,7 +622,7 @@ pub fn get_leaderboard(
 		 FROM Records AS r
 		 INNER JOIN {leaderboard} AS br ON br.record_id = r.id
 		 WHERE br.filter_id = ?
-		 ORDER BY r.time ASC, r.created_at ASC,
+		 ORDER BY r.time ASC, r.created_at ASC
 		 LIMIT ?",
 		leaderboard = match leaderboard {
 			Leaderboard::NUB => " BestRecords",

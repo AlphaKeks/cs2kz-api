@@ -152,7 +152,7 @@ impl TierPortion
 	///
 	/// This function will panic if <code>tier > [Tier::Death]</code>.
 	#[track_caller]
-	pub const fn new(tier: Tier, leaderboard: Leaderboard) -> Self
+	pub fn new(tier: Tier, leaderboard: Leaderboard) -> Self
 	{
 		Self(match (tier, leaderboard) {
 			(Tier::VeryEasy, Leaderboard::NUB) => 0.0,
@@ -175,7 +175,7 @@ impl TierPortion
 			| (Tier::Unfeasible, Leaderboard::PRO)
 			| (Tier::Impossible, Leaderboard::NUB)
 			| (Tier::Impossible, Leaderboard::PRO) => {
-				panic!("passed invalid tier to `Points::for_tier()`");
+				panic!("passed invalid tier {tier:?} to `Points::for_tier()`");
 			},
 		})
 	}

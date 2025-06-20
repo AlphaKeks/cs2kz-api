@@ -55,6 +55,7 @@ use {
 		cmp,
 		collections::hash_map::{self, HashMap},
 		env,
+		future,
 		net::{IpAddr, Ipv4Addr},
 		num::NonZero,
 		time::Duration,
@@ -565,6 +566,11 @@ async fn create_records(
 	let potential_filters = maps::get_filters()
 		.limit(u64::MAX)
 		.exec(&mut *db_conn)
+		.try_filter(|filter| {
+			future::ready(
+				filter.nub_tier.is_humanly_possible() && filter.pro_tier.is_humanly_possible(),
+			)
+		})
 		.try_collect::<Vec<_>>()
 		.await
 		.wrap_err("failed to fetch potential filters")?;
