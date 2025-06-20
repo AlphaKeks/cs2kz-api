@@ -284,6 +284,12 @@ pub(crate) struct GetRecordsQuery
 	/// Only include records set on this mode
 	mode: Option<Mode>,
 
+	/// Only include records set on this server
+	server: Option<ServerId>,
+
+	/// Only include records with this rank or lower
+	max_rank: Option<u64>,
+
 	/// Only include PBs
 	#[serde(default)]
 	top: bool,
@@ -317,7 +323,7 @@ pub(crate) struct GetRecordsQuery
 )]
 pub(crate) async fn get_records(
 	State(database): State<database::ConnectionPool>,
-	Query(GetRecordsQuery { player, course, mode, top, pro, offset, limit }): Query<
+	Query(GetRecordsQuery { player, course, mode, server, max_rank, top, pro, offset, limit }): Query<
 		GetRecordsQuery,
 	>,
 ) -> HandlerResult<Json<PaginationResponse<Record>>>
@@ -328,6 +334,8 @@ pub(crate) async fn get_records(
 			.maybe_player(player)
 			.maybe_course(course)
 			.maybe_mode(mode)
+			.maybe_server(server)
+			.maybe_max_rank(max_rank)
 			.top(top)
 			.pro(pro)
 			.exec(&mut db_conn)
@@ -338,6 +346,8 @@ pub(crate) async fn get_records(
 		.maybe_player(player)
 		.maybe_course(course)
 		.maybe_mode(mode)
+		.maybe_server(server)
+		.maybe_max_rank(max_rank)
 		.top(top)
 		.pro(pro)
 		.offset(offset.value())

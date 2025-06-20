@@ -440,22 +440,57 @@ pub async fn count(
 	player: Option<PlayerId>,
 	course: Option<CourseId>,
 	mode: Option<Mode>,
+	server: Option<ServerId>,
+	max_rank: Option<u64>,
 	top: bool,
 	pro: bool,
 ) -> DatabaseResult<u64>
 {
 	sqlx::query_scalar::<_, i64>(&format! {
-		"SELECT COUNT(DISTINCT r.id)
+		"WITH OrderedBestRecords AS (
+		   SELECT
+		     br.*,
+		     RANK () OVER (
+		       PARTITION BY r.filter_id
+		       ORDER BY
+		         r.time ASC,
+		         r.created_at ASC
+		     ) AS rank
+		   FROM Records AS r
+		   INNER JOIN BestRecords AS br ON br.record_id = r.id
+		 ),
+		 OrderedBestProRecords AS (
+		   SELECT
+		     br.*,
+		     RANK () OVER (
+		       PARTITION BY r.filter_id
+		       ORDER BY
+		         r.time ASC,
+		         r.created_at ASC
+		     ) AS rank
+		   FROM Records AS r
+		   INNER JOIN BestProRecords AS br ON br.record_id = r.id
+		 )
+		 SELECT COUNT(DISTINCT r.id)
 		 FROM Records AS r
 		 {}
 		 INNER JOIN Filters AS f ON f.id = r.filter_id
+		 INNER JOIN ServerSessions AS ss ON ss.id = r.session_id
 		 WHERE {}
 		 AND r.player_id = COALESCE(?, r.player_id)
 		 AND f.course_id = COALESCE(?, f.course_id)
-		 AND f.mode = COALESCE(?, f.mode)",
+		 AND f.mode = COALESCE(?, f.mode)
+		 AND ss.server_id = COALESCE(?, ss.server_id)
+		 AND (br.rank <= ? OR bpr.rank <= ?)",
 		match (top, pro) {
-			(true, true) => "INNER JOIN BestProRecords AS br ON br.record_id = r.id",
-			(true, false) => "INNER JOIN BestRecords AS br ON br.record_id = r.id",
+			(true, true) => {
+				"INNER JOIN OrderedBestProRecords AS bpr ON bpr.record_id = r.id \
+				 LEFT JOIN OrderedBestRecords AS br ON br.record_id = r.id"
+			},
+			(true, false) => {
+				"LEFT JOIN OrderedBestProRecords AS bpr ON bpr.record_id = r.id \
+				 INNER JOIN OrderedBestRecords AS br ON br.record_id = r.id"
+			},
 			_ => "",
 		},
 		match (top, pro) {
@@ -466,9 +501,12 @@ pub async fn count(
 	.bind(player)
 	.bind(course)
 	.bind(mode)
+	.bind(server)
+	.bind(max_rank.unwrap_or(u64::MAX))
+	.bind(max_rank.unwrap_or(u64::MAX))
 	.fetch_one(db_conn.raw_mut())
 	.map_err(DatabaseError::from)
-	.and_then(async |count| count.try_into().map_err(DatabaseError::convert_count))
+	.and_then(async |row| row.try_into().map_err(DatabaseError::convert_count))
 	.await
 }
 
@@ -479,6 +517,8 @@ pub fn get(
 	player: Option<PlayerId>,
 	course: Option<CourseId>,
 	mode: Option<Mode>,
+	server: Option<ServerId>,
+	max_rank: Option<u64>,
 	top: bool,
 	pro: bool,
 	#[builder(default = 0)] offset: u64,
@@ -548,6 +588,8 @@ pub fn get(
 		 AND r.player_id = COALESCE(?, r.player_id)
 		 AND c.id = COALESCE(?, c.id)
 		 AND f.mode = COALESCE(?, f.mode)
+		 AND ss.server_id = COALESCE(?, ss.server_id)
+		 AND (br.rank <= ? OR bpr.rank <= ?)
 		 ORDER BY {order_by}
 		 LIMIT ?, ?",
 		if pro { "r.teleports = 0" } else { "TRUE" },
@@ -565,6 +607,9 @@ pub fn get(
 		.bind(player)
 		.bind(course)
 		.bind(mode)
+		.bind(server)
+		.bind(max_rank.unwrap_or(u64::MAX))
+		.bind(max_rank.unwrap_or(u64::MAX))
 		.bind(offset)
 		.bind(limit)
 		.fetch(conn)
