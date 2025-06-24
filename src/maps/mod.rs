@@ -205,14 +205,26 @@ pub fn get(
 		 INNER JOIN Courses AS c ON c.map_id = m.id
 		 INNER JOIN CourseMappers ON CourseMappers.course_id = c.id
 		 INNER JOIN Users AS cma ON cma.id = CourseMappers.user_id
-		 INNER JOIN Filters AS f ON f.course_id = c.id
-		 ORDER BY m.name_score DESC, m.id DESC, ma.id ASC, c.id ASC, cma.id ASC, f.mode ASC",
+		 INNER JOIN Filters AS f ON f.course_id = c.id AND f.mode IN (?, ?, ?)
+		 ORDER BY m.name_score DESC, m.id DESC, c.id ASC, f.mode ASC, ma.id ASC, cma.id ASC",
 		name,
 		game,
 		state,
 		name.map(|name| format!("%{name}%")),
 		offset,
 		limit,
+		match game {
+			Game::CS2 => Some(Mode::VanillaCS2),
+			Game::CSGO => Some(Mode::KZTimer),
+		},
+		match game {
+			Game::CS2 => Some(Mode::Classic),
+			Game::CSGO => Some(Mode::SimpleKZ),
+		},
+		match game {
+			Game::CS2 => None,
+			Game::CSGO => Some(Mode::VanillaCSGO),
+		},
 	)
 	.fetch(db_conn.raw_mut())
 	.map_err(DatabaseError::from)

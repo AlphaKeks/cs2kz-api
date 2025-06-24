@@ -92,7 +92,7 @@ pub(super) macro from_raw($stream: expr) {{
 							) => {
 								*vnl = filter();
 							},
-							_ => unreachable!(),
+							state => unreachable!("invalid filter state: {state:?}"),
 						}
 					},
 				}
