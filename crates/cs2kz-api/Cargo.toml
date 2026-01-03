@@ -86,7 +86,7 @@ workspace = true
 features = ["signal"]
 
 [dependencies.headers]
-version = "0.4.0"
+version = "0.4.1"
 
 [dependencies.cookie]
 version = "0.18.1"
