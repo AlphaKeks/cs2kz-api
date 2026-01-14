@@ -24,6 +24,7 @@ mod inner {
         pub(super) database: Database,
         pub(super) shutdown_token: CancellationToken,
         pub(super) tasks: TaskTracker,
+        pub(super) replay_bucket: Option<s3::Bucket>,
     }
 }
 
@@ -65,8 +66,15 @@ impl Context {
         database::MIGRATIONS.run(database.as_ref()).await?;
 
         let tasks = TaskTracker::new();
+        let replay_bucket = config.replay_storage.as_ref().map(|cfg| cfg.bucket());
 
-        Ok(Self(Arc::new(inner::Context { config, database, shutdown_token, tasks })))
+        Ok(Self(Arc::new(inner::Context {
+            config,
+            database,
+            shutdown_token,
+            tasks,
+            replay_bucket,
+        })))
     }
 
     pub fn config(&self) -> &Config {
@@ -75,6 +83,10 @@ impl Context {
 
     pub(crate) fn database(&self) -> &Database {
         &self.0.database
+    }
+
+    pub fn replay_bucket(&self) -> Option<&s3::Bucket> {
+        self.0.replay_bucket.as_ref()
     }
 
     /// Executes an `async` closure in the context of a database transaction.

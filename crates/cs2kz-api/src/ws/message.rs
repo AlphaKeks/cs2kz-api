@@ -4,6 +4,7 @@ use std::net::Ipv4Addr;
 use std::time::Duration;
 
 use axum::extract::ws::Message as RawMessage;
+use bytes::Bytes;
 use cs2kz::announcements::Announcement;
 use cs2kz::checksum::Checksum;
 use cs2kz::maps::{CourseFilterId, Map, MapId};
@@ -13,6 +14,7 @@ use cs2kz::players::{PlayerId, PlayerInfo, PlayerInfoWithIsBanned, Preferences};
 use cs2kz::records::{Record, RecordId, StylesForNewRecord, SubmittedPB};
 use cs2kz::styles::{StyleInfo, Styles};
 use cs2kz::time::Seconds;
+use uuid::Uuid;
 
 use crate::maps::{CourseInfo, MapIdentifier, MapInfo};
 use crate::players::PlayerIdentifier;
@@ -148,6 +150,13 @@ pub enum Incoming {
         teleports: u32,
         time: Seconds,
     },
+
+    NewReplay {
+        id: Uuid,
+
+        #[serde(skip)]
+        data: Bytes,
+    },
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -212,13 +221,33 @@ impl<T> Message<T> {
     }
 }
 
-impl<T: for<'de> serde::Deserialize<'de>> Message<T> {
+impl Message<Hello> {
     /// Decodes an incoming message.
     #[tracing::instrument(skip(payload), err(level = "debug"))]
     pub fn decode(payload: &[u8]) -> Result<Self, DecodeMessageError> {
         serde_json::from_slice(payload)
             .inspect_err(|_| debug!(payload = ?String::from_utf8_lossy(payload)))
             .map_err(DecodeMessageError)
+    }
+}
+
+impl Message<Incoming> {
+    /// Decodes an incoming message.
+    #[tracing::instrument(skip(payload), err(level = "debug"))]
+    pub fn decode(payload: &Bytes) -> Result<Self, DecodeMessageError> {
+        let mut deserializer = serde_json::Deserializer::from_slice(payload).into_iter::<Self>();
+        let mut message = deserializer
+            .next()
+            .ok_or_else(|| serde_json::from_slice::<Self>(&[]).unwrap_err())
+            .flatten()
+            .inspect_err(|_| debug!(payload = ?String::from_utf8_lossy(payload)))
+            .map_err(DecodeMessageError)?;
+
+        if let Incoming::NewReplay { ref mut data, .. } = message.payload {
+            *data = payload.slice(deserializer.byte_offset()..);
+        }
+
+        Ok(message)
     }
 }
 

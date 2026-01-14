@@ -57,6 +57,7 @@ mime.workspace = true
 lettre.workspace = true
 pyo3.workspace = true
 clap.workspace = true
+uuid = { version = "1.19.0", features = ["serde"] }
 
 [dependencies.steam-id]
 path = "../steam-id"

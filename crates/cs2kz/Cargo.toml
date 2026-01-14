@@ -71,6 +71,15 @@ features = [
   "json",
 ]
 
+[dependencies.aws-region]
+version = "0.28.1"
+features = ["serde"]
+
+[dependencies.rust-s3]
+version = "0.37.1"
+default-features = false
+features = ["fail-on-err", "tags", "tokio-rustls-tls"]
+
 [dependencies.md-5]
 version = "0.10.6"
 

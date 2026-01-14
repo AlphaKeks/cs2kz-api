@@ -746,6 +746,28 @@ where
 
             conn.send(reply).await.map_err(Into::into)
         },
+
+        P::NewReplay { id, ref data } => {
+            let Some(replay_bucket) = cx.replay_bucket() else {
+                tracing::warn!("replay uploads are disabled; not uploading replay {id}");
+                return Ok(());
+            };
+
+            match replay_bucket.put_object(id.to_string(), data).await {
+                Ok(res) => {
+                    tracing::info!(
+                        status = res.status_code(),
+                        body = &*String::from_utf8_lossy(res.as_slice()),
+                        "uploaded replay",
+                    );
+                },
+                Err(err) => {
+                    tracing::error!(%err, "failed to upload replay");
+                },
+            }
+
+            Ok(())
+        },
     }
 }
 
