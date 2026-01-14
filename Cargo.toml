@@ -116,7 +116,7 @@ default-features = false
 features = ["serde"]
 
 [workspace.dependencies.pyo3]
-version = "0.23.3"
+version = "0.24.1"
 default-features = false
 features = ["auto-initialize"]
 
