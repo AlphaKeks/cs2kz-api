@@ -33,14 +33,7 @@ use cs2kz::mode::Mode;
 use cs2kz::pagination::Limit;
 use cs2kz::players::{self, CreatePlayerError, GetPlayersParams, NewPlayer, PlayerId};
 use cs2kz::plugin::{self, NewMode, NewPluginVersion, NewStyle};
-use cs2kz::records::{
-    self,
-    NewRecord,
-    RecordId,
-    StylesForNewRecord,
-    SubmitRecordError,
-    SubmittedRecord,
-};
+use cs2kz::records::{self, NewRecord, RecordId, SubmitRecordError, SubmittedRecord};
 use cs2kz::servers::{self, ApproveServerError, GetServersParams, NewServer, ServerHost, ServerId};
 use cs2kz::steam::WorkshopId;
 use cs2kz::styles::Style;
@@ -87,6 +80,7 @@ async fn main() -> anyhow::Result<()> {
                 min_connections: 1,
                 max_connections: Some(NonZero::<u32>::MIN),
             },
+            replay_storage: None,
         })?;
 
     let cx = Context::new(cfg).await?;
@@ -379,7 +373,7 @@ async fn create_records(
                 .choose(&mut rng)
                 .copied()
                 .context("there are no filters in the database")?,
-            styles: StylesForNewRecord { count: 0, known_styles: Vec::new() },
+            styles: Vec::new(),
             teleports: if rng.gen_range(0..100) > 33 {
                 rng.r#gen()
             } else {

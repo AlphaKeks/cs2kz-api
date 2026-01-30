@@ -1,11 +1,9 @@
-use std::fmt;
 use std::num::NonZero;
 
 use futures_util::{Stream, TryStreamExt};
 use sqlx::{FromRow as _, Row as _};
 
 use crate::Context;
-use crate::checksum::Checksum;
 use crate::database::{self, QueryBuilder};
 use crate::events::{self, Event};
 use crate::maps::courses::filters::Tier;
@@ -15,9 +13,14 @@ use crate::num::AsF64;
 use crate::pagination::{Limit, Offset, Paginated};
 use crate::players::{PlayerId, PlayerInfo};
 use crate::plugin::PluginVersionId;
-use crate::points::{self, CalculatePointsError, Distribution};
+use crate::points::calculator::{
+    CalculatePointsError,
+    Request as CalculatePointsRequest,
+    Response as CalculatePointsResponse,
+};
+use crate::points::{self, DistributionParameters};
 use crate::servers::{ServerId, ServerInfo};
-use crate::styles::{ClientStyleInfo, Style, Styles};
+use crate::styles::{ClientStyleInfo, Styles};
 use crate::time::{Seconds, Timestamp};
 
 define_id_type! {
@@ -80,16 +83,10 @@ pub struct NewRecord {
     pub player_id: PlayerId,
     pub server_id: ServerId,
     pub filter_id: CourseFilterId,
-    pub styles: StylesForNewRecord,
+    pub styles: Vec<ClientStyleInfo>,
     pub teleports: u32,
     pub time: Seconds,
     pub plugin_version_id: PluginVersionId,
-}
-
-#[derive(Debug, Clone)]
-pub struct StylesForNewRecord {
-    pub count: usize,
-    pub known_styles: Vec<ClientStyleInfo>,
 }
 
 #[derive(Debug, Default)]
@@ -193,10 +190,11 @@ pub struct SubmittedPB {
 #[derive(Debug, Display, Error, From)]
 pub enum SubmitRecordError {
     #[display("{_0}")]
+    #[from]
     CalculatePoints(CalculatePointsError),
 
     #[display("{_0}")]
-    #[from(forward)]
+    #[from(database::Error, sqlx::Error)]
     Database(database::Error),
 }
 
@@ -236,7 +234,6 @@ pub async fn submit(
                 server_id,
                 filter_id,
                 styles
-                    .known_styles
                     .iter()
                     .map(|style_info| style_info.style)
                     .collect::<Styles>(),
@@ -248,380 +245,199 @@ pub async fn submit(
             .await
             .and_then(|row| row.try_get(0))?;
 
-            if styles.count > 0 {
+            if !styles.is_empty() {
                 return Ok(SubmittedRecord { record_id, pb_data: None });
             }
 
-            let old_nub = sqlx::query!(
+            let nub_pb_time = sqlx::query_scalar!(
                 "SELECT
-                   r.id AS `id: RecordId`,
-                   r.teleports,
-                   r.time,
-                   cf.nub_tier AS `tier: Tier`,
-                   NubRecords.points
+                  `time`
+                 FROM BestNubRecords
+                 WHERE filter_id = ?
+                 AND player_id = ?",
+                filter_id,
+                player_id,
+            )
+            .fetch_optional(&mut *conn)
+            .await?;
+
+            let nub_dist = sqlx::query_as!(
+                DistributionParameters,
+                "SELECT a, b, loc, scale, top_scale
+                 FROM PointDistributionData
+                 WHERE filter_id = ?
+                 AND (NOT is_pro_leaderboard)",
+                filter_id,
+            )
+            .fetch_optional(&mut *conn)
+            .await?;
+
+            let nub_tier = sqlx::query_scalar!(
+                "SELECT nub_tier AS `tier: Tier`
+                 FROM CourseFilters
+                 WHERE id = ?",
+                filter_id,
+            )
+            .fetch_one(&mut *conn)
+            .await?;
+
+            let (nub_leaderboard_size, nub_top_time) = sqlx::query!(
+                "SELECT
+                   COUNT(r.id) AS size,
+                   MIN(r.time) AS top_time
                  FROM Records AS r
                  JOIN BestNubRecords AS NubRecords ON NubRecords.record_id = r.id
-                 JOIN CourseFilters AS cf ON cf.id = r.filter_id
                  WHERE r.filter_id = ?
-                 AND r.player_id = ?",
+                 GROUP BY r.filter_id",
                 filter_id,
-                player_id,
             )
             .fetch_optional(&mut *conn)
-            .await?;
+            .await
+            .map(|row| row.map_or((0, None), |row| (row.size as u64, row.top_time)))?;
 
-            let old_pro = sqlx::query!(
-                "SELECT
-                   r.id AS `id: RecordId`,
-                   r.teleports,
-                   r.time,
-                   cf.pro_tier AS `tier: Tier`,
-                   ProRecords.points
-                 FROM Records AS r
-                 JOIN BestProRecords AS ProRecords ON ProRecords.record_id = r.id
-                 JOIN CourseFilters AS cf ON cf.id = r.filter_id
-                 WHERE r.filter_id = ?
-                 AND r.player_id = ?",
-                filter_id,
-                player_id,
-            )
-            .fetch_optional(&mut *conn)
-            .await?;
-
-            let insert_nub =
-                async |conn: &mut database::Connection| -> Result<_, SubmitRecordError> {
-                    let dist = sqlx::query_as!(
-                        Distribution,
-                        "SELECT a, b, loc, scale, top_scale
-                         FROM PointDistributionData
-                         WHERE filter_id = ?
-                         AND (NOT is_pro_leaderboard)",
-                        filter_id,
-                    )
-                    .fetch_optional(&mut *conn)
-                    .await?;
-
-                    let tier = sqlx::query_scalar!(
-                        "SELECT nub_tier AS `tier: Tier`
-                         FROM CourseFilters
-                         WHERE id = ?",
-                        filter_id,
-                    )
-                    .fetch_one(&mut *conn)
-                    .await?;
-
-                    if !tier.is_humanly_possible() {
-                        return Ok(None);
-                    }
-
-                    let (leaderboard_size, top_time) = sqlx::query!(
+            let request = CalculatePointsRequest {
+                time: time.0.as_secs_f64(),
+                nub_data: points::calculator::LeaderboardData {
+                    dist_params: nub_dist,
+                    tier: nub_tier,
+                    leaderboard_size: nub_leaderboard_size,
+                    top_time: nub_top_time.unwrap_or(if let Some(nub_pb_time) = nub_pb_time {
+                        time.as_f64().min(nub_pb_time)
+                    } else {
+                        time.as_f64()
+                    }),
+                },
+                pro_data: {
+                    if let Some(pro_pb_time) = sqlx::query_scalar!(
                         "SELECT
-                           COUNT(r.id) AS size,
-                           MIN(r.time) AS top_time
-                         FROM Records AS r
-                         JOIN BestNubRecords AS NubRecords ON NubRecords.record_id = r.id
-                         WHERE r.filter_id = ?
-                         GROUP BY r.filter_id",
-                        filter_id,
-                    )
-                    .fetch_optional(&mut *conn)
-                    .await
-                    .map(|row| row.map_or((0, None), |row| (row.size as usize, row.top_time)))?;
-
-                    let dist_points =
-                        if let Some(top_time) = top_time.filter(|&top_time| top_time < time) {
-                            points::calculate(dist, tier, leaderboard_size, top_time, time.into())
-                                .await
-                                .map_err(SubmitRecordError::CalculatePoints)?
-                        } else {
-                            1.0
-                        };
-
-                    sqlx::query!(
-                        "INSERT INTO BestNubRecords (
-                           filter_id,
-                           player_id,
-                           record_id,
-                           points
-                         )
-                         VALUES (?, ?, ?, ?)
-                         ON DUPLICATE KEY
-                         UPDATE record_id = VALUES(record_id),
-                                points = VALUES(points)",
+                          `time`
+                         FROM BestNubRecords
+                         WHERE filter_id = ?
+                         AND player_id = ?",
                         filter_id,
                         player_id,
-                        record_id,
-                        dist_points,
-                    )
-                    .execute(&mut *conn)
-                    .await
-                    .inspect_err(|err| {
-                        tracing::debug!(%filter_id, %player_id, dist_points, %err);
-                    })?;
-
-                    if leaderboard_size <= points::SMALL_LEADERBOARD_THRESHOLD {
-                        let mut top_time = None;
-                        let leaderboard = sqlx::query!(
-                            "SELECT
-                               r.player_id,
-                               r.id,
-                               r.time
-                             FROM Records AS r
-                             JOIN BestNubRecords ON BestNubRecords.record_id = r.id
-                             WHERE BestNubRecords.filter_id = ?
-                             ORDER BY time ASC",
-                            filter_id,
-                        )
-                        .fetch(&mut *conn)
-                        .map_ok(|row| {
-                            (
-                                row.player_id,
-                                row.id,
-                                points::for_small_leaderboard(
-                                    tier,
-                                    *top_time.get_or_insert(row.time),
-                                    row.time,
-                                ),
-                            )
-                        })
-                        .try_collect::<Vec<_>>()
-                        .await?;
-
-                        let mut query = QueryBuilder::new(
-                            "INSERT INTO BestNubRecords (
-                               filter_id,
-                               player_id,
-                               record_id,
-                               points
-                             )",
-                        );
-
-                        query.push_values(
-                            leaderboard,
-                            |mut query, (player_id, record_id, points)| {
-                                query.push_bind(filter_id);
-                                query.push_bind(player_id);
-                                query.push_bind(record_id);
-                                query.push_bind(points);
-                            },
-                        );
-
-                        query.push("ON DUPLICATE KEY UPDATE points = VALUES(points)");
-
-                        query
-                            .build()
-                            .persistent(false)
-                            .execute(&mut *conn)
-                            .await
-                            .inspect_err(|err| {
-                                tracing::debug!(%filter_id, %player_id, dist_points, %err);
-                            })?;
-                    }
-
-                    Ok(Some((tier, dist_points)))
-                };
-
-            let insert_pro =
-                async |conn: &mut database::Connection| -> Result<_, SubmitRecordError> {
-                    let dist = sqlx::query_as!(
-                        Distribution,
-                        "SELECT a, b, loc, scale, top_scale
-                         FROM PointDistributionData
-                         WHERE filter_id = ?
-                         AND (is_pro_leaderboard)",
-                        filter_id,
                     )
                     .fetch_optional(&mut *conn)
-                    .await?;
-
-                    let tier = sqlx::query_scalar!(
-                        "SELECT pro_tier AS `tier: Tier`
-                         FROM CourseFilters
-                         WHERE id = ?",
-                        filter_id,
-                    )
-                    .fetch_one(&mut *conn)
-                    .await?;
-
-                    if !tier.is_humanly_possible() {
-                        return Ok(None);
-                    }
-
-                    let (leaderboard_size, top_time) = sqlx::query!(
-                        "SELECT
-                           COUNT(r.id) AS size,
-                           MIN(r.time) AS top_time
-                         FROM Records AS r
-                         JOIN BestProRecords AS ProRecords ON ProRecords.record_id = r.id
-                         WHERE r.filter_id = ?
-                         GROUP BY r.filter_id",
-                        filter_id,
-                    )
-                    .fetch_optional(&mut *conn)
-                    .await
-                    .map(|row| row.map_or((0, None), |row| (row.size as usize, row.top_time)))?;
-
-                    let dist_points =
-                        if let Some(top_time) = top_time.filter(|&top_time| top_time < time) {
-                            points::calculate(dist, tier, leaderboard_size, top_time, time.into())
-                                .await
-                                .map_err(SubmitRecordError::CalculatePoints)?
-                        } else {
-                            1.0
-                        };
-
-                    sqlx::query!(
-                        "INSERT INTO BestProRecords (
-                           filter_id,
-                           player_id,
-                           record_id,
-                           points,
-                           points_based_on_pro_leaderboard
-                         )
-                         VALUES (?, ?, ?, ?, true)
-                         ON DUPLICATE KEY
-                         UPDATE record_id = VALUES(record_id),
-                                points = VALUES(points)",
-                        filter_id,
-                        player_id,
-                        record_id,
-                        dist_points,
-                    )
-                    .execute(&mut *conn)
-                    .await
-                    .inspect_err(|err| {
-                        tracing::debug!(%filter_id, %player_id, dist_points, %err);
-                    })?;
-
-                    if leaderboard_size <= points::SMALL_LEADERBOARD_THRESHOLD {
-                        let mut top_time = None;
-                        let leaderboard = sqlx::query!(
-                            "SELECT
-                               r.player_id,
-                               r.id,
-                               r.time
-                             FROM Records AS r
-                             JOIN BestProRecords ON BestProRecords.record_id = r.id
-                             WHERE BestProRecords.filter_id = ?
-                             ORDER BY time ASC",
+                    .await?
+                    {
+                        let pro_dist = sqlx::query_as!(
+                            DistributionParameters,
+                            "SELECT a, b, loc, scale, top_scale
+                             FROM PointDistributionData
+                             WHERE filter_id = ?
+                             AND (NOT is_pro_leaderboard)",
                             filter_id,
                         )
-                        .fetch(&mut *conn)
-                        .map_ok(|row| {
-                            (
-                                row.player_id,
-                                row.id,
-                                points::for_small_leaderboard(
-                                    tier,
-                                    *top_time.get_or_insert(row.time),
-                                    row.time,
-                                ),
-                            )
-                        })
-                        .try_collect::<Vec<_>>()
+                        .fetch_optional(&mut *conn)
                         .await?;
 
-                        let mut query = QueryBuilder::new(
-                            "INSERT INTO BestProRecords (
-                               filter_id,
-                               player_id,
-                               record_id,
-                               points,
-                               points_based_on_pro_leaderboard
-                             )",
-                        );
+                        let pro_tier = sqlx::query_scalar!(
+                            "SELECT pro_tier AS `tier: Tier`
+                             FROM CourseFilters
+                             WHERE id = ?",
+                            filter_id,
+                        )
+                        .fetch_one(&mut *conn)
+                        .await?;
 
-                        query.push_values(
-                            leaderboard,
-                            |mut query, (player_id, record_id, points)| {
-                                query.push_bind(filter_id);
-                                query.push_bind(player_id);
-                                query.push_bind(record_id);
-                                query.push_bind(points);
-                                query.push_bind(true);
-                            },
-                        );
+                        let (pro_leaderboard_size, pro_top_time) = sqlx::query!(
+                            "SELECT
+                               COUNT(r.id) AS size,
+                               MIN(r.time) AS top_time
+                             FROM Records AS r
+                             JOIN BestProRecords AS ProRecords ON ProRecords.record_id = r.id
+                             WHERE r.filter_id = ?
+                             GROUP BY r.filter_id",
+                            filter_id,
+                        )
+                        .fetch_optional(&mut *conn)
+                        .await
+                        .map(|row| {
+                            row.map_or((0, None), |row| (row.size as u64, row.top_time))
+                        })?;
 
-                        query.push("ON DUPLICATE KEY UPDATE points = VALUES(points)");
-
-                        query
-                            .build()
-                            .persistent(false)
-                            .execute(&mut *conn)
-                            .await
-                            .inspect_err(|err| {
-                                tracing::debug!(%filter_id, %player_id, dist_points, %err);
-                            })?;
+                        Some(points::calculator::LeaderboardData {
+                            dist_params: pro_dist,
+                            tier: pro_tier,
+                            leaderboard_size: pro_leaderboard_size,
+                            top_time: pro_top_time.unwrap_or(if teleports == 0 {
+                                time.as_f64().min(pro_pb_time)
+                            } else {
+                                pro_pb_time
+                            }),
+                        })
+                    } else {
+                        None
                     }
-
-                    Ok(Some((tier, dist_points)))
-                };
-
-            let (nub_points_params, pro_points_params) = match (&old_nub, &old_pro, teleports) {
-                (None, None, 0) => {
-                    let nub_points_params = insert_nub(&mut *conn).await?;
-                    let pro_points_params = insert_pro(&mut *conn).await?;
-
-                    (nub_points_params, pro_points_params)
-                },
-                (None, None, 1..) => {
-                    let nub_points_params = insert_nub(&mut *conn).await?;
-
-                    (nub_points_params, None)
-                },
-                (Some(nub), None, 0) => {
-                    let nub_points_params = if time < nub.time {
-                        insert_nub(&mut *conn).await?
-                    } else {
-                        None
-                    };
-
-                    (nub_points_params, insert_pro(&mut *conn).await?)
-                },
-                (Some(nub), pro, 1..) => {
-                    let nub_points_params = if time < nub.time {
-                        insert_nub(&mut *conn).await?
-                    } else {
-                        None
-                    };
-
-                    (nub_points_params, pro.as_ref().map(|record| (record.tier, record.points)))
-                },
-                (Some(nub), Some(pro), 0) => {
-                    let nub_points_params = if time < nub.time {
-                        insert_nub(&mut *conn).await?
-                    } else {
-                        Some((nub.tier, nub.points))
-                    };
-
-                    let pro_points_params = if time < pro.time {
-                        insert_pro(&mut *conn).await?
-                    } else {
-                        Some((pro.tier, pro.points))
-                    };
-
-                    (nub_points_params, pro_points_params)
-                },
-                (None, Some(pro), 0) => {
-                    if time < pro.time {
-                        let nub_points_params = insert_nub(&mut *conn).await?;
-                        let pro_points_params = insert_pro(&mut *conn).await?;
-
-                        (nub_points_params, pro_points_params)
-                    } else {
-                        (None, Some((pro.tier, pro.points)))
-                    }
-                },
-                (None, Some(pro), 1..) => {
-                    let nub_points_params = if time < pro.time {
-                        insert_nub(&mut *conn).await?
-                    } else {
-                        None
-                    };
-
-                    (nub_points_params, Some((pro.tier, pro.points)))
                 },
             };
+
+            let points = if let Some(calc) = cx.points_calculator() {
+                calc.calculate(request.clone()).await?
+            } else {
+                CalculatePointsResponse {
+                    nub_fraction: points::for_small_leaderboard(
+                        request.nub_data.tier,
+                        request.nub_data.top_time,
+                        request.time
+                    ),
+                    pro_fraction: request.pro_data.as_ref().map(|pro_data| {
+                        points::for_small_leaderboard(
+                            pro_data.tier,
+                            pro_data.top_time,
+                            request.time,
+                        )
+                    }),
+                }
+            };
+
+            {
+                sqlx::query!(
+                    "INSERT INTO BestNubRecords (
+                       filter_id,
+                       player_id,
+                       record_id,
+                       points
+                     )
+                     VALUES (?, ?, ?, ?)
+                     ON DUPLICATE KEY
+                     UPDATE record_id = VALUES(record_id),
+                            points = VALUES(points)",
+                    filter_id,
+                    player_id,
+                    record_id,
+                    points.nub_fraction,
+                )
+                .execute(&mut *conn)
+                .await
+                .inspect_err(|err| {
+                    tracing::debug!(%filter_id, %player_id, dist_points = points.nub_fraction, %err);
+                })?;
+            }
+
+            {
+                sqlx::query!(
+                    "INSERT INTO BestProRecords (
+                       filter_id,
+                       player_id,
+                       record_id,
+                       points
+                     )
+                     VALUES (?, ?, ?, ?)
+                     ON DUPLICATE KEY
+                     UPDATE record_id = VALUES(record_id),
+                            points = VALUES(points)",
+                    filter_id,
+                    player_id,
+                    record_id,
+                    points.pro_fraction,
+                )
+                .execute(&mut *conn)
+                .await
+                .inspect_err(|err| {
+                    tracing::debug!(%filter_id, %player_id, dist_points = points.pro_fraction, %err);
+                })?;
+            }
 
             let mode = sqlx::query_scalar!(
                 "SELECT mode AS `mode: Mode`
@@ -636,13 +452,9 @@ pub async fn submit(
                 .fetch_one(&mut *conn)
                 .await?;
 
-            dbg!(&ranks);
-
             let ratings = self::macros::select_ratings_after_submit!(player_id, mode)
                 .fetch_one(&mut *conn)
                 .await?;
-
-            dbg!(&ratings);
 
             let nub_rank = ranks.nub_rank.map(|rank| rank as u32);
             let nub_leaderboard_size = ranks.nub_leaderboard_size.map_or(0, |size| size as u32);
@@ -661,23 +473,24 @@ pub async fn submit(
                 pb_data: Some(SubmittedPB {
                     player_rating,
                     nub_rank,
-                    nub_points: Option::zip(nub_rank, nub_points_params).map(
-                        |(rank, (tier, dist_points))| {
-                            points::complete(tier, false, (rank - 1) as usize, dist_points)
-                        },
-                    ),
+                    nub_points: nub_rank.map(|rank| {
+                        points::complete(nub_tier, false, rank, points.nub_fraction)
+                    }),
                     nub_leaderboard_size,
                     pro_rank,
-                    pro_points: Option::zip(pro_rank, pro_points_params).map(
-                        |(rank, (tier, dist_points))| {
-                            points::complete(tier, true, (rank - 1) as usize, dist_points)
-                        },
-                    ),
+                    pro_points: pro_rank
+                        .zip(request.pro_data.as_ref())
+                        .zip(points.pro_fraction)
+                        .map(|((rank, data), dist_points)| {
+                        points::complete(data.tier, true, rank, dist_points)
+                    }),
                     pro_leaderboard_size,
                 }),
             })
         })
         .await?;
+
+    cx.record_counts().increment(filter_id);
 
     events::dispatch(Event::NewRecord {
         player_id,
@@ -920,7 +733,7 @@ pub async fn get(
                 points::complete(
                     nub_tier,
                     false,
-                    nub_rank as usize - 1,
+                    nub_rank - 1,
                     record.nub_points.unwrap_or_default(),
                 )
             });
@@ -929,7 +742,7 @@ pub async fn get(
                 points::complete(
                     pro_tier,
                     true,
-                    pro_rank as usize - 1,
+                    pro_rank - 1,
                     record.pro_points.unwrap_or_default(),
                 )
             });
@@ -960,7 +773,7 @@ pub fn get_player_records(
             points::complete(
                 row.nub_tier,
                 false,
-                nub_rank as usize - 1,
+                nub_rank - 1,
                 record.nub_points.unwrap_or_default(),
             )
         });
@@ -969,7 +782,7 @@ pub fn get_player_records(
             points::complete(
                 row.pro_tier,
                 true,
-                pro_rank as usize - 1,
+                pro_rank - 1,
                 record.pro_points.unwrap_or_default(),
             )
         });
@@ -1248,75 +1061,6 @@ impl<'r> sqlx::FromRow<'r, database::Row> for Record {
             submitted_at: row.try_get("submitted_at")?,
         })
     }
-}
-
-impl<'de> serde::Deserialize<'de> for StylesForNewRecord {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(serde::Deserialize)]
-        struct Helper {
-            #[serde(deserialize_with = "deserialize_style_lossy")]
-            style: Option<Style>,
-            checksum: Checksum,
-        }
-
-        struct Visitor;
-
-        impl<'de> serde::de::Visitor<'de> for Visitor {
-            type Value = StylesForNewRecord;
-
-            fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                write!(fmt, "a list of style info objects")
-            }
-
-            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::SeqAccess<'de>,
-            {
-                let size_hint = seq.size_hint().unwrap_or_default();
-                let mut known_styles = Vec::with_capacity(size_hint);
-                let mut count = 0;
-
-                while let Some(Helper { style, checksum }) = seq.next_element()? {
-                    count += 1;
-
-                    if let Some(style) = style {
-                        known_styles.push(ClientStyleInfo { style, checksum });
-                    }
-                }
-
-                Ok(StylesForNewRecord { count, known_styles })
-            }
-        }
-
-        deserializer.deserialize_seq(Visitor)
-    }
-}
-
-fn deserialize_style_lossy<'de, D>(deserializer: D) -> Result<Option<Style>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct Visitor;
-
-    impl serde::de::Visitor<'_> for Visitor {
-        type Value = Option<Style>;
-
-        fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-            write!(fmt, "a style")
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(value.parse::<Style>().ok())
-        }
-    }
-
-    deserializer.deserialize_any(Visitor)
 }
 
 mod macros {

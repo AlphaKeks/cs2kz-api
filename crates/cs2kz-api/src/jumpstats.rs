@@ -10,7 +10,6 @@ use futures_util::TryFutureExt;
 
 use crate::extract::{Json, Path, Query};
 use crate::players::PlayerInfo;
-use crate::replays::ReplayFile;
 use crate::response::ErrorResponse;
 use crate::servers::ServerInfo;
 
@@ -22,7 +21,6 @@ where
     Router::new()
         .route("/", routing::get(get_jumpstats))
         .route("/{jumpstat_id}", routing::get(get_jumpstat))
-        .route("/{jumpstat_id}/replay", routing::get(get_jumpstat_replay))
 }
 
 #[derive(Debug, serde::Serialize, utoipa::ToSchema)]
@@ -122,31 +120,6 @@ async fn get_jumpstat(
         .ok_or_else(ErrorResponse::not_found)?;
 
     Ok(Json(jumpstat.into()))
-}
-
-/// Returns the replay file for a specific jumpstat.
-#[tracing::instrument(skip(cx))]
-#[utoipa::path(
-    get,
-    path = "/jumpstats/{jumpstat_id}/replay",
-    tag = "Jumpstats",
-    params(("jumpstat_id" = u32, Path)),
-    responses(
-        (status = 200, body = ReplayFile),
-        (status = 400, description = "invalid path parameters"),
-        (status = 404,),
-    ),
-)]
-async fn get_jumpstat_replay(
-    State(cx): State<Context>,
-    Path(jumpstat_id): Path<JumpstatId>,
-) -> Result<ReplayFile, ErrorResponse> {
-    let bytes = cs2kz::jumpstats::get_replay(&cx, jumpstat_id)
-        .await
-        .map_err(|err| ErrorResponse::internal_server_error(err))?
-        .ok_or_else(ErrorResponse::not_found)?;
-
-    Ok(ReplayFile::new(bytes))
 }
 
 impl From<cs2kz::jumpstats::Jumpstat> for Jumpstat {
