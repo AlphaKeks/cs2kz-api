@@ -71,6 +71,11 @@ features = [
   "json",
 ]
 
+[dependencies.rust-s3]
+version = "0.37.1"
+default-features = false
+features = ["fail-on-err", "tags", "tokio-rustls-tls"]
+
 [dependencies.md-5]
 version = "0.10.6"
 

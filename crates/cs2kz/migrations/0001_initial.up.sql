@@ -276,6 +276,7 @@ BEGIN
       WHEN 2 THEN 0.09
       WHEN 3 THEN 0.06
       WHEN 4 THEN 0.02
+      ELSE 0.0
     END
   );
 

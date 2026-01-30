@@ -1,6 +1,6 @@
-use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt, io};
 
 use tokio::task;
 use tokio_util::sync::CancellationToken;
@@ -14,6 +14,7 @@ use crate::database::{
     DatabaseConnectionOptions,
     EstablishDatabaseConnectionError,
 };
+use crate::points;
 
 mod inner {
     use super::*;
@@ -24,6 +25,9 @@ mod inner {
         pub(super) database: Database,
         pub(super) shutdown_token: CancellationToken,
         pub(super) tasks: TaskTracker,
+        pub(super) replay_bucket: Option<s3::Bucket>,
+        pub(super) points_calculator: Option<points::calculator::PointsCalculatorHandle>,
+        pub(super) record_counts: points::daemon::RecordCounts,
     }
 }
 
@@ -38,6 +42,12 @@ pub enum InitializeContextError {
 
     #[display("failed to run database migrations: {_0}")]
     RunDatabaseMigrations(sqlx::migrate::MigrateError),
+
+    #[display("failed to initialize points calculator: {_0}")]
+    InitializePointsCalculator(io::Error),
+
+    #[display("failed to initialize record counts cache: {_0}")]
+    InitializeRecordCounts(database::Error),
 }
 
 impl Context {
@@ -65,8 +75,30 @@ impl Context {
         database::MIGRATIONS.run(database.as_ref()).await?;
 
         let tasks = TaskTracker::new();
+        let replay_bucket = config.replay_storage.as_ref().map(|cfg| cfg.bucket());
+        let points_calculator = points::calculator::PointsCalculator::new(&config)?.map(|calc| {
+            let handle = calc.handle();
+            let cancellation_token = shutdown_token.child_token();
+            let task = tasks.track_future(calc.run(cancellation_token));
 
-        Ok(Self(Arc::new(inner::Context { config, database, shutdown_token, tasks })))
+            task::Builder::new()
+                .name("cs2kz::points_calculator")
+                .spawn(task)
+                .expect("failed to spawn tokio task");
+
+            handle
+        });
+        let record_counts = points::daemon::RecordCounts::new(&database).await?;
+
+        Ok(Self(Arc::new(inner::Context {
+            config,
+            database,
+            shutdown_token,
+            tasks,
+            replay_bucket,
+            points_calculator,
+            record_counts,
+        })))
     }
 
     pub fn config(&self) -> &Config {
@@ -75,6 +107,18 @@ impl Context {
 
     pub(crate) fn database(&self) -> &Database {
         &self.0.database
+    }
+
+    pub fn replay_bucket(&self) -> Option<&s3::Bucket> {
+        self.0.replay_bucket.as_ref()
+    }
+
+    pub fn points_calculator(&self) -> Option<&points::calculator::PointsCalculatorHandle> {
+        self.0.points_calculator.as_ref()
+    }
+
+    pub fn record_counts(&self) -> &points::daemon::RecordCounts {
+        &self.0.record_counts
     }
 
     /// Executes an `async` closure in the context of a database transaction.

@@ -47,6 +47,7 @@ static CONFIG: LazyLock<Arc<utoipa_swagger_ui::Config<'static>>> = LazyLock::new
         (name = "Jumpstats"),
         (name = "Records"),
         (name = "Player Bans"),
+        (name = "Replays"),
     ),
     components(
         schemas(
@@ -114,17 +115,17 @@ static CONFIG: LazyLock<Arc<utoipa_swagger_ui::Config<'static>>> = LazyLock::new
 
         crate::jumpstats::get_jumpstats,
         crate::jumpstats::get_jumpstat,
-        crate::jumpstats::get_jumpstat_replay,
 
         crate::records::get_records,
         crate::records::get_record,
-        crate::records::get_record_replay,
 
         crate::bans::create_ban,
         crate::bans::get_bans,
         crate::bans::get_ban,
         crate::bans::update_ban,
         crate::bans::delete_ban,
+
+        crate::replays::get_replay,
     ),
 )]
 pub struct Schema;

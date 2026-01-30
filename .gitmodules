@@ -1,0 +1,3 @@
+[submodule "points-scripts"]
+	path = points-scripts
+	url = https://github.com/zer0k-z/cs2kz-ranks
