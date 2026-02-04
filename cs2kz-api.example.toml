@@ -106,3 +106,14 @@ min-connections = 1
 #
 # 0 will let the API choose an amount
 max-connections = 0
+
+[points]
+calc-filter-path = "points-scripts/calc_filter.py"
+calc-run-path = "points-scripts/calc_run.py"
+
+[replay-storage]
+name = ""
+region = ""
+access-key = ""
+secret-key = ""
+security-token = ""

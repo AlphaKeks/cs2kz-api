@@ -1,3 +1,4 @@
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::{Arc, LazyLock, OnceLock};
 
 use axum::extract::State;
@@ -47,6 +48,7 @@ static CONFIG: LazyLock<Arc<utoipa_swagger_ui::Config<'static>>> = LazyLock::new
         (name = "Jumpstats"),
         (name = "Records"),
         (name = "Player Bans"),
+        (name = "Replays"),
     ),
     components(
         schemas(
@@ -114,17 +116,17 @@ static CONFIG: LazyLock<Arc<utoipa_swagger_ui::Config<'static>>> = LazyLock::new
 
         crate::jumpstats::get_jumpstats,
         crate::jumpstats::get_jumpstat,
-        crate::jumpstats::get_jumpstat_replay,
 
         crate::records::get_records,
         crate::records::get_record,
-        crate::records::get_record_replay,
 
         crate::bans::create_ban,
         crate::bans::get_bans,
         crate::bans::get_ban,
         crate::bans::update_ban,
         crate::bans::delete_ban,
+
+        crate::replays::get_replay,
     ),
 )]
 pub struct Schema;
@@ -167,8 +169,16 @@ async fn serve_openapi_json(State(config): State<Arc<ServerConfig>>) -> Response
         }
 
         if runtime::environment().is_local() {
+            let mut local_addr = config.socket_addr();
+
+            local_addr.set_ip(match local_addr.ip() {
+                IpAddr::V4(ipv4) if ipv4.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
+                IpAddr::V6(ipv6) if ipv6.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
+                ip => ip,
+            });
+
             let local_server = ServerBuilder::new()
-                .url(format!("http://{}", config.socket_addr()))
+                .url(format!("http://{local_addr}"))
                 .description(Some("local dev server"))
                 .build();
 
