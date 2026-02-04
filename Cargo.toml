@@ -85,7 +85,7 @@ features = ["smallvec", "fmt", "ansi", "env-filter"]
 version = "0.3.31"
 
 [workspace.dependencies.bytes]
-version = "1.9.0"
+version = "1.11.1"
 
 [workspace.dependencies.uuid]
 version = "1.19.0"
