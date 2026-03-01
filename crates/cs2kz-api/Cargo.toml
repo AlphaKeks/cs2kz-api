@@ -31,9 +31,9 @@ path = "src/bin/server/main.rs"
 name = "openapi"
 path = "src/bin/openapi.rs"
 
-[[bin]]
-name = "migrate_database"
-path = "src/bin/migrate_database.rs"
+# [[bin]]
+# name = "migrate_database"
+# path = "src/bin/migrate_database.rs"
 
 [features]
 fake = ["dep:fake", "cs2kz/fake"]
