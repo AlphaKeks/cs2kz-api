@@ -27,6 +27,7 @@ pub struct Preferences(serde_json::Map<String, serde_json::Value>);
 pub struct Player {
     pub id: PlayerId,
     pub name: String,
+    pub prime_verified: bool,
     pub vnl_rating: f64,
     pub ckz_rating: f64,
     pub is_banned: bool,
@@ -222,6 +223,7 @@ pub async fn get(
          SELECT
            p.id,
            p.name,
+           p.prime_verified,
            p.vnl_rating,
            p.ckz_rating,
            (COALESCE(BanCounts.count, 0) > 0) AS is_banned,
@@ -566,6 +568,7 @@ mod macros {
                  SELECT
                    p.id AS `id: PlayerId`,
                    p.name,
+                   p.prime_verified AS `prime_verified: bool`,
                    p.vnl_rating,
                    p.ckz_rating,
                    (COALESCE(BanCounts.count, 0) > 0) AS `is_banned!: bool`,

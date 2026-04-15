@@ -87,6 +87,9 @@ pub struct Player {
     /// The player's name on Steam.
     name: String,
 
+    /// Whether the player's prime status has been verified.
+    is_prime_verified: bool,
+
     /// The player's VNL rating.
     vnl_rating: f64,
 
@@ -241,6 +244,7 @@ impl From<cs2kz::players::Player> for Player {
         Self {
             id: player.id,
             name: player.name,
+            is_prime_verified: player.prime_verified,
             vnl_rating: player.vnl_rating,
             ckz_rating: player.ckz_rating,
             first_joined_at: player.first_joined_at,
