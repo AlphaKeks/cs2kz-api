@@ -7,9 +7,14 @@ use crate::time::DurationExt;
 #[serde(rename_all = "kebab-case")]
 #[sqlx(rename_all = "kebab-case")]
 pub enum BanReason {
-    Macro,
-    AutoBhop,
-    AutoStrafe,
+    StrafeHack,
+    BhopHack,
+    Hyperscroll,
+    InvalidCvar,
+    InvalidInput,
+    Nulls,
+    SubtickSpam,
+    Desubtick,
 }
 
 impl BanReason {

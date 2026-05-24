@@ -11,6 +11,7 @@ use cs2kz::mode::{Mode, ModeInfo};
 use cs2kz::pagination::{Limit, Offset};
 use cs2kz::players::{PlayerId, PlayerInfo, PlayerInfoWithIsBanned, Preferences};
 use cs2kz::records::{Record, RecordId, SubmittedPB};
+use cs2kz::replays::ReplayId;
 use cs2kz::styles::{ClientStyleInfo, StyleInfo, Styles};
 use cs2kz::time::Seconds;
 
@@ -144,7 +145,7 @@ pub enum Incoming {
     },
 
     NewReplay {
-        id: RecordId,
+        id: ReplayId,
 
         #[serde(skip)]
         data: Bytes,

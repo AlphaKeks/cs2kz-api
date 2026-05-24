@@ -20,6 +20,7 @@ use crate::points::calculator::{
     Response as CalculatePointsResponse,
 };
 use crate::points::{self, DistributionParameters};
+use crate::replays::ReplayId;
 use crate::servers::{ServerId, ServerInfo};
 use crate::styles::{ClientStyleInfo, Styles};
 use crate::time::Seconds;
@@ -37,6 +38,10 @@ impl RecordId {
 
     pub(crate) fn from_uuid(uuid: Uuid) -> Self {
         Self(uuid)
+    }
+
+    pub(crate) fn to_replay_id(self) -> ReplayId {
+        ReplayId::from_uuid(self.0)
     }
 }
 
